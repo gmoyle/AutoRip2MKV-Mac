@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "gmoyle"
+    assignees:
+      - "gmoyle"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Swift Package Manager
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "gmoyle"
+    assignees:
+      - "gmoyle"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
