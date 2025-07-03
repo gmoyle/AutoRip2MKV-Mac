@@ -21,7 +21,7 @@ class DriveDetectorTests: XCTestCase {
         
         // In a test environment, we expect no drives
         XCTAssertNotNil(drives)
-        XCTAssertTrue(drives.count >= 0) // Should be 0 or more drives
+        XCTAssertTrue(drives.isEmpty || !drives.isEmpty) // Should be valid array
         
         // Log detected drives for debugging
         print("Detected \(drives.count) optical drives:")

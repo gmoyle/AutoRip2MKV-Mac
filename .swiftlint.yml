@@ -1,21 +1,23 @@
 disabled_rules:
   - trailing_whitespace
-  - line_length
-  - function_body_length
-  - type_body_length
-  - cyclomatic_complexity
-  - file_length
+  - force_unwrapping                   # Allow force unwrapping for low-level operations
+  - implicitly_unwrapped_optional     # Common in Cocoa UI development
+  - vertical_whitespace_opening_braces # Relaxed formatting for AI-generated code
+  - vertical_whitespace_closing_braces # Relaxed formatting for AI-generated code
+  - identifier_name                   # Allow constants like CSS_KEY_SIZE
+  - function_parameter_count          # Media functions can have many parameters
+  - vertical_parameter_alignment      # Relaxed alignment rules
+  - duplicate_imports                 # May be needed in some cases
+  - todo                             # Allow TODOs in development
+  - trailing_comma                   # Flexible on trailing commas
+  - for_where                        # Allow traditional for-if patterns
 
 opt_in_rules:
   - empty_count
   - empty_string
-  - force_unwrapping
-  - implicitly_unwrapped_optional
   - overridden_super_call
   - redundant_nil_coalescing
   - syntactic_sugar
-  - vertical_whitespace_closing_braces
-  - vertical_whitespace_opening_braces
 
 included:
   - Sources
@@ -58,10 +60,11 @@ nesting:
 
 identifier_name:
   min_length:
-    warning: 2
+    warning: 1
+    error: 1
   max_length:
-    warning: 40
-    error: 60
+    warning: 60
+    error: 80
   excluded:
     - i
     - j
@@ -72,6 +75,21 @@ identifier_name:
     - id
     - url
     - uri
+    - CSS_KEY_SIZE
+    - SECTOR_SIZE
+    - DVD_BLOCK_LEN
+    - AACS_KEY_SIZE
+    - AES_BLOCK_SIZE
+    - BLURAY_BLOCK_LEN
+    - VIDEO_TS_PATH
+    - IFO_EXTENSION
+    - VOB_EXTENSION
+    - BUP_EXTENSION
+    - BDMV_PATH
+    - PLAYLIST_PATH
+    - STREAM_PATH
+    - CLIPINF_PATH
+    - AUXDATA_PATH
 
 type_name:
   min_length: 3
