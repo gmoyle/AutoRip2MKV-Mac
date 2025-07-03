@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual triggering
+      - 'v*'  # Only trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering for testing
 
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
@@ -164,13 +164,32 @@ jobs:
     name: Update Homebrew Formula
     runs-on: macos-latest
     needs: build-and-release
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'beta') && !contains(github.ref, 'alpha')
+    # Only run for stable releases and when HOMEBREW_TOKEN is available
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'beta') && !contains(github.ref, 'alpha') && secrets.HOMEBREW_TOKEN != ''
     
     steps:
+    - name: Check if Homebrew tap exists
+      id: check_tap
+      continue-on-error: true
+      run: |
+        # Check if our Homebrew tap repository exists
+        curl -s -f -o /dev/null https://api.github.com/repos/gmoyle/homebrew-autorip2mkv || exit 1
+        echo "tap_exists=true" >> $GITHUB_OUTPUT
+    
     - name: Update Homebrew Formula
+      if: steps.check_tap.outputs.tap_exists == 'true'
       uses: dawidd6/action-homebrew-bump-formula@v3
       with:
         token: ${{ secrets.HOMEBREW_TOKEN }}
         formula: autorip2mkv-mac
         tag: ${{ github.ref }}
         revision: ${{ github.sha }}
+    
+    - name: Create Homebrew Formula (if tap doesn't exist)
+      if: steps.check_tap.outputs.tap_exists != 'true'
+      run: |
+        echo "ℹ️ Homebrew tap does not exist yet."
+        echo "📝 To create a Homebrew formula later:"
+        echo "1. Create repository: gmoyle/homebrew-autorip2mkv"
+        echo "2. Add HOMEBREW_TOKEN secret to this repository"
+        echo "3. The formula will be automatically updated on future releases"
