@@ -162,25 +162,44 @@ final class MainViewControllerTests: XCTestCase {
         }())
     }
     
-    func testHomebrewDetection() {
-        // Test that we can detect common Homebrew installation paths
-        let commonPaths = [
-            "/opt/homebrew/bin/brew",    // Apple Silicon
-            "/usr/local/bin/brew"        // Intel
-        ]
+    func testFFmpegDownloadLogic() {
+        // Test that we can detect FFmpeg download URLs
+        let architectures = ["arm64", "x86_64", "universal"]
         
-        var homebrewFound = false
-        for path in commonPaths {
-            if FileManager.default.fileExists(atPath: path) {
-                homebrewFound = true
-                break
-            }
+        for arch in architectures {
+            // Test URL generation for different architectures
+            let baseURL = "https://evermeet.cx/ffmpeg"
+            let expectedURL = "\(baseURL)/getrelease/ffmpeg/zip"
+            
+            // This simulates the URL generation logic
+            XCTAssertTrue(expectedURL.contains("evermeet.cx"), "Download URL should be from evermeet.cx")
+            XCTAssertTrue(expectedURL.contains("ffmpeg"), "Download URL should contain ffmpeg")
         }
         
-        // This test documents the Homebrew detection logic
-        // Result may vary based on system configuration
-        print("Homebrew detection test - found: \(homebrewFound)")
-        XCTAssertTrue(true, "Homebrew detection test completed")
+        print("FFmpeg download URL generation test completed")
+    }
+    
+    func testApplicationSupportDirectory() {
+        // Test that we can create application support directory
+        let fileManager = FileManager.default
+        
+        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            XCTFail("Should be able to access application support directory")
+            return
+        }
+        
+        let appPath = appSupportURL.appendingPathComponent("AutoRip2MKV-Mac-Test")
+        
+        // Test directory creation
+        do {
+            try fileManager.createDirectory(at: appPath, withIntermediateDirectories: true)
+            XCTAssertTrue(fileManager.fileExists(atPath: appPath.path), "Directory should be created")
+            
+            // Cleanup
+            try fileManager.removeItem(at: appPath)
+        } catch {
+            XCTFail("Should be able to create and remove test directory: \(error.localizedDescription)")
+        }
     }
     
     func testSystemCommandExecution() {

@@ -497,8 +497,14 @@ class MediaRipper {
     
     private func executeFFmpeg(args: [String], itemIndex: Int, totalItems: Int) throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/local/bin/ffmpeg")
-        process.arguments = args
+        
+        // Use bundled FFmpeg if available, otherwise system FFmpeg
+        let ffmpegPath = getFFmpegExecutablePath() ?? "/usr/local/bin/ffmpeg"
+        process.executableURL = URL(fileURLWithPath: ffmpegPath)
+        
+        // Skip the first argument if it's the ffmpeg path (already set in executableURL)
+        let processArgs = args.first == ffmpegPath ? Array(args.dropFirst()) : args
+        process.arguments = processArgs
         
         // Set up progress monitoring
         let pipe = Pipe()
@@ -596,6 +602,63 @@ class MediaRipper {
         case .dts: return "dca"
         case .flac: return "flac"
         }
+    }
+    
+    private func getFFmpegExecutablePath() -> String? {
+        // First try bundled FFmpeg
+        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+            return bundledPath
+        }
+        
+        // Then try system PATH
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["ffmpeg"]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            if process.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !path.isEmpty {
+                    return path
+                }
+            }
+        } catch {
+            // Ignore errors
+        }
+        
+        return nil
+    }
+    
+    private func getBundledFFmpegPath() -> String? {
+        // Check if FFmpeg is bundled with the app
+        guard let bundlePath = Bundle.main.resourcePath else { return nil }
+        let ffmpegPath = (bundlePath as NSString).appendingPathComponent("ffmpeg")
+        
+        if FileManager.default.fileExists(atPath: ffmpegPath) {
+            return ffmpegPath
+        }
+        
+        // Check in application support directory
+        let fileManager = FileManager.default
+        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let appPath = appSupportURL.appendingPathComponent("AutoRip2MKV-Mac")
+        let appSupportFFmpegPath = appPath.appendingPathComponent("ffmpeg").path
+        
+        if fileManager.fileExists(atPath: appSupportFFmpegPath) {
+            return appSupportFFmpegPath
+        }
+        
+        return nil
     }
 }
 

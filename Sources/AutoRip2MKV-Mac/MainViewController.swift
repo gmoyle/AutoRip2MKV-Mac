@@ -249,6 +249,12 @@ class MainViewController: NSViewController {
     }
     
     private func isFFmpegAvailable() -> Bool {
+        // First check if bundled FFmpeg exists
+        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+            return true
+        }
+        
+        // Then check system PATH
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         process.arguments = ["ffmpeg"]
@@ -262,100 +268,16 @@ class MainViewController: NSViewController {
         }
     }
     
-    private func installFFmpegIfNeeded() {
-        if !isFFmpegAvailable() {
-            appendToLog("FFmpeg is not installed. Attempting automatic installation...")
-            
-            guard let brewPath = findHomebrewPath() else {
-                appendToLog("Homebrew not found. Please install Homebrew first: https://brew.sh")
-                showAlert(title: "Homebrew Required", 
-                         message: "Homebrew is required to install FFmpeg automatically. Please install Homebrew from https://brew.sh and try again.")
-                return
-            }
-            
-            appendToLog("Found Homebrew at: \(brewPath)")
-            appendToLog("Installing FFmpeg via Homebrew...")
-            
-            // Disable the rip button during installation
-            ripButton.isEnabled = false
-            ripButton.title = "Installing FFmpeg..."
-            
-            let installProcess = Process()
-            installProcess.executableURL = URL(fileURLWithPath: brewPath)
-            installProcess.arguments = ["install", "ffmpeg"]
-            
-            // Capture output
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            installProcess.standardOutput = outputPipe
-            installProcess.standardError = errorPipe
-            
-            do {
-                try installProcess.run()
-                installProcess.waitUntilExit()
-                
-                // Read output
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                
-                if let output = String(data: outputData, encoding: .utf8), !output.isEmpty {
-                    appendToLog("Homebrew output: \(output)")
-                }
-                
-                if installProcess.terminationStatus == 0 {
-                    appendToLog("FFmpeg installed successfully!")
-                    
-                    // Verify installation
-                    if isFFmpegAvailable() {
-                        appendToLog("FFmpeg installation verified. Ready to proceed.")
-                        ripButton.title = "Start Ripping"
-                        ripButton.isEnabled = true
-                    } else {
-                        appendToLog("Warning: FFmpeg may not be in PATH. You might need to restart the application.")
-                        showAlert(title: "Installation Complete", 
-                                 message: "FFmpeg has been installed but may not be immediately available. Please restart the application and try again.")
-                        ripButton.title = "Start Ripping"
-                        ripButton.isEnabled = true
-                    }
-                } else {
-                    if let errorOutput = String(data: errorData, encoding: .utf8), !errorOutput.isEmpty {
-                        appendToLog("Installation error: \(errorOutput)")
-                    }
-                    appendToLog("Failed to install FFmpeg automatically.")
-                    showAlert(title: "Installation Error", 
-                             message: "Failed to install FFmpeg automatically. Please install it manually using: brew install ffmpeg")
-                    ripButton.title = "Start Ripping"
-                    ripButton.isEnabled = true
-                }
-            } catch {
-                appendToLog("Error running Homebrew: \(error.localizedDescription)")
-                showAlert(title: "Installation Error", 
-                         message: "An error occurred while trying to install FFmpeg: \(error.localizedDescription)")
-                ripButton.title = "Start Ripping"
-                ripButton.isEnabled = true
-            }
-        } else {
-            appendToLog("FFmpeg is already installed and available.")
-        }
-    }
-    
-    private func findHomebrewPath() -> String? {
-        let possiblePaths = [
-            "/opt/homebrew/bin/brew",    // Apple Silicon Macs
-            "/usr/local/bin/brew",       // Intel Macs
-            "/home/linuxbrew/.linuxbrew/bin/brew"  // Linux (just in case)
-        ]
-        
-        for path in possiblePaths {
-            if FileManager.default.fileExists(atPath: path) {
-                return path
-            }
+    private func getFFmpegExecutablePath() -> String? {
+        // First try bundled FFmpeg
+        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+            return bundledPath
         }
         
-        // Try to find brew in PATH
+        // Then try system PATH
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["brew"]
+        process.arguments = ["ffmpeg"]
         
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -372,10 +294,200 @@ class MainViewController: NSViewController {
                 }
             }
         } catch {
-            // Ignore errors, fallback to nil
+            // Ignore errors
         }
         
         return nil
+    }
+    
+    private func installFFmpegIfNeeded() {
+        if !isFFmpegAvailable() {
+            // Check if we have a bundled FFmpeg first
+            if let bundledFFmpegPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledFFmpegPath) {
+                appendToLog("Using bundled FFmpeg: \(bundledFFmpegPath)")
+                return
+            }
+            
+            appendToLog("FFmpeg not found. Downloading FFmpeg binary...")
+            
+            // Disable the rip button during download
+            ripButton.isEnabled = false
+            ripButton.title = "Downloading FFmpeg..."
+            
+            // Download FFmpeg in background
+            DispatchQueue.global(qos: .userInitiated).async {
+                self.downloadAndInstallFFmpeg()
+            }
+        } else {
+            appendToLog("FFmpeg is already installed and available.")
+        }
+    }
+    
+    private func getBundledFFmpegPath() -> String? {
+        // Check if FFmpeg is bundled with the app
+        guard let bundlePath = Bundle.main.resourcePath else { return nil }
+        let ffmpegPath = (bundlePath as NSString).appendingPathComponent("ffmpeg")
+        
+        if FileManager.default.fileExists(atPath: ffmpegPath) {
+            return ffmpegPath
+        }
+        
+        // Check in application support directory
+        let appSupportPath = getApplicationSupportPath()
+        let appSupportFFmpegPath = (appSupportPath as NSString).appendingPathComponent("ffmpeg")
+        
+        if FileManager.default.fileExists(atPath: appSupportFFmpegPath) {
+            return appSupportFFmpegPath
+        }
+        
+        return nil
+    }
+    
+    private func getApplicationSupportPath() -> String {
+        let fileManager = FileManager.default
+        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appPath = appSupportURL.appendingPathComponent("AutoRip2MKV-Mac")
+        
+        // Create directory if it doesn't exist
+        if !fileManager.fileExists(atPath: appPath.path) {
+            try? fileManager.createDirectory(at: appPath, withIntermediateDirectories: true)
+        }
+        
+        return appPath.path
+    }
+    
+    private func downloadAndInstallFFmpeg() {
+        let architecture = getCurrentArchitecture()
+        let downloadURL = getFFmpegDownloadURL(for: architecture)
+        
+        DispatchQueue.main.async {
+            self.appendToLog("Downloading FFmpeg for \(architecture) architecture...")
+        }
+        
+        guard let url = URL(string: downloadURL) else {
+            DispatchQueue.main.async {
+                self.appendToLog("Invalid download URL")
+                self.resetRipButton()
+            }
+            return
+        }
+        
+        let task = URLSession.shared.downloadTask(with: url) { [weak self] (tempURL, response, error) in
+            guard let self = self else { return }
+            
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.appendToLog("Download failed: \(error.localizedDescription)")
+                    self.resetRipButton()
+                }
+                return
+            }
+            
+            guard let tempURL = tempURL else {
+                DispatchQueue.main.async {
+                    self.appendToLog("Download failed: No file received")
+                    self.resetRipButton()
+                }
+                return
+            }
+            
+            // Process the downloaded file
+            self.processDownloadedFFmpeg(from: tempURL)
+        }
+        
+        task.resume()
+    }
+    
+    private func getCurrentArchitecture() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machine = withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(validatingUTF8: $0)
+            }
+        }
+        
+        if let arch = machine {
+            if arch.contains("arm64") {
+                return "arm64"
+            } else if arch.contains("x86_64") {
+                return "x86_64"
+            }
+        }
+        
+        return "universal"
+    }
+    
+    private func getFFmpegDownloadURL(for architecture: String) -> String {
+        // Using static builds from a reliable source
+        // Note: In production, you'd want to host these yourself or use official releases
+        let baseURL = "https://evermeet.cx/ffmpeg"
+        
+        switch architecture {
+        case "arm64":
+            return "\(baseURL)/getrelease/ffmpeg/zip"
+        case "x86_64":
+            return "\(baseURL)/getrelease/ffmpeg/zip"
+        default:
+            return "\(baseURL)/getrelease/ffmpeg/zip"
+        }
+    }
+    
+    private func processDownloadedFFmpeg(from tempURL: URL) {
+        let destinationPath = getApplicationSupportPath()
+        let ffmpegPath = (destinationPath as NSString).appendingPathComponent("ffmpeg")
+        
+        DispatchQueue.main.async {
+            self.appendToLog("Extracting FFmpeg...")
+        }
+        
+        do {
+            // If it's a zip file, extract it
+            if tempURL.pathExtension.lowercased() == "zip" {
+                try self.extractZip(from: tempURL, to: destinationPath)
+            } else {
+                // If it's a direct binary, copy it
+                try FileManager.default.copyItem(at: tempURL, to: URL(fileURLWithPath: ffmpegPath))
+            }
+            
+            // Make it executable
+            let attributes = [FileAttributeKey.posixPermissions: 0o755]
+            try FileManager.default.setAttributes(attributes, ofItemAtPath: ffmpegPath)
+            
+            DispatchQueue.main.async {
+                self.appendToLog("FFmpeg installed successfully at: \(ffmpegPath)")
+                self.appendToLog("FFmpeg is ready for use!")
+                self.resetRipButton()
+            }
+            
+        } catch {
+            DispatchQueue.main.async {
+                self.appendToLog("Failed to install FFmpeg: \(error.localizedDescription)")
+                self.showAlert(title: "Installation Error", 
+                             message: "Failed to install FFmpeg. Please check your internet connection and try again.")
+                self.resetRipButton()
+            }
+        }
+    }
+    
+    private func extractZip(from sourceURL: URL, to destinationPath: String) throws {
+        // Use the system unzip utility
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-o", sourceURL.path, "-d", destinationPath]
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            throw NSError(domain: "UnzipError", code: Int(process.terminationStatus), 
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to extract zip file"])
+        }
+    }
+    
+    private func resetRipButton() {
+        ripButton.title = "Start Ripping"
+        ripButton.isEnabled = true
     }
     
     // MARK: - Drive Detection and Settings
