@@ -202,10 +202,7 @@ class MainViewController: NSViewController {
         }
         
         // Check if FFmpeg is available
-        guard isFFmpegAvailable() else {
-            showAlert(title: "Error", message: "FFmpeg is required but not found. Please install FFmpeg using Homebrew: brew install ffmpeg")
-            return
-        }
+        installFFmpegIfNeeded()
         
         // Start the native DVD ripping process
         ripButton.isEnabled = false
@@ -263,6 +260,122 @@ class MainViewController: NSViewController {
         } catch {
             return false
         }
+    }
+    
+    private func installFFmpegIfNeeded() {
+        if !isFFmpegAvailable() {
+            appendToLog("FFmpeg is not installed. Attempting automatic installation...")
+            
+            guard let brewPath = findHomebrewPath() else {
+                appendToLog("Homebrew not found. Please install Homebrew first: https://brew.sh")
+                showAlert(title: "Homebrew Required", 
+                         message: "Homebrew is required to install FFmpeg automatically. Please install Homebrew from https://brew.sh and try again.")
+                return
+            }
+            
+            appendToLog("Found Homebrew at: \(brewPath)")
+            appendToLog("Installing FFmpeg via Homebrew...")
+            
+            // Disable the rip button during installation
+            ripButton.isEnabled = false
+            ripButton.title = "Installing FFmpeg..."
+            
+            let installProcess = Process()
+            installProcess.executableURL = URL(fileURLWithPath: brewPath)
+            installProcess.arguments = ["install", "ffmpeg"]
+            
+            // Capture output
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            installProcess.standardOutput = outputPipe
+            installProcess.standardError = errorPipe
+            
+            do {
+                try installProcess.run()
+                installProcess.waitUntilExit()
+                
+                // Read output
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                
+                if let output = String(data: outputData, encoding: .utf8), !output.isEmpty {
+                    appendToLog("Homebrew output: \(output)")
+                }
+                
+                if installProcess.terminationStatus == 0 {
+                    appendToLog("FFmpeg installed successfully!")
+                    
+                    // Verify installation
+                    if isFFmpegAvailable() {
+                        appendToLog("FFmpeg installation verified. Ready to proceed.")
+                        ripButton.title = "Start Ripping"
+                        ripButton.isEnabled = true
+                    } else {
+                        appendToLog("Warning: FFmpeg may not be in PATH. You might need to restart the application.")
+                        showAlert(title: "Installation Complete", 
+                                 message: "FFmpeg has been installed but may not be immediately available. Please restart the application and try again.")
+                        ripButton.title = "Start Ripping"
+                        ripButton.isEnabled = true
+                    }
+                } else {
+                    if let errorOutput = String(data: errorData, encoding: .utf8), !errorOutput.isEmpty {
+                        appendToLog("Installation error: \(errorOutput)")
+                    }
+                    appendToLog("Failed to install FFmpeg automatically.")
+                    showAlert(title: "Installation Error", 
+                             message: "Failed to install FFmpeg automatically. Please install it manually using: brew install ffmpeg")
+                    ripButton.title = "Start Ripping"
+                    ripButton.isEnabled = true
+                }
+            } catch {
+                appendToLog("Error running Homebrew: \(error.localizedDescription)")
+                showAlert(title: "Installation Error", 
+                         message: "An error occurred while trying to install FFmpeg: \(error.localizedDescription)")
+                ripButton.title = "Start Ripping"
+                ripButton.isEnabled = true
+            }
+        } else {
+            appendToLog("FFmpeg is already installed and available.")
+        }
+    }
+    
+    private func findHomebrewPath() -> String? {
+        let possiblePaths = [
+            "/opt/homebrew/bin/brew",    // Apple Silicon Macs
+            "/usr/local/bin/brew",       // Intel Macs
+            "/home/linuxbrew/.linuxbrew/bin/brew"  // Linux (just in case)
+        ]
+        
+        for path in possiblePaths {
+            if FileManager.default.fileExists(atPath: path) {
+                return path
+            }
+        }
+        
+        // Try to find brew in PATH
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["brew"]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            if process.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !path.isEmpty {
+                    return path
+                }
+            }
+        } catch {
+            // Ignore errors, fallback to nil
+        }
+        
+        return nil
     }
     
     // MARK: - Drive Detection and Settings
