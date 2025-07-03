@@ -13,9 +13,14 @@ class MainViewController: NSViewController {
     private var logTextView: NSTextView!
     private var scrollView: NSScrollView!
     
+    // DVD Ripper
+    private var dvdRipper: DVDRipper!
+    private var currentTitles: [DVDTitle] = []
+    
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         setupUI()
+        setupDVDRipper()
     }
     
     private func setupUI() {
@@ -80,6 +85,11 @@ class MainViewController: NSViewController {
         view.addSubview(scrollView)
         
         setupConstraints()
+    }
+    
+    private func setupDVDRipper() {
+        dvdRipper = DVDRipper()
+        dvdRipper.delegate = self
     }
     
     private func setupConstraints() {
@@ -158,23 +168,35 @@ class MainViewController: NSViewController {
             return
         }
         
-        // Start the ripping process
+        // Check if FFmpeg is available
+        guard isFFmpegAvailable() else {
+            showAlert(title: "Error", message: "FFmpeg is required but not found. Please install FFmpeg using Homebrew: brew install ffmpeg")
+            return
+        }
+        
+        // Start the native DVD ripping process
         ripButton.isEnabled = false
         progressIndicator.isHidden = false
-        progressIndicator.startAnimation(nil)
+        progressIndicator.isIndeterminate = false
+        progressIndicator.doubleValue = 0.0
         
-        appendToLog("Starting ripping process...")
+        appendToLog("Starting native DVD ripping process...")
         appendToLog("Source: \(sourcePathField.stringValue)")
         appendToLog("Output: \(outputPathField.stringValue)")
         
-        // TODO: Implement the actual ripping logic
-        // For now, we'll just simulate the process
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.appendToLog("Ripping process completed!")
-            self.progressIndicator.stopAnimation(nil)
-            self.progressIndicator.isHidden = true
-            self.ripButton.isEnabled = true
-        }
+        // Configure ripping
+        let configuration = DVDRipper.RippingConfiguration(
+            outputDirectory: outputPathField.stringValue,
+            selectedTitles: [], // Rip all titles
+            videoCodec: .h264,
+            audioCodec: .aac,
+            quality: .high,
+            includeSubtitles: true,
+            includeChapters: true
+        )
+        
+        // Start ripping
+        dvdRipper.startRipping(dvdPath: sourcePathField.stringValue, configuration: configuration)
     }
     
     private func appendToLog(_ message: String) {
@@ -191,5 +213,73 @@ class MainViewController: NSViewController {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+    
+    private func isFFmpegAvailable() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["ffmpeg"]
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+}
+
+// MARK: - DVDRipperDelegate
+
+extension MainViewController: DVDRipperDelegate {
+    
+    func ripperDidStart() {
+        DispatchQueue.main.async {
+            self.appendToLog("DVD ripper started")
+        }
+    }
+    
+    func ripperDidUpdateStatus(_ status: String) {
+        DispatchQueue.main.async {
+            self.appendToLog(status)
+        }
+    }
+    
+    func ripperDidUpdateProgress(_ progress: Double, currentTitle: DVDTitle?, totalTitles: Int) {
+        DispatchQueue.main.async {
+            self.progressIndicator.doubleValue = progress * 100.0
+            
+            if let title = currentTitle {
+                self.appendToLog("Processing title \(title.number) - \(Int(progress * 100))% complete")
+            }
+        }
+    }
+    
+    func ripperDidComplete() {
+        DispatchQueue.main.async {
+            self.appendToLog("DVD ripping completed successfully!")
+            self.progressIndicator.isHidden = true
+            self.ripButton.isEnabled = true
+            self.ripButton.title = "Start Ripping"
+            
+            // Show completion notification
+            let alert = NSAlert()
+            alert.messageText = "Ripping Complete"
+            alert.informativeText = "DVD has been successfully ripped to MKV format."
+            alert.alertStyle = .informational
+            alert.runModal()
+        }
+    }
+    
+    func ripperDidFail(with error: Error) {
+        DispatchQueue.main.async {
+            self.appendToLog("Error: \(error.localizedDescription)")
+            self.progressIndicator.isHidden = true
+            self.ripButton.isEnabled = true
+            self.ripButton.title = "Start Ripping"
+            
+            self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
+        }
     }
 }
