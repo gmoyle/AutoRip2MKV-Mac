@@ -164,8 +164,8 @@ jobs:
     name: Update Homebrew Formula
     runs-on: macos-latest
     needs: build-and-release
-    # Only run for stable releases and when HOMEBREW_TOKEN is available
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'beta') && !contains(github.ref, 'alpha') && secrets.HOMEBREW_TOKEN != ''
+    # Only run for stable releases (HOMEBREW_TOKEN check removed due to GitHub Actions limitations)
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'beta') && !contains(github.ref, 'alpha')
     
     steps:
     - name: Check if Homebrew tap exists
