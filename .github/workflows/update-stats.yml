@@ -45,12 +45,10 @@ jobs:
         echo "test_files=$TEST_FILES" >> $GITHUB_OUTPUT
         
         # Run tests and count them
-        if swift test 2>/dev/null | grep -q "Executed.*tests"; then
-          TEST_COUNT=$(swift test 2>&1 | grep "Executed.*tests" | tail -1 | sed -n 's/.*Executed \([0-9]*\) tests.*/\1/p')
-          TEST_FAILURES=$(swift test 2>&1 | grep "Executed.*tests" | tail -1 | sed -n 's/.*with \([0-9]*\) failures.*/\1/p')
-          if [ -z "$TEST_FAILURES" ]; then
-            TEST_FAILURES=0
-          fi
+        if swift test 2>/dev/null; then
+          TEST_OUTPUT=$(swift test 2>&1)
+          TEST_COUNT=$(echo "$TEST_OUTPUT" | grep "Executed.*tests" | tail -1 | grep -o "Executed [0-9]* tests" | grep -o "[0-9]*" || echo "0")
+          TEST_FAILURES=$(echo "$TEST_OUTPUT" | grep "with [0-9]* failures" | grep -o "with [0-9]* failures" | grep -o "[0-9]*" || echo "0")
         else
           TEST_COUNT=0
           TEST_FAILURES=0
