@@ -26,7 +26,7 @@ jobs:
         xcode-version: '15.0'
     
     - name: Cache Swift Package Manager
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .build
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
@@ -178,7 +178,7 @@ jobs:
     
     - name: Update Homebrew Formula
       if: steps.check_tap.outputs.tap_exists == 'true'
-      uses: dawidd6/action-homebrew-bump-formula@v3
+      uses: dawidd6/action-homebrew-bump-formula@v5
       with:
         token: ${{ secrets.HOMEBREW_TOKEN }}
         formula: autorip2mkv-mac
