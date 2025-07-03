@@ -1,0 +1,241 @@
+name: Update Project Statistics
+
+on:
+  push:
+    branches: [ master, main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  update-stats:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for accurate git stats
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Swift
+      uses: swift-actions/setup-swift@v1
+      with:
+        swift-version: "5.9"
+    
+    - name: Generate Statistics
+      id: stats
+      run: |
+        # Count Swift files
+        SWIFT_FILES=$(find . -name "*.swift" | wc -l | xargs)
+        echo "swift_files=$SWIFT_FILES" >> $GITHUB_OUTPUT
+        
+        # Count lines of code
+        LINES_OF_CODE=$(find . -name "*.swift" -exec wc -l {} + | tail -1 | awk '{print $1}')
+        echo "lines_of_code=$LINES_OF_CODE" >> $GITHUB_OUTPUT
+        
+        # Count commits
+        COMMITS=$(git rev-list --all --count)
+        echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+        
+        # Count test files
+        TEST_FILES=$(find . -path "*/Tests/*" -name "*Tests.swift" | wc -l | xargs)
+        echo "test_files=$TEST_FILES" >> $GITHUB_OUTPUT
+        
+        # Run tests and count them
+        if swift test 2>/dev/null | grep -q "Executed.*tests"; then
+          TEST_COUNT=$(swift test 2>&1 | grep "Executed.*tests" | tail -1 | sed -n 's/.*Executed \([0-9]*\) tests.*/\1/p')
+          TEST_FAILURES=$(swift test 2>&1 | grep "Executed.*tests" | tail -1 | sed -n 's/.*with \([0-9]*\) failures.*/\1/p')
+          if [ -z "$TEST_FAILURES" ]; then
+            TEST_FAILURES=0
+          fi
+        else
+          TEST_COUNT=0
+          TEST_FAILURES=0
+        fi
+        echo "test_count=$TEST_COUNT" >> $GITHUB_OUTPUT
+        echo "test_failures=$TEST_FAILURES" >> $GITHUB_OUTPUT
+        
+        # Get repository creation date
+        REPO_CREATED=$(git log --reverse --format="%ci" | head -1 | cut -d' ' -f1)
+        echo "repo_created=$REPO_CREATED" >> $GITHUB_OUTPUT
+        
+        # Get last commit date
+        LAST_COMMIT=$(git log -1 --format="%ci" | cut -d' ' -f1)
+        echo "last_commit=$LAST_COMMIT" >> $GITHUB_OUTPUT
+        
+        # Count core vs test files
+        CORE_FILES=$(find ./Sources -name "*.swift" | wc -l | xargs)
+        echo "core_files=$CORE_FILES" >> $GITHUB_OUTPUT
+        
+        # Calculate success rate
+        if [ "$TEST_COUNT" -gt 0 ]; then
+          SUCCESS_RATE=$(echo "scale=1; (($TEST_COUNT - $TEST_FAILURES) * 100) / $TEST_COUNT" | bc)
+        else
+          SUCCESS_RATE="0"
+        fi
+        echo "success_rate=$SUCCESS_RATE" >> $GITHUB_OUTPUT
+        
+        # Get current date
+        CURRENT_DATE=$(date +%Y-%m-%d)
+        echo "current_date=$CURRENT_DATE" >> $GITHUB_OUTPUT
+        
+        echo "📊 Statistics Generated:"
+        echo "  Swift Files: $SWIFT_FILES"
+        echo "  Lines of Code: $LINES_OF_CODE"
+        echo "  Commits: $COMMITS"
+        echo "  Tests: $TEST_COUNT"
+        echo "  Test Success Rate: $SUCCESS_RATE%"
+    
+    - name: Update Documentation
+      run: |
+        # Create stats update script
+        cat > update_stats.py << 'EOF'
+        import re
+        import sys
+        from datetime import datetime
+        
+        # Get statistics from environment
+        swift_files = "${{ steps.stats.outputs.swift_files }}"
+        lines_of_code = "${{ steps.stats.outputs.lines_of_code }}"
+        commits = "${{ steps.stats.outputs.commits }}"
+        test_count = "${{ steps.stats.outputs.test_count }}"
+        test_failures = "${{ steps.stats.outputs.test_failures }}"
+        core_files = "${{ steps.stats.outputs.core_files }}"
+        test_files = "${{ steps.stats.outputs.test_files }}"
+        success_rate = "${{ steps.stats.outputs.success_rate }}"
+        current_date = "${{ steps.stats.outputs.current_date }}"
+        repo_created = "${{ steps.stats.outputs.repo_created }}"
+        last_commit = "${{ steps.stats.outputs.last_commit }}"
+        
+        # Update WARP_AI_EXPERIMENT.md
+        with open('WARP_AI_EXPERIMENT.md', 'r') as f:
+            content = f.read()
+        
+        # Update statistics section
+        stats_pattern = r'### \*\*Codebase Metrics\*\*\n- \*\*Total Swift Files\*\*: \d+\n- \*\*Lines of Code\*\*: [\d,]+\n- \*\*Test Coverage\*\*: \d+ comprehensive tests\n- \*\*Test Success Rate\*\*: [\d.]+% \(\d+ failures\)\n- \*\*Git Commits\*\*: \d+\n- \*\*Author\*\*: Greg \(via AI assistance\)'
+        
+        stats_replacement = f'''### **Codebase Metrics**
+        - **Total Swift Files**: {swift_files}
+        - **Lines of Code**: {lines_of_code:,}
+        - **Test Coverage**: {test_count} comprehensive tests
+        - **Test Success Rate**: {success_rate}% ({test_failures} failures)
+        - **Git Commits**: {commits}
+        - **Author**: Greg (via AI assistance)'''
+        
+        content = re.sub(stats_pattern, stats_replacement, content)
+        
+        # Update file breakdown
+        breakdown_pattern = r'#### \*\*Core Application Files \(\d+\)\*\*'
+        breakdown_replacement = f'#### **Core Application Files ({core_files})**'
+        content = re.sub(breakdown_pattern, breakdown_replacement, content)
+        
+        test_breakdown_pattern = r'#### \*\*Test Files \(\d+\)\*\*'
+        test_breakdown_replacement = f'#### **Test Files ({test_files})**'
+        content = re.sub(test_breakdown_pattern, test_breakdown_replacement, content)
+        
+        # Update footer with last updated
+        footer_pattern = r'\*\*Date\*\*: [^\n]+\n\*\*Direct Code Modifications by Human\*\*: 0\n\*\*Git Commands by Human\*\*: 0\n\*\*Lines of AI-Generated Code\*\*: [\d,]+'
+        footer_replacement = f'''**Date**: {current_date} (Last Updated: {current_date})
+        **Direct Code Modifications by Human**: 0
+        **Git Commands by Human**: 0
+        **Lines of AI-Generated Code**: {lines_of_code:,}'''
+        
+        content = re.sub(footer_pattern, footer_replacement, content)
+        
+        with open('WARP_AI_EXPERIMENT.md', 'w') as f:
+            f.write(content)
+        
+        # Update README.md
+        with open('README.md', 'r') as f:
+            readme_content = f.read()
+        
+        # Update AI-generated line count in features
+        readme_pattern = r'- \*\*🤖 100% AI-Generated\*\*: [\d,]+ lines of Swift code created entirely by AI'
+        readme_replacement = f'- **🤖 100% AI-Generated**: {lines_of_code:,} lines of Swift code created entirely by AI'
+        readme_content = re.sub(readme_pattern, readme_replacement, readme_content)
+        
+        # Update experiment section stats
+        experiment_pattern = r'- \*\*Total Swift Code\*\*: [\d,]+ lines \(100% AI-generated\)\n- \*\*Tests\*\*: \d+ comprehensive tests \([\d.]+% pass rate\)'
+        experiment_replacement = f'''- **Total Swift Code**: {lines_of_code:,} lines (100% AI-generated)
+        - **Tests**: {test_count} comprehensive tests ({success_rate}% pass rate)'''
+        readme_content = re.sub(experiment_pattern, experiment_replacement, readme_content)
+        
+        with open('README.md', 'w') as f:
+            f.write(readme_content)
+        
+        print(f"✅ Documentation updated with latest statistics")
+        print(f"📊 Swift Files: {swift_files}")
+        print(f"📊 Lines of Code: {lines_of_code:,}")
+        print(f"📊 Tests: {test_count} ({success_rate}% success rate)")
+        print(f"📊 Commits: {commits}")
+        EOF
+        
+        python3 update_stats.py
+    
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit updated statistics
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add WARP_AI_EXPERIMENT.md README.md
+        git commit -m "📊 Auto-update project statistics
+
+        - Swift Files: ${{ steps.stats.outputs.swift_files }}
+        - Lines of Code: ${{ steps.stats.outputs.lines_of_code }}
+        - Tests: ${{ steps.stats.outputs.test_count }} (${{ steps.stats.outputs.success_rate }}% success)
+        - Commits: ${{ steps.stats.outputs.commits }}
+        
+        Updated by GitHub Action on $(date)"
+    
+    - name: Push changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+    
+    - name: Create Statistics Summary
+      run: |
+        cat > stats_summary.md << EOF
+        # 📊 Project Statistics Update
+        
+        **Updated**: $(date)
+        
+        ## Current Metrics
+        - **Swift Files**: ${{ steps.stats.outputs.swift_files }}
+        - **Lines of Code**: ${{ steps.stats.outputs.lines_of_code }}
+        - **Core Files**: ${{ steps.stats.outputs.core_files }}
+        - **Test Files**: ${{ steps.stats.outputs.test_files }}
+        - **Tests**: ${{ steps.stats.outputs.test_count }}
+        - **Test Success Rate**: ${{ steps.stats.outputs.success_rate }}%
+        - **Git Commits**: ${{ steps.stats.outputs.commits }}
+        
+        ## Warp 2.0 AI Experiment Status
+        - ✅ **Human Code Written**: 0 lines
+        - ✅ **Git Commands by Human**: 0
+        - ✅ **AI-Generated Code**: ${{ steps.stats.outputs.lines_of_code }} lines
+        - ✅ **Professional Quality**: ${{ steps.stats.outputs.success_rate }}% test success rate
+        
+        *This update was generated automatically by GitHub Actions*
+        EOF
+        
+        echo "📊 Statistics Summary Created"
+        cat stats_summary.md
+    
+    - name: Upload Statistics Summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: project-statistics
+        path: stats_summary.md
