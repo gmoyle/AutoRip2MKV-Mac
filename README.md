@@ -23,47 +23,42 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - Configurable quality settings
 - **🤖 100% AI-Generated**: 4,867 lines of Swift code created entirely by AI
 
-## Requirements
-
-- macOS 13.0 or later
-- FFmpeg for video conversion (install via: `brew install ffmpeg`)
-- Swift 5.8 or later for building from source
-- Xcode or Xcode Command Line Tools
-
 ## Installation
 
-### From Source
+### 📦 **Recommended: Download Release** (Easiest)
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/gmoyle/AutoRip2MKV-Mac.git
-   cd AutoRip2MKV-Mac
-   ```
+1. **Download the latest release** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
+2. **Open the DMG file** and drag AutoRip2MKV to Applications
+3. **Launch the app** - FFmpeg will be downloaded automatically if needed
+4. **Start ripping!** - No additional setup required
 
-2. Build the project:
-   ```bash
-   swift build
-   ```
+### 🛠️ **Alternative: Build from Source** (For Developers)
 
-3. Run the application:
-   ```bash
-   swift run
-   ```
+**Requirements:**
+- macOS 13.0 or later
+- Swift 5.8+ and Xcode Command Line Tools
+
+**Steps:**
+```bash
+git clone https://github.com/gmoyle/AutoRip2MKV-Mac.git
+cd AutoRip2MKV-Mac
+swift build && swift run
+```
 
 ## Usage
 
-1. Launch the application
-2. Select the source DVD directory using the "Browse" button (mount your DVD first)
-3. Select the output directory where MKV files will be saved
-4. Click "Start Ripping" to begin the native decryption and conversion process
-5. Monitor progress in the real-time log area
+1. **Insert DVD/Blu-ray** into your Mac's optical drive
+2. **Launch AutoRip2MKV** from Applications
+3. **Select your disc** from the automatically detected drives dropdown
+4. **Choose output directory** where MKV files will be saved
+5. **Click "Start Ripping"** - FFmpeg will be installed automatically if needed
+6. **Monitor progress** in the real-time log area
 
-### First Time Setup
-
-Ensure FFmpeg is installed:
-```bash
-brew install ffmpeg
-```
+**That's it!** The app handles everything automatically including:
+- ✅ FFmpeg installation (no Homebrew needed)
+- ✅ Drive detection and selection
+- ✅ CSS/AACS decryption
+- ✅ Video conversion to MKV
 
 ### DVD Structure
 
@@ -107,21 +102,11 @@ AutoRip2MKV-Mac/
 
 ### Building
 
-To build the project:
-
 ```bash
-swift build
-```
+# Build and test
+swift build && swift test
 
-To run tests:
-
-```bash
-swift test
-```
-
-To run the application:
-
-```bash
+# Run the application
 swift run
 ```
 
