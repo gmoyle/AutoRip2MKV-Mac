@@ -200,6 +200,12 @@ jobs:
           echo "changed=false" >> $GITHUB_OUTPUT
         fi
     
+    - name: Switch to master branch if on tag
+      if: steps.verify-changed-files.outputs.changed == 'true' && startsWith(github.ref, 'refs/tags/')
+      run: |
+        git fetch origin master
+        git checkout master
+        
     - name: Commit updated statistics
       if: steps.verify-changed-files.outputs.changed == 'true'
       run: |
@@ -220,7 +226,7 @@ jobs:
       uses: ad-m/github-push-action@master
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: ${{ github.ref }}
+        branch: master
     
     - name: Create Statistics Summary
       run: |
