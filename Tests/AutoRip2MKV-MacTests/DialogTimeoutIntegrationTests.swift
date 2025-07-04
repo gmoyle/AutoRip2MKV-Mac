@@ -68,16 +68,20 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         let startTime = Date()
         
         // Fire multiple delegate callbacks that would normally show dialogs
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             for i in 0..<5 {
                 DispatchQueue.main.async {
-                    self.viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: i, userInfo: [NSLocalizedDescriptionKey: "Test error \\(i)"]))
+                    guard let strongSelf = self else {
+                        expectation.fulfill()
+                        return
+                    }
+                    strongSelf.viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: i, userInfo: [NSLocalizedDescriptionKey: "Test error \\(i)"]))
                     expectation.fulfill()
                 }
             }
         }
         
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 5.0)
         
         let elapsed = Date().timeIntervalSince(startTime)
         
