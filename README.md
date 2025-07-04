@@ -3,9 +3,8 @@
   <h1>AutoRip2MKV for Mac</h1>
   <p><em>Native DVD & Blu-ray Ripping with Built-in CSS Decryption</em></p>
   
-  [![CI](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
-  [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
-  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
+  [![Build Status](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
+  [![Latest Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
   <!-- Badge refresh trigger: 2025-07-04-v2 -->
 </div>
 
@@ -36,7 +35,7 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
     </tr>
   </table>
   
-  <p><em>Professional macOS-style icon featuring a large DVD disc with bright orange file overlay,<br>perfectly representing DVD-to-file conversion functionality.</em></p>
+  <p><em>Professional macOS-style icon featuring a large DVD disc with bright orange floppy disk overlay,<br>representing the classic-to-digital conversion process. Floppy disk design recommended by<br><strong>Susanne Moyle</strong> for nostalgic throwback appeal, with anatomically correct vertical access window.</em></p>
 </div>
 
 ## Features
@@ -213,6 +212,7 @@ This project represents a groundbreaking experiment in AI-powered software devel
 ## Acknowledgments
 
 - **Warp 2.0 Agent Mode** for making this experiment possible
+- **Susanne Moyle** for recommending the nostalgic floppy disk design element
 - The Swift and macOS development communities
 - FFmpeg project for video conversion capabilities
 - DVD Forum specifications for DVD structure documentation
