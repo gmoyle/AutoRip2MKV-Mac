@@ -32,8 +32,11 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 
 1. **Download the latest release** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
 2. **Open the DMG file** and drag AutoRip2MKV to Applications
-3. **Launch the app** - FFmpeg will be downloaded automatically if needed
-4. **Start ripping!** - No additional setup required
+3. **⚠️ First Launch**: Right-click the app → "Open" to bypass macOS security
+4. **Install FFmpeg**: `brew install ffmpeg` (if not already installed)
+5. **Start ripping!** - No additional setup required
+
+> 📋 **Need help with installation?** See the detailed [Installation Guide](INSTALLATION.md) for step-by-step instructions to handle macOS security restrictions.
 
 ### 🛠️ **Alternative: Build from Source** (For Developers)
 

@@ -98,6 +98,17 @@ jobs:
         </plist>
         EOF
     
+    - name: Sign App Bundle (Ad-hoc)
+      run: |
+        # Ad-hoc sign the application to make it runnable
+        codesign --force --deep --sign - "AutoRip2MKV.app"
+        
+        # Verify the signature
+        codesign --verify --verbose "AutoRip2MKV.app"
+        
+        # Display signing information
+        codesign --display --verbose "AutoRip2MKV.app"
+    
     - name: Create DMG
       run: |
         # Create a temporary directory for DMG contents
@@ -142,10 +153,33 @@ jobs:
         fi
         
         echo "" >> release_notes.md
-        echo "## Installation" >> release_notes.md
-        echo "1. Download the DMG file" >> release_notes.md
-        echo "2. Open the DMG and drag AutoRip2MKV to Applications" >> release_notes.md
-        echo "3. Install FFmpeg: \`brew install ffmpeg\`" >> release_notes.md
+        echo "## 📦 Installation" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Step 1: Download and Install" >> release_notes.md
+        echo "1. **Download the DMG file** from the assets below" >> release_notes.md
+        echo "2. **Open the DMG** and drag AutoRip2MKV to Applications" >> release_notes.md
+        echo "3. **Install FFmpeg**: \`brew install ffmpeg\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Step 2: macOS Security (First Launch Only)" >> release_notes.md
+        echo "Since this app isn't notarized by Apple, macOS will prevent it from running initially." >> release_notes.md
+        echo "" >> release_notes.md
+        echo "**Method 1: Control+Click (Recommended)**" >> release_notes.md
+        echo "1. Right-click (or Control+click) on AutoRip2MKV in Applications" >> release_notes.md
+        echo "2. Select \"Open\" from the context menu" >> release_notes.md
+        echo "3. Click \"Open\" in the security dialog" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "**Method 2: System Preferences**" >> release_notes.md
+        echo "1. Try to open the app (it will be blocked)" >> release_notes.md
+        echo "2. Go to System Preferences → Security & Privacy → General" >> release_notes.md
+        echo "3. Click \"Open Anyway\" next to the AutoRip2MKV message" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "**Method 3: Terminal (Advanced)**" >> release_notes.md
+        echo "\`\`\`bash" >> release_notes.md
+        echo "# Remove quarantine attribute" >> release_notes.md
+        echo "sudo xattr -r -d com.apple.quarantine /Applications/AutoRip2MKV.app" >> release_notes.md
+        echo "\`\`\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "⚠️ **Note**: These security warnings are normal for unsigned apps. The app is safe - all code is open source and available in this repository." >> release_notes.md
         echo "" >> release_notes.md
         echo "## Checksums" >> release_notes.md
         echo "\`\`\`" >> release_notes.md
