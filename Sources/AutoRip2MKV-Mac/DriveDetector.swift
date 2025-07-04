@@ -108,7 +108,7 @@ class DriveDetector {
     
     /// Gets optical drive information
     private func getOpticalDriveInfo(at path: String) -> OpticalDrive {
-        let fileManager = FileManager.default
+        _ = FileManager.default
         let url = URL(fileURLWithPath: path)
         
         // Determine media type

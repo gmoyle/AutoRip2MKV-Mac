@@ -267,7 +267,7 @@ class BluRayStructureParser {
         let playItem = BluRayPlayItem(
             index: index,
             clipName: clipName,
-            codecID: codecID,
+            codecID: "H.264", // Default codec for BluRay
             inTime: inTime,
             outTime: outTime,
             duration: duration,
@@ -368,7 +368,7 @@ class BluRayStructureParser {
         _ = data[offset + 6]
         
         // TS recording rate
-        let tsRecordingRate = data.readUInt32(at: offset + 8)
+        _ = data.readUInt32(at: offset + 8)
         
         // Number of source packets
         _ = data.readUInt32(at: offset + 12)

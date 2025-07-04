@@ -429,7 +429,7 @@ class MediaRipper {
             let chaptersFile = try createChaptersFile(for: mediaItem)
             if !chaptersFile.isEmpty {
                 ffmpegArgs.append(contentsOf: ["-f", "ffmetadata", "-i", chaptersFile])
-                defer { try? FileManager.default.removeItem(atPath: chaptersFile) }
+                do { try? FileManager.default.removeItem(atPath: chaptersFile) }
             }
         }
         
