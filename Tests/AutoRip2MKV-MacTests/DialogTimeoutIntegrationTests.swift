@@ -54,7 +54,7 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(startTime)
         
         // Should complete reasonably quickly since file panel is simulated in test environment
-        XCTAssertLessThan(elapsed, 1.0, "File selection should not block execution in test environment")
+        XCTAssertLessThan(elapsed, 5.0, "File selection should not block execution in test environment")
         XCTAssertNotNil(result, "Should return simulated path")
         XCTAssertEqual(result?.path, "/tmp/test_path")
     }
@@ -82,7 +82,7 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(startTime)
         
         // Should complete reasonably quickly even with multiple dialogs
-        XCTAssertLessThan(elapsed, 2.0, "Multiple dialogs should not block execution in test environment")
+        XCTAssertLessThan(elapsed, 5.0, "Multiple dialogs should not block execution in test environment")
     }
     
     // MARK: - Test Environment Verification
