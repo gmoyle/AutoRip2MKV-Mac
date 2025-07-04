@@ -1,13 +1,43 @@
-# AutoRip2MKV for Mac
-
-[![CI](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
-[![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
-[![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
-<!-- Badge refresh trigger: 2025-07-04 -->
+<div align="center">
+  <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
+  <h1>AutoRip2MKV for Mac</h1>
+  <p><em>Native DVD & Blu-ray Ripping with Built-in CSS Decryption</em></p>
+  
+  [![CI](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
+  [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
+  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
+  <!-- Badge refresh trigger: 2025-07-04 -->
+</div>
 
 > 🤖 **AI Development Experiment**: This entire application was created using Warp 2.0 AI assistance by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
 A native macOS application for automatically ripping DVDs and Blu-rays to MKV format with **native CSS decryption** - no third-party applications required!
+
+## 🎨 App Icon
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/icon.svg" alt="Main Icon" width="128" height="128">
+        <br><strong>Main Icon</strong>
+        <br><em>512×512 Application Icon</em>
+      </td>
+      <td align="center">
+        <img src="assets/icon-simple.svg" alt="Simple Icon" width="64" height="64">
+        <br><strong>Simple Icon</strong>
+        <br><em>128×128 Favicon & Small UI</em>
+      </td>
+      <td align="center">
+        <img src="assets/logo.svg" alt="Logo" width="200" height="60">
+        <br><strong>Horizontal Logo</strong>
+        <br><em>400×120 Documentation & Web</em>
+      </td>
+    </tr>
+  </table>
+  
+  <p><em>Professional macOS-style icon featuring a large DVD disc with bright orange file overlay,<br>perfectly representing DVD-to-file conversion functionality.</em></p>
+</div>
 
 ## Features
 

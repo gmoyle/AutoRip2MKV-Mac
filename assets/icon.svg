@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Blue button background gradient -->
+    <linearGradient id="buttonGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#357ABD;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E5984;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Top highlight for 3D effect -->
+    <linearGradient id="topHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </linearGradient>
+    
+    <!-- DVD disc gradient -->
+    <radialGradient id="discGradient" cx="0.3" cy="0.3" r="0.8">
+      <stop offset="0%" style="stop-color:#f5f5f5;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#e0e0e0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c8c8c8;stop-opacity:1" />
+    </radialGradient>
+    
+    <!-- Center hole gradient -->
+    <radialGradient id="centerHole" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" style="stop-color:#2c2c2c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#555555;stop-opacity:1" />
+    </radialGradient>
+    
+    <!-- Orange file icon gradient -->
+    <linearGradient id="fileGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E6830A;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Shadow filters -->
+    <filter id="buttonShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    
+    <filter id="discShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+    
+    <filter id="fileShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Main button background with rounded corners -->
+  <rect x="26" y="26" width="460" height="460" rx="92" ry="92" 
+        fill="url(#buttonGradient)" 
+        filter="url(#buttonShadow)"/>
+  
+  <!-- Top highlight for 3D effect -->
+  <rect x="26" y="26" width="460" height="230" rx="92" ry="92" 
+        fill="url(#topHighlight)"/>
+  
+  <!-- Inner shadow/border for depth -->
+  <rect x="36" y="36" width="440" height="440" rx="84" ry="84" 
+        fill="none" 
+        stroke="rgba(255,255,255,0.2)" 
+        stroke-width="1"/>
+  
+  <!-- DVD disc centered (enlarged to almost button edge) -->
+  <g transform="translate(256, 256)">
+    <!-- Main disc -->
+    <circle cx="0" cy="0" r="200" 
+            fill="url(#discGradient)" 
+            stroke="#bbb" 
+            stroke-width="2"
+            filter="url(#discShadow)"/>
+    
+    <!-- Data tracks (concentric circles) -->
+    <circle cx="0" cy="0" r="185" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="170" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="155" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="140" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="125" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="110" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="95" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="80" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="65" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="0" r="50" fill="none" stroke="#d0d0d0" stroke-width="0.8" opacity="0.6"/>
+    
+    <!-- Center hole -->
+    <circle cx="0" cy="0" r="30" fill="url(#centerHole)"/>
+    
+    <!-- Subtle disc shine -->
+    <ellipse cx="-50" cy="-50" rx="100" ry="50" 
+             fill="rgba(255,255,255,0.12)" 
+             transform="rotate(-30)"/>
+  </g>
+  
+  <!-- Large file icon (repositioned so bottom-right stays inside blue button) -->
+  <g transform="translate(285, 260)">
+    <!-- Orange file icon (75% wider = 161px width, 184px height) -->
+    <rect x="0" y="0" width="161" height="184" rx="12" ry="12" 
+          fill="url(#fileGradient)" 
+          stroke="#D4720A" 
+          stroke-width="3"
+          filter="url(#fileShadow)"/>
+    
+    <!-- File corner fold -->
+    <path d="M 121 0 L 121 23 L 161 23 Z" fill="#D4720A"/>
+    <path d="M 121 0 L 161 23 L 161 0 Z" fill="#FF9500"/>
+    
+    <!-- Document lines (spread across wider file) -->
+    <rect x="24" y="46" width="70" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="58" width="91" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="70" width="61" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="82" width="81" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="94" width="49" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="106" width="73" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="118" width="67" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="130" width="52" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="142" width="77" height="5" rx="2" fill="white" opacity="0.9"/>
+    <rect x="24" y="154" width="63" height="5" rx="2" fill="white" opacity="0.9"/>
+  </g>
+</svg>

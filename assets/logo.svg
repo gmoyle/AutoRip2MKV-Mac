@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradients -->
+    <radialGradient id="discGradient" cx="0.3" cy="0.3" r="0.8">
+      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#c0c0c0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
+    </radialGradient>
+    
+    <radialGradient id="centerHole" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" style="stop-color:#333333;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#666666;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0051D5;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="mkvGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34C759;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#248A3D;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1d1d1f;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#515154;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- DVD/Blu-ray disc -->
+  <g transform="translate(20, 20)">
+    <!-- Main disc -->
+    <circle cx="40" cy="40" r="35" fill="url(#discGradient)" stroke="#888888" stroke-width="1.5"/>
+    
+    <!-- Data tracks -->
+    <circle cx="40" cy="40" r="30" fill="none" stroke="#b8b8b8" stroke-width="0.3" opacity="0.6"/>
+    <circle cx="40" cy="40" r="25" fill="none" stroke="#b8b8b8" stroke-width="0.3" opacity="0.6"/>
+    <circle cx="40" cy="40" r="20" fill="none" stroke="#b8b8b8" stroke-width="0.3" opacity="0.6"/>
+    <circle cx="40" cy="40" r="15" fill="none" stroke="#b8b8b8" stroke-width="0.3" opacity="0.6"/>
+    
+    <!-- Center hole -->
+    <circle cx="40" cy="40" r="6" fill="url(#centerHole)"/>
+  </g>
+  
+  <!-- Conversion arrow -->
+  <g transform="translate(95, 60)">
+    <path d="M -15 -5 L 10 -5 L 10 -10 L 20 0 L 10 10 L 10 5 L -15 5 Z" 
+          fill="url(#arrowGradient)" 
+          stroke="#0051D5" 
+          stroke-width="0.5"/>
+  </g>
+  
+  <!-- MKV file icon -->
+  <g transform="translate(130, 30)">
+    <!-- File background -->
+    <rect x="0" y="0" width="30" height="40" rx="4" ry="4" 
+          fill="url(#mkvGradient)" 
+          stroke="#248A3D" 
+          stroke-width="1"/>
+    
+    <!-- File corner fold -->
+    <path d="M 24 0 L 24 6 L 30 6 Z" fill="#1f7a32"/>
+    <path d="M 24 0 L 30 6 L 30 0 Z" fill="#34C759"/>
+    
+    <!-- MKV text -->
+    <text x="15" y="22" text-anchor="middle" font-family="SF Pro Display, -apple-system, sans-serif" 
+          font-size="8" font-weight="700" fill="white">MKV</text>
+    
+    <!-- File lines -->
+    <rect x="4" y="28" width="10" height="1" rx="0.5" fill="white" opacity="0.8"/>
+    <rect x="4" y="31" width="14" height="1" rx="0.5" fill="white" opacity="0.8"/>
+    <rect x="4" y="34" width="8" height="1" rx="0.5" fill="white" opacity="0.8"/>
+  </g>
+  
+  <!-- Main title -->
+  <text x="185" y="50" font-family="SF Pro Display, -apple-system, sans-serif" 
+        font-size="32" font-weight="700" fill="url(#textGradient)">AutoRip2MKV</text>
+  
+  <!-- Subtitle -->
+  <text x="185" y="72" font-family="SF Pro Display, -apple-system, sans-serif" 
+        font-size="14" font-weight="500" fill="#666666">for Mac</text>
+  
+  <!-- Tagline -->
+  <text x="185" y="90" font-family="SF Pro Display, -apple-system, sans-serif" 
+        font-size="12" font-weight="400" fill="#999999">Native DVD & Blu-ray Ripping</text>
+</svg>

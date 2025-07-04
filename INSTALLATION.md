@@ -1,4 +1,8 @@
-# 📦 AutoRip2MKV Installation Guide
+<div align="center">
+  <img src="assets/icon-simple.svg" alt="AutoRip2MKV for Mac" width="96" height="96">
+  <h1>📦 AutoRip2MKV Installation Guide</h1>
+  <p><em>Step-by-step installation instructions for macOS</em></p>
+</div>
 
 This guide helps you install and run AutoRip2MKV on macOS despite Apple's security restrictions.
 
