@@ -3,10 +3,10 @@
   <h1>AutoRip2MKV for Mac</h1>
   <p><em>Native DVD & Blu-ray Ripping with Built-in CSS Decryption</em></p>
   
-  [![CI](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
-  [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
-  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
-  <!-- Badge refresh trigger: 2025-07-04 -->
+  [![CI](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
+  [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
+  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
+  <!-- Badge refresh trigger: 2025-07-04-v2 -->
 </div>
 
 > 🤖 **AI Development Experiment**: This entire application was created using Warp 2.0 AI assistance by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻

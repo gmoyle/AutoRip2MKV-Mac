@@ -18,9 +18,9 @@
       <stop offset="100%" style="stop-color:#0051D5;stop-opacity:1" />
     </linearGradient>
     
-    <linearGradient id="mkvGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#34C759;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#248A3D;stop-opacity:1" />
+    <linearGradient id="fileGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E6830A;stop-opacity:1" />
     </linearGradient>
     
     <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -52,26 +52,25 @@
           stroke-width="0.5"/>
   </g>
   
-  <!-- MKV file icon -->
+  <!-- File icon -->
   <g transform="translate(130, 30)">
     <!-- File background -->
     <rect x="0" y="0" width="30" height="40" rx="4" ry="4" 
-          fill="url(#mkvGradient)" 
-          stroke="#248A3D" 
+          fill="url(#fileGradient)" 
+          stroke="#D4720A" 
           stroke-width="1"/>
     
     <!-- File corner fold -->
-    <path d="M 24 0 L 24 6 L 30 6 Z" fill="#1f7a32"/>
-    <path d="M 24 0 L 30 6 L 30 0 Z" fill="#34C759"/>
+    <path d="M 24 0 L 24 6 L 30 6 Z" fill="#D4720A"/>
+    <path d="M 24 0 L 30 6 L 30 0 Z" fill="#FF9500"/>
     
-    <!-- MKV text -->
-    <text x="15" y="22" text-anchor="middle" font-family="SF Pro Display, -apple-system, sans-serif" 
-          font-size="8" font-weight="700" fill="white">MKV</text>
-    
-    <!-- File lines -->
-    <rect x="4" y="28" width="10" height="1" rx="0.5" fill="white" opacity="0.8"/>
-    <rect x="4" y="31" width="14" height="1" rx="0.5" fill="white" opacity="0.8"/>
-    <rect x="4" y="34" width="8" height="1" rx="0.5" fill="white" opacity="0.8"/>
+    <!-- Document lines -->
+    <rect x="4" y="18" width="12" height="1" rx="0.5" fill="white" opacity="0.9"/>
+    <rect x="4" y="21" width="16" height="1" rx="0.5" fill="white" opacity="0.9"/>
+    <rect x="4" y="24" width="10" height="1" rx="0.5" fill="white" opacity="0.9"/>
+    <rect x="4" y="27" width="14" height="1" rx="0.5" fill="white" opacity="0.9"/>
+    <rect x="4" y="30" width="8" height="1" rx="0.5" fill="white" opacity="0.9"/>
+    <rect x="4" y="33" width="12" height="1" rx="0.5" fill="white" opacity="0.9"/>
   </g>
   
   <!-- Main title -->
