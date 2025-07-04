@@ -56,7 +56,13 @@ final class MainViewControllerTests: XCTestCase {
     // MARK: - DVDRipperDelegate Tests
     
     func testDVDRipperDelegateConformance() {
-        XCTAssertTrue(viewController is DVDRipperDelegate)
+        XCTAssertNotNil(viewController)
+        // Test delegate conformance by unwrapping safely
+        if let controller = viewController {
+            XCTAssertTrue(controller is DVDRipperDelegate)
+        } else {
+            XCTFail("View controller should not be nil")
+        }
     }
     
     func testRipperDidStart() {
@@ -166,7 +172,7 @@ final class MainViewControllerTests: XCTestCase {
         // Test that we can detect FFmpeg download URLs
         let architectures = ["arm64", "x86_64", "universal"]
         
-        for arch in architectures {
+        for _ in architectures {
             // Test URL generation for different architectures
             let baseURL = "https://evermeet.cx/ffmpeg"
             let expectedURL = "\(baseURL)/getrelease/ffmpeg/zip"

@@ -489,6 +489,80 @@ class MainViewController: NSViewController {
         ripButton.isEnabled = true
     }
     
+    // MARK: - Disk Management
+    
+    private func ejectCurrentDisk() {
+        guard let sourcePath = getSelectedSourcePath() else {
+            appendToLog("No source path available for disk ejection")
+            return
+        }
+        
+        // Try to unmount and eject the disk
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.unmountAndEjectDisk(at: sourcePath)
+        }
+    }
+    
+    private func unmountAndEjectDisk(at path: String) {
+        DispatchQueue.main.async {
+            self.appendToLog("Unmounting and ejecting disk...")
+        }
+        
+        // First try to unmount the volume
+        let unmountResult = unmountVolume(at: path)
+        
+        if unmountResult {
+            // If unmount successful, try to eject the disk
+            let ejectResult = ejectDisk(at: path)
+            
+            DispatchQueue.main.async {
+                if ejectResult {
+                    self.appendToLog("Disk ejected successfully")
+                } else {
+                    self.appendToLog("Disk unmounted but ejection failed")
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.appendToLog("Warning: Could not unmount disk - files may still be in use")
+            }
+        }
+    }
+    
+    private func unmountVolume(at path: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["unmount", path]
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            DispatchQueue.main.async {
+                self.appendToLog("Error unmounting disk: \(error.localizedDescription)")
+            }
+            return false
+        }
+    }
+    
+    private func ejectDisk(at path: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["eject", path]
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            DispatchQueue.main.async {
+                self.appendToLog("Error ejecting disk: \(error.localizedDescription)")
+            }
+            return false
+        }
+    }
+    
     // MARK: - Drive Detection and Settings
     
     @objc private func refreshDrives() {
@@ -605,13 +679,8 @@ extension MainViewController: DVDRipperDelegate {
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
             
-            self.testingUtils.showAlert(
-                title: "Ripping Complete",
-                message: "DVD has been successfully ripped to MKV format.",
-                style: .informational
-            ) { [weak self] alertTitle, alertMessage in
-                self?.appendToLog("ALERT: \(alertTitle) - \(alertMessage)")
-            }
+            // Eject the disk after successful completion
+            self.ejectCurrentDisk()
         }
     }
     
@@ -623,6 +692,26 @@ extension MainViewController: DVDRipperDelegate {
             self.ripButton.title = "Start Ripping"
             
             self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
+        }
+    }
+}
+
+// MARK: - MediaRipperDelegate
+
+extension MainViewController: MediaRipperDelegate {
+    
+    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+        DispatchQueue.main.async {
+            self.progressIndicator.doubleValue = progress * 100.0
+            
+            if let item = currentItem {
+                switch item {
+                case .dvdTitle(let title):
+                    self.appendToLog("Processing DVD title \(title.number) - \(Int(progress * 100))% complete")
+                case .blurayPlaylist(let playlist):
+                    self.appendToLog("Processing Blu-ray playlist \(playlist.number) - \(Int(progress * 100))% complete")
+                }
+            }
         }
     }
 }

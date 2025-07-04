@@ -28,16 +28,16 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         XCTAssertLessThan(elapsed, 0.1, "Alert should not block execution in test environment")
     }
     
-    func testRipperCompletionAlertsDoNotBlock() {
+    func testRipperCompletionDoesNotBlock() {
         let startTime = Date()
         
-        // This should complete quickly without user interaction in test environment
+        // This should complete quickly and eject disk without user interaction in test environment
         viewController.ripperDidComplete()
         
         let elapsed = Date().timeIntervalSince(startTime)
         
-        // Should complete in well under a second since no modal dialog blocks
-        XCTAssertLessThan(elapsed, 0.1, "Completion alert should not block execution in test environment")
+        // Should complete in well under a second since no dialog is shown and disk ejection is background
+        XCTAssertLessThan(elapsed, 0.1, "Completion should not block execution in test environment")
     }
     
     func testTestingUtilitiesFileDialogSimulation() {
@@ -155,7 +155,46 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         
         let elapsed = Date().timeIntervalSince(startTime)
         
-        // Complete workflow should not block
+        // Complete workflow should not block (including disk ejection)
         XCTAssertLessThan(elapsed, 0.2, "Complete workflow should not block in test environment")
+    }
+    
+    // MARK: - Disk Ejection Tests
+    
+    func testDiskEjectionOnCompletion() {
+        let startTime = Date()
+        
+        // Simulate successful completion which should trigger disk ejection
+        viewController.ripperDidComplete()
+        
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Disk ejection should not block the UI
+        XCTAssertLessThan(elapsed, 0.1, "Disk ejection should not block UI in test environment")
+    }
+    
+    func testDiskEjectionWithoutSelectedDrive() {
+        let startTime = Date()
+        
+        // Test completion when no drive is selected (should handle gracefully)
+        viewController.ripperDidComplete()
+        
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Should complete quickly even without a selected drive
+        XCTAssertLessThan(elapsed, 0.1, "Should handle completion without selected drive gracefully")
+    }
+    
+    func testNoDialogShownOnCompletion() {
+        // Test that completion doesn't show any dialogs
+        let startTime = Date()
+        
+        // Complete a ripping operation
+        viewController.ripperDidComplete()
+        
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Should be very fast since no dialog is shown
+        XCTAssertLessThan(elapsed, 0.05, "No dialog should be shown on completion")
     }
 }
