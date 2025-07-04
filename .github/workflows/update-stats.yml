@@ -1,18 +1,14 @@
 name: Update Project Statistics
 
-# Temporarily disabled to reduce workflow queue congestion
-# on:
-#   push:
-#     branches: [ master, main ]
-#   schedule:
-#     # Run daily at 2 AM UTC
-#     - cron: '0 2 * * *'
-#   workflow_dispatch:
-#     # Allow manual triggering
-
 on:
+  push:
+    tags:
+      - 'v*'  # Trigger on release tags
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
   workflow_dispatch:
-    # Manual triggering only for now
+    # Allow manual triggering
 
 jobs:
   update-stats:
@@ -251,7 +247,7 @@ jobs:
         cat stats_summary.md
     
     - name: Upload Statistics Summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: project-statistics
         path: stats_summary.md
