@@ -91,7 +91,7 @@ jobs:
         tar -czf AutoRip2MKV-Mac-${{ github.sha }}.tar.gz -C release .
     
     - name: Upload Release Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: AutoRip2MKV-Mac-${{ github.sha }}
         path: AutoRip2MKV-Mac-${{ github.sha }}.tar.gz
