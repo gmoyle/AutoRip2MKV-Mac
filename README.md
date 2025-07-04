@@ -29,7 +29,7 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
         <br><em>128×128 Favicon & Small UI</em>
       </td>
       <td align="center">
-        <img src="assets/logo.svg" alt="Logo" width="200" height="60">
+        <img src="assets/logo.png" alt="Logo" width="200" height="60">
         <br><strong>Horizontal Logo</strong>
         <br><em>400×120 Documentation & Web</em>
       </td>
