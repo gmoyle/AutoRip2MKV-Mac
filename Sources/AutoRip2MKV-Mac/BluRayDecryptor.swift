@@ -227,7 +227,7 @@ class BluRayDecryptor {
     
     private func generateAACSIV(sector: UInt32) -> [UInt8] {
         // Generate AACS initialization vector from sector number
-        var iv = Array<UInt8>(repeating: 0, count: 16)
+        var iv = [UInt8](repeating: 0, count: 16)
         
         // AACS IV format: sector number in big-endian format
         iv[12] = UInt8((sector >> 24) & 0xFF)

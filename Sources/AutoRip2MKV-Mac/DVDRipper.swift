@@ -134,7 +134,8 @@ class DVDRipper {
         let titleKey = try decryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
         
         // Create output filename
-        let outputFileName = "Title_\(String(format: "%02d", title.number))_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+        let outputFileName = "Title_\(String(format: "%02d", title.number))_" +
+                            "\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
         let outputPath = configuration.outputDirectory.appending("/\(outputFileName)")
         
         // Extract and decrypt video data
@@ -215,7 +216,8 @@ class DVDRipper {
             if currentSector % 100 == 0 {
                 let progress = Double(processedBytes) / Double(fileSize)
                 DispatchQueue.main.async {
-                    self.delegate?.ripperDidUpdateProgress(progress * 0.5, currentTitle: title, totalTitles: 1) // 50% for extraction
+                    // 50% for extraction
+                    self.delegate?.ripperDidUpdateProgress(progress * 0.5, currentTitle: title, totalTitles: 1)
                 }
             }
         }
@@ -326,7 +328,10 @@ class DVDRipper {
                         let titleProgress = 0.5 + 0.5 * 0.5 // Simplified progress calculation
                         
                         DispatchQueue.main.async {
-                            self.delegate?.ripperDidUpdateProgress(baseProgress + titleProgress / Double(totalTitles), currentTitle: nil, totalTitles: totalTitles)
+                            let finalProgress = baseProgress + titleProgress / Double(totalTitles)
+                            self.delegate?.ripperDidUpdateProgress(finalProgress, 
+                                                                  currentTitle: nil, 
+                                                                  totalTitles: totalTitles)
                         }
                         break
                     }

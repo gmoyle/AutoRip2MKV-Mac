@@ -47,7 +47,10 @@ class DriveDetector {
         let fileManager = FileManager.default
         let volumeKeys: [URLResourceKey] = [.volumeNameKey, .volumeIsRemovableKey]
         
-        guard let mountedVolumeURLs = fileManager.mountedVolumeURLs(includingResourceValuesForKeys: volumeKeys, options: []) else {
+        guard let mountedVolumeURLs = fileManager.mountedVolumeURLs(
+            includingResourceValuesForKeys: volumeKeys, 
+            options: []
+        ) else {
             return volumes
         }
         

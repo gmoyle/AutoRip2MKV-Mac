@@ -303,7 +303,8 @@ class MainViewController: NSViewController {
     private func installFFmpegIfNeeded() {
         if !isFFmpegAvailable() {
             // Check if we have a bundled FFmpeg first
-            if let bundledFFmpegPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledFFmpegPath) {
+            if let bundledFFmpegPath = getBundledFFmpegPath(), 
+               FileManager.default.fileExists(atPath: bundledFFmpegPath) {
                 appendToLog("Using bundled FFmpeg: \(bundledFFmpegPath)")
                 return
             }
@@ -372,7 +373,7 @@ class MainViewController: NSViewController {
             return
         }
         
-        let task = URLSession.shared.downloadTask(with: url) { [weak self] (tempURL, response, error) in
+        let task = URLSession.shared.downloadTask(with: url) { [weak self] (tempURL, _, error) in
             guard let self = self else { return }
             
             if let error = error {
@@ -512,7 +513,9 @@ class MainViewController: NSViewController {
             sourceDropDown.isEnabled = true
             
             for drive in detectedDrives {
-                let title = "\(drive.name) (\(drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"))"
+                let driveTypeString = drive.type == .dvd ? "DVD" : 
+                                     drive.type == .bluray ? "Blu-ray" : "Unknown"
+                let title = "\(drive.name) (\(driveTypeString))"
                 sourceDropDown.addItem(withTitle: title)
             }
             

@@ -4,7 +4,6 @@ disabled_rules:
   - implicitly_unwrapped_optional     # Common in Cocoa UI development
   - vertical_whitespace_opening_braces # Relaxed formatting for AI-generated code
   - vertical_whitespace_closing_braces # Relaxed formatting for AI-generated code
-  - identifier_name                   # Allow constants like CSS_KEY_SIZE
   - function_parameter_count          # Media functions can have many parameters
   - vertical_parameter_alignment      # Relaxed alignment rules
   - duplicate_imports                 # May be needed in some cases

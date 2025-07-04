@@ -400,7 +400,6 @@ class BluRayStructureParser {
     }
 }
 
-
 // MARK: - Blu-ray Data Structures
 
 class BluRayPlaylist {

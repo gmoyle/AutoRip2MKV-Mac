@@ -171,7 +171,8 @@ class MediaRipper {
         let titleKey = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
         
         // Create output filename
-        let outputFileName = "DVD_Title_\(String(format: "%02d", title.number))_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+        let outputFileName = "DVD_Title_\(String(format: "%02d", title.number))_" +
+                            "\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
         let outputPath = configuration.outputDirectory.appending("/\(outputFileName)")
         
         // Extract and decrypt video data
@@ -277,7 +278,8 @@ class MediaRipper {
         try blurayDecryptor!.initializeDevice()
         
         // Step 3: Determine which playlists to rip
-        let playlistsToRip = filterPlaylistsToRip(playlists: playlists, selectedTitles: configuration.selectedTitles)
+        let playlistsToRip = filterPlaylistsToRip(playlists: playlists, 
+                                                 selectedTitles: configuration.selectedTitles)
         delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: playlistsToRip.count)
         
         // Step 4: Rip each playlist
@@ -286,8 +288,14 @@ class MediaRipper {
                 throw MediaRipperError.cancelled
             }
             
-            delegate?.ripperDidUpdateStatus("Ripping Blu-ray playlist \(playlist.number) (\(playlist.formattedDuration))...")
-            try ripBluRayPlaylist(playlist, configuration: configuration, playlistIndex: index, totalPlaylists: playlistsToRip.count)
+            let statusMessage = "Ripping Blu-ray playlist \(playlist.number) (\(playlist.formattedDuration))..."
+            delegate?.ripperDidUpdateStatus(statusMessage)
+            try ripBluRayPlaylist(
+                playlist, 
+                configuration: configuration, 
+                playlistIndex: index, 
+                totalPlaylists: playlistsToRip.count
+            )
         }
     }
     
@@ -296,7 +304,8 @@ class MediaRipper {
         let titleKey = try blurayDecryptor!.getTitleKey(titleNumber: playlist.number, startSector: 0)
         
         // Create output filename
-        let outputFileName = "BluRay_Playlist_\(String(format: "%05d", playlist.number))_\(playlist.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+        let outputFileName = "BluRay_Playlist_\(String(format: "%05d", playlist.number))_" +
+                            "\(playlist.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
         let outputPath = configuration.outputDirectory.appending("/\(outputFileName)")
         
         // Extract and decrypt video data
@@ -380,7 +389,12 @@ class MediaRipper {
             if currentSector % 100 == 0 {
                 let progress = Double(processedBytes) / Double(fileSize)
                 DispatchQueue.main.async {
-                    self.delegate?.ripperDidUpdateProgress(progress * 0.5, currentItem: .blurayPlaylist(playlist), totalItems: 1)
+                    let progressValue = progress * 0.5
+                    self.delegate?.ripperDidUpdateProgress(
+                        progressValue, 
+                        currentItem: .blurayPlaylist(playlist), 
+                        totalItems: 1
+                    )
                 }
             }
         }
@@ -542,7 +556,12 @@ class MediaRipper {
                         let itemProgress = 0.5 + 0.5 * 0.5 // Simplified progress calculation
                         
                         DispatchQueue.main.async {
-                            self.delegate?.ripperDidUpdateProgress(baseProgress + itemProgress / Double(totalItems), currentItem: nil, totalItems: totalItems)
+                            let finalProgress = baseProgress + itemProgress / Double(totalItems)
+                            self.delegate?.ripperDidUpdateProgress(
+                                finalProgress, 
+                                currentItem: nil, 
+                                totalItems: totalItems
+                            )
                         }
                         break
                     }
@@ -606,7 +625,8 @@ class MediaRipper {
     
     private func getFFmpegExecutablePath() -> String? {
         // First try bundled FFmpeg
-        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+        if let bundledPath = getBundledFFmpegPath(), 
+           FileManager.default.fileExists(atPath: bundledPath) {
             return bundledPath
         }
         
