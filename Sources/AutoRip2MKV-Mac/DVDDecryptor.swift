@@ -82,7 +82,7 @@ class DVDDecryptor {
         
         // Step 2: Report Challenge
         let hostChallenge = generateHostChallenge()
-        try reportChallenge(agid: agid, challenge: hostChallenge)
+        _ = try reportChallenge(agid: agid, challenge: hostChallenge)
         
         // Step 3: Report Key1
         let hostKey = generateHostKey()
@@ -155,7 +155,7 @@ class DVDDecryptor {
     
     private func decryptDiscKey(encryptedKey: [UInt8]) throws -> CSSKey {
         // Decrypt the disc key using player keys
-        var key = CSSKey()
+        let key = CSSKey()
         // Implementation would go here
         return key
     }
@@ -167,11 +167,11 @@ class DVDDecryptor {
     }
     
     private func decryptTitleKey(encryptedData: Data, titleNumber: Int) throws -> CSSKey {
-        guard let discKey = self.discKey else {
+        guard self.discKey != nil else {
             throw DVDError.discKeyNotFound
         }
         
-        var titleKey = CSSKey()
+        let titleKey = CSSKey()
         // Implement title key decryption algorithm
         return titleKey
     }
@@ -223,7 +223,7 @@ class DVDDecryptor {
     private func generateCSSStreamCipher(key: [UInt8], sector: UInt32) -> [UInt8] {
         // Generate CSS stream cipher based on key and sector
         // This is a simplified placeholder - real implementation would use CSS LFSR
-        var cipher = [UInt8](repeating: 0, count: Self.SECTOR_SIZE - 0x80)
+        let cipher = [UInt8](repeating: 0, count: Self.SECTOR_SIZE - 0x80)
         
         // CSS LFSR implementation would go here
         // Using key and sector number to generate cipher stream

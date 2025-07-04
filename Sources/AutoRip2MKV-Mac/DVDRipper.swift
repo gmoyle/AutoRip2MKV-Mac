@@ -244,7 +244,7 @@ class DVDRipper {
         if configuration.includeChapters && !title.chapters.isEmpty {
             let chaptersFile = try createChaptersFile(for: title)
             ffmpegArgs.append(contentsOf: ["-f", "ffmetadata", "-i", chaptersFile])
-            defer { try? FileManager.default.removeItem(atPath: chaptersFile) }
+            do { try? FileManager.default.removeItem(atPath: chaptersFile) }
         }
         
         // Add metadata
@@ -293,7 +293,7 @@ class DVDRipper {
         let pipe = Pipe()
         process.standardError = pipe
         
-        let progressQueue = DispatchQueue(label: "ffmpeg.progress")
+        _ = DispatchQueue(label: "ffmpeg.progress")
         pipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if let output = String(data: data, encoding: .utf8) {
@@ -321,7 +321,7 @@ class DVDRipper {
                 let components = line.components(separatedBy: " ")
                 for component in components {
                     if component.hasPrefix("time=") {
-                        let timeString = String(component.dropFirst(5))
+                        _ = String(component.dropFirst(5))
                         // Convert time to progress percentage
                         // This is a simplified version - real implementation would be more robust
                         let baseProgress = Double(titleIndex) / Double(totalTitles)

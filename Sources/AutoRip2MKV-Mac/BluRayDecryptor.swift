@@ -154,7 +154,7 @@ class BluRayDecryptor {
     
     private func decryptVolumeKey(encryptedKey: [UInt8]) throws -> AACSKey {
         // Decrypt volume key using processing key
-        var key = AACSKey()
+        let key = AACSKey()
         // Implementation would perform AES decryption
         return key
     }
@@ -171,11 +171,11 @@ class BluRayDecryptor {
     }
     
     private func decryptTitleKey(encryptedKey: [UInt8], titleNumber: Int) throws -> AACSKey {
-        guard let volumeKey = self.volumeKey else {
+        guard self.volumeKey != nil else {
             throw BluRayError.volumeKeyNotFound
         }
         
-        var titleKey = AACSKey()
+        let titleKey = AACSKey()
         // Implementation would derive title key from volume key
         return titleKey
     }

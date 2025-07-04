@@ -71,7 +71,7 @@ class BluRayStructureParser {
             throw BluRayParseError.invalidIndex
         }
         
-        let version = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
+        _ = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
         
         // Parse AppInfoBDMV
         let appInfoOffset = data.readUInt32(at: 0x28)
@@ -88,29 +88,29 @@ class BluRayStructureParser {
     
     private func parseAppInfo(data: Data, offset: Int) throws {
         // Parse application info section
-        let length = data.readUInt32(at: offset)
+        _ = data.readUInt32(at: offset)
         
         // Video format, frame rate, etc.
-        let videoFormat = data[offset + 5]
-        let frameRate = data[offset + 6]
+        _ = data[offset + 5]
+        _ = data[offset + 6]
     }
     
     private func parseIndexTable(data: Data, offset: Int) throws {
         // Parse index table for first play and top menu
-        let length = data.readUInt32(at: offset)
+        _ = data.readUInt32(at: offset)
         
         // First Play
         let firstPlayType = data[offset + 4]
         if firstPlayType == 1 { // Movie object
-            let firstPlayRef = data.readUInt16(at: offset + 6)
+            _ = data.readUInt16(at: offset + 6)
         } else if firstPlayType == 2 { // BD-J object
-            let firstPlayRef = data.readUInt16(at: offset + 6)
+            _ = data.readUInt16(at: offset + 6)
         }
         
         // Top Menu
         let topMenuType = data[offset + 8]
         if topMenuType == 1 { // Movie object
-            let topMenuRef = data.readUInt16(at: offset + 10)
+            _ = data.readUInt16(at: offset + 10)
         }
     }
     
@@ -141,9 +141,9 @@ class BluRayStructureParser {
         for _ in 0..<objectCount {
             if currentOffset + 12 <= data.count {
                 // Parse movie object
-                let resumeIntentionFlag = data[currentOffset]
-                let menuCallMask = data[currentOffset + 1]
-                let titleSearchMask = data[currentOffset + 2]
+                _ = data[currentOffset]
+                _ = data[currentOffset + 1]
+                _ = data[currentOffset + 2]
                 
                 currentOffset += 12
             }
@@ -185,7 +185,7 @@ class BluRayStructureParser {
             throw BluRayParseError.invalidPlaylist
         }
         
-        let version = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
+        _ = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
         
         // Extract playlist number from filename
         let playlistNumber = extractPlaylistNumber(from: filename)
@@ -193,7 +193,7 @@ class BluRayStructureParser {
         // Parse playlist info
         let playlistInfoOffset = data.readUInt32(at: 0x08)
         let playlistMarkOffset = data.readUInt32(at: 0x0C)
-        let extensionDataOffset = data.readUInt32(at: 0x10)
+        _ = data.readUInt32(at: 0x10)
         
         var playlist = BluRayPlaylist(number: playlistNumber, filename: filename)
         
@@ -211,18 +211,18 @@ class BluRayStructureParser {
     }
     
     private func parsePlaylistInfo(data: Data, offset: Int, playlist: inout BluRayPlaylist) throws {
-        let length = data.readUInt32(at: offset)
+        _ = data.readUInt32(at: offset)
         
         // Playlist type and playback count
-        let playbackType = data[offset + 6]
-        let playbackCount = data.readUInt16(at: offset + 8)
+        _ = data[offset + 6]
+        _ = data.readUInt16(at: offset + 8)
         
         // UO mask table (User Operation mask)
-        let uoMaskOffset = offset + 10
+        _ = offset + 10
         
         // Playlist items
         let playItemCount = data.readUInt16(at: offset + 74)
-        let subPathCount = data.readUInt16(at: offset + 76)
+        _ = data.readUInt16(at: offset + 76)
         
         var currentOffset = offset + 78
         
@@ -242,15 +242,14 @@ class BluRayStructureParser {
     }
     
     private func parsePlayItem(data: Data, offset: Int, index: Int) throws -> BluRayPlayItem {
-        let itemLength = data.readUInt16(at: offset)
+        _ = data.readUInt16(at: offset)
         
         // Clip information file name (5 characters + .clpi)
-        let clipName = String(data: data.subdata(in: (offset + 2)..<(offset + 7)), encoding: .ascii) ?? ""
-        let codecID = String(data: data.subdata(in: (offset + 7)..<(offset + 11)), encoding: .ascii) ?? ""
+        let clipName = String(data: data.subdata(in: offset + 2..<offset + 7), encoding: .ascii) ?? ""
         
         // Connection condition and stc_id
-        let connectionCondition = data[offset + 12]
-        let stcID = data[offset + 13]
+        _ = data[offset + 12]
+        _ = data[offset + 13]
         
         // In time and out time (45kHz ticks)
         let inTime = data.readUInt32(at: offset + 14)
@@ -260,7 +259,7 @@ class BluRayStructureParser {
         let duration = TimeInterval(outTime - inTime) / 45000.0
         
         // UO mask
-        let uoMaskOffset = offset + 22
+        _ = offset + 22
         
         // Angle count
         let angleCount = data[offset + 86]
@@ -279,7 +278,7 @@ class BluRayStructureParser {
     }
     
     private func parsePlaylistMarks(data: Data, offset: Int, playlist: inout BluRayPlaylist) throws {
-        let length = data.readUInt32(at: offset)
+        _ = data.readUInt32(at: offset)
         let markCount = data.readUInt16(at: offset + 4)
         
         var currentOffset = offset + 6
@@ -338,18 +337,18 @@ class BluRayStructureParser {
             throw BluRayParseError.invalidClipInfo
         }
         
-        let version = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
+        _ = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
         
         // Extract clip name from filename
         let clipName = String(filename.dropLast(5)) // Remove .clpi extension
         
         // Parse clip info
         let clipInfoOffset = data.readUInt32(at: 0x08)
-        let sequenceInfoOffset = data.readUInt32(at: 0x0C)
-        let programInfoOffset = data.readUInt32(at: 0x10)
-        let cpiOffset = data.readUInt32(at: 0x14)
-        let clipMarkOffset = data.readUInt32(at: 0x18)
-        let extensionDataOffset = data.readUInt32(at: 0x1C)
+        _ = data.readUInt32(at: 0x0C)
+        _ = data.readUInt32(at: 0x10)
+        _ = data.readUInt32(at: 0x14)
+        _ = data.readUInt32(at: 0x18)
+        _ = data.readUInt32(at: 0x1C)
         
         var clip = BluRayClip(name: clipName, filename: filename)
         
@@ -362,18 +361,17 @@ class BluRayStructureParser {
     }
     
     private func parseClipInfoSection(data: Data, offset: Int, clip: inout BluRayClip) throws {
-        let length = data.readUInt32(at: offset)
+        _ = data.readUInt32(at: offset)
         
         // Clip stream type and application type
-        let clipStreamType = data[offset + 5]
-        let applicationType = data[offset + 6]
+        _ = data[offset + 5]
+        _ = data[offset + 6]
         
         // TS recording rate
         let tsRecordingRate = data.readUInt32(at: offset + 8)
-        clip.bitrate = Int(tsRecordingRate)
         
         // Number of source packets
-        let sourcePacketCount = data.readUInt32(at: offset + 12)
+        _ = data.readUInt32(at: offset + 12)
     }
     
     // MARK: - Utility Functions

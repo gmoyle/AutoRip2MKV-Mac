@@ -63,7 +63,7 @@ class DVDStructureParser {
         }
         
         // Extract title count and information
-        let titleCount = data.readUInt16(at: 0x3E)
+        _ = data.readUInt16(at: 0x3E)
         
         // Parse Title Table (TT_SRPT)
         let ttSrptOffset = data.readUInt32(at: 0xC4) * 2048
@@ -74,7 +74,7 @@ class DVDStructureParser {
     
     private func parseTitleTable(data: Data, offset: Int) throws {
         let titleCount = data.readUInt16(at: offset + 0)
-        let tableEndAddress = data.readUInt32(at: offset + 4)
+        _ = data.readUInt32(at: offset + 4)
         
         var currentOffset = offset + 8
         
@@ -88,10 +88,10 @@ class DVDStructureParser {
     }
     
     private func parseTitleEntry(data: Data, offset: Int, titleNumber: Int) throws -> DVDTitle {
-        let playbackType = data[offset]
+        _ = data[offset]
         let numAngles = data[offset + 1]
         let numChapters = data.readUInt16(at: offset + 2)
-        let parentalMask = data.readUInt16(at: offset + 4)
+        _ = data.readUInt16(at: offset + 4)
         let vtsNumber = data.readUInt16(at: offset + 6)
         let vtsTitleNumber = data.readUInt16(at: offset + 8)
         let startSector = data.readUInt32(at: offset + 10)
@@ -168,7 +168,7 @@ class DVDStructureParser {
     
     private func parsePGC(data: Data, offset: Int, for title: DVDTitle) throws {
         // Parse individual Program Chain
-        let programCount = data[offset + 2]
+        _ = data[offset + 2]
         let cellCount = data[offset + 3]
         let playbackTime = data.readUInt32(at: offset + 4)
         
@@ -187,8 +187,8 @@ class DVDStructureParser {
         
         for chapterIndex in 0..<cellCount {
             if currentOffset + 24 <= data.count {
-                let cellType = data[currentOffset]
-                let blockType = data[currentOffset + 1]
+                _ = data[currentOffset]
+                _ = data[currentOffset + 1]
                 let startSector = data.readUInt32(at: currentOffset + 4)
                 let endSector = data.readUInt32(at: currentOffset + 8)
                 
