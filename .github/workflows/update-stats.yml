@@ -131,7 +131,7 @@ jobs:
         
         stats_replacement = f'''### **Codebase Metrics**
         - **Total Swift Files**: {swift_files}
-        - **Lines of Code**: {lines_of_code:,}
+        - **Lines of Code**: {int(lines_of_code):,}
         - **Test Coverage**: {test_count} comprehensive tests
         - **Test Success Rate**: {success_rate}% ({test_failures} failures)
         - **Git Commits**: {commits}
@@ -153,7 +153,7 @@ jobs:
         footer_replacement = f'''**Date**: {current_date} (Last Updated: {current_date})
         **Direct Code Modifications by Human**: 0
         **Git Commands by Human**: 0
-        **Lines of AI-Generated Code**: {lines_of_code:,}'''
+        **Lines of AI-Generated Code**: {int(lines_of_code):,}'''
         
         content = re.sub(footer_pattern, footer_replacement, content)
         
@@ -166,12 +166,12 @@ jobs:
         
         # Update AI-generated line count in features
         readme_pattern = r'- \*\*🤖 100% AI-Generated\*\*: [\d,]+ lines of Swift code created entirely by AI'
-        readme_replacement = f'- **🤖 100% AI-Generated**: {lines_of_code:,} lines of Swift code created entirely by AI'
+        readme_replacement = f'- **🤖 100% AI-Generated**: {int(lines_of_code):,} lines of Swift code created entirely by AI'
         readme_content = re.sub(readme_pattern, readme_replacement, readme_content)
         
         # Update experiment section stats
         experiment_pattern = r'- \*\*Total Swift Code\*\*: [\d,]+ lines \(100% AI-generated\)\n- \*\*Tests\*\*: \d+ comprehensive tests \([\d.]+% pass rate\)'
-        experiment_replacement = f'''- **Total Swift Code**: {lines_of_code:,} lines (100% AI-generated)
+        experiment_replacement = f'''- **Total Swift Code**: {int(lines_of_code):,} lines (100% AI-generated)
         - **Tests**: {test_count} comprehensive tests ({success_rate}% pass rate)'''
         readme_content = re.sub(experiment_pattern, experiment_replacement, readme_content)
         
@@ -180,7 +180,7 @@ jobs:
         
         print(f"✅ Documentation updated with latest statistics")
         print(f"📊 Swift Files: {swift_files}")
-        print(f"📊 Lines of Code: {lines_of_code:,}")
+        print(f"📊 Lines of Code: {int(lines_of_code):,}")
         print(f"📊 Tests: {test_count} ({success_rate}% success rate)")
         print(f"📊 Commits: {commits}")
         EOF
