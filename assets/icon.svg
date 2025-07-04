@@ -27,10 +27,16 @@
       <stop offset="100%" style="stop-color:#555555;stop-opacity:1" />
     </radialGradient>
     
-    <!-- Orange file icon gradient -->
-    <linearGradient id="fileGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Orange floppy disk gradient -->
+    <linearGradient id="floppyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#FF9500;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#E6830A;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Floppy disk label gradient -->
+    <linearGradient id="floppyLabelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#f0f0f0;stop-opacity:0.9" />
     </linearGradient>
     
     <!-- Shadow filters -->
@@ -92,29 +98,53 @@
              transform="rotate(-30)"/>
   </g>
   
-  <!-- Large file icon (repositioned so bottom-right stays inside blue button) -->
+  <!-- Classic 5¼" floppy disk (repositioned so bottom-right stays inside blue button) -->
   <g transform="translate(285, 260)">
-    <!-- Orange file icon (75% wider = 161px width, 184px height) -->
-    <rect x="0" y="0" width="161" height="184" rx="12" ry="12" 
-          fill="url(#fileGradient)" 
+    <!-- Main floppy disk body (square, classic proportions) -->
+    <rect x="0" y="0" width="161" height="184" rx="8" ry="8" 
+          fill="url(#floppyGradient)" 
           stroke="#D4720A" 
           stroke-width="3"
           filter="url(#fileShadow)"/>
     
-    <!-- File corner fold -->
-    <path d="M 121 0 L 121 23 L 161 23 Z" fill="#D4720A"/>
-    <path d="M 121 0 L 161 23 L 161 0 Z" fill="#FF9500"/>
+    <!-- Center hub/spindle hole (large circle in center) -->
+    <circle cx="80.5" cy="92" r="22" 
+            fill="#2c2c2c" 
+            stroke="#1a1a1a" 
+            stroke-width="2"/>
     
-    <!-- Document lines (spread across wider file) -->
-    <rect x="24" y="46" width="70" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="58" width="91" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="70" width="61" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="82" width="81" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="94" width="49" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="106" width="73" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="118" width="67" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="130" width="52" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="142" width="77" height="5" rx="2" fill="white" opacity="0.9"/>
-    <rect x="24" y="154" width="63" height="5" rx="2" fill="white" opacity="0.9"/>
+    <!-- Small center hole -->
+    <circle cx="80.5" cy="92" r="8" fill="#000000"/>
+    
+    <!-- Write-protect notch (bottom right corner) -->
+    <rect x="135" y="160" width="15" height="15" 
+          fill="#2c2c2c"
+          stroke="#1a1a1a"
+          stroke-width="1"/>
+    
+    <!-- Classic white label area -->
+    <rect x="20" y="25" width="121" height="45" rx="3" ry="3" 
+          fill="url(#floppyLabelGradient)" 
+          stroke="#ddd" 
+          stroke-width="1"/>
+    
+    <!-- Label text lines (classic floppy style) -->
+    <rect x="30" y="35" width="80" height="2" rx="1" fill="#666" opacity="0.8"/>
+    <rect x="30" y="42" width="101" height="2" rx="1" fill="#666" opacity="0.8"/>
+    <rect x="30" y="49" width="65" height="2" rx="1" fill="#666" opacity="0.8"/>
+    <rect x="30" y="56" width="85" height="2" rx="1" fill="#666" opacity="0.8"/>
+    
+    <!-- Disk access window (horizontal slot) -->
+    <rect x="15" y="130" width="131" height="8" rx="4" ry="4" 
+          fill="#1a1a1a" 
+          stroke="#0d0d0d" 
+          stroke-width="1"/>
+    
+    <!-- Classic floppy disk reinforcement ring -->
+    <circle cx="80.5" cy="92" r="28" 
+            fill="none" 
+            stroke="#D4720A" 
+            stroke-width="1" 
+            opacity="0.3"/>
   </g>
 </svg>
