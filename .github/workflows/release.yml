@@ -4,6 +4,8 @@ permissions:
   contents: write
   actions: read
   packages: write
+  pull-requests: write
+  issues: write
 
 on:
   push:
