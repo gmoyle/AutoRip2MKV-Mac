@@ -134,8 +134,8 @@
     <rect x="30" y="49" width="65" height="2" rx="1" fill="#666" opacity="0.8"/>
     <rect x="30" y="56" width="85" height="2" rx="1" fill="#666" opacity="0.8"/>
     
-    <!-- Disk access window (horizontal slot) -->
-    <rect x="15" y="130" width="131" height="8" rx="4" ry="4" 
+    <!-- Disk access window (vertical slot) -->
+    <rect x="72" y="120" width="17" height="55" rx="8" ry="8" 
           fill="#1a1a1a" 
           stroke="#0d0d0d" 
           stroke-width="1"/>

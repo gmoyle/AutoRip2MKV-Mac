@@ -128,7 +128,7 @@
     <rect x="7" y="14" width="21" height="0.5" rx="0.25" fill="#666" opacity="0.8"/>
     
     <!-- Disk access window -->
-    <rect x="4" y="33" width="32" height="2" rx="1" ry="1" 
+    <rect x="18" y="30" width="4" height="13" rx="2" ry="2" 
           fill="#1a1a1a" 
           stroke="#0d0d0d" 
           stroke-width="0.3"/>
