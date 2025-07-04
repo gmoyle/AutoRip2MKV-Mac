@@ -168,15 +168,15 @@ class MainViewController: NSViewController {
         openPanel.allowsMultipleSelection = false
         openPanel.title = "Select Source DVD/Blu-ray Directory"
         
-        if openPanel.runModal() == .OK {
-            if let url = openPanel.url {
-                // Add custom path to dropdown
-                sourceDropDown.addItem(withTitle: "Custom: \(url.lastPathComponent)")
-                sourceDropDown.selectItem(at: sourceDropDown.numberOfItems - 1)
-                
-                // Save the selection
-                saveCurrentSettings()
-            }
+        if let url = testingUtils.showFilePanel(openPanel, testPath: "/tmp/test_dvd", logHandler: { [weak self] logMessage in
+            self?.appendToLog(logMessage)
+        }) {
+            // Add custom path to dropdown
+            sourceDropDown.addItem(withTitle: "Custom: \(url.lastPathComponent)")
+            sourceDropDown.selectItem(at: sourceDropDown.numberOfItems - 1)
+            
+            // Save the selection
+            saveCurrentSettings()
         }
     }
     
@@ -187,11 +187,11 @@ class MainViewController: NSViewController {
         openPanel.allowsMultipleSelection = false
         openPanel.title = "Select Output Directory"
         
-        if openPanel.runModal() == .OK {
-            if let url = openPanel.url {
-                outputPathField.stringValue = url.path
-                saveCurrentSettings()
-            }
+        if let url = testingUtils.showFilePanel(openPanel, testPath: "/tmp/test_output", logHandler: { [weak self] logMessage in
+            self?.appendToLog(logMessage)
+        }) {
+            outputPathField.stringValue = url.path
+            saveCurrentSettings()
         }
     }
     
@@ -241,11 +241,9 @@ class MainViewController: NSViewController {
     }
     
     private func showAlert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.runModal()
+        testingUtils.showAlert(title: title, message: message) { [weak self] alertTitle, alertMessage in
+            self?.appendToLog("ALERT: \(alertTitle) - \(alertMessage)")
+        }
     }
     
     private func isFFmpegAvailable() -> Bool {
@@ -571,6 +569,7 @@ class MainViewController: NSViewController {
             driveIndex: driveIndex
         )
     }
+    
 }
 
 // MARK: - DVDRipperDelegate
@@ -606,12 +605,13 @@ extension MainViewController: DVDRipperDelegate {
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
             
-            // Show completion notification
-            let alert = NSAlert()
-            alert.messageText = "Ripping Complete"
-            alert.informativeText = "DVD has been successfully ripped to MKV format."
-            alert.alertStyle = .informational
-            alert.runModal()
+            self.testingUtils.showAlert(
+                title: "Ripping Complete",
+                message: "DVD has been successfully ripped to MKV format.",
+                style: .informational
+            ) { [weak self] alertTitle, alertMessage in
+                self?.appendToLog("ALERT: \(alertTitle) - \(alertMessage)")
+            }
         }
     }
     
