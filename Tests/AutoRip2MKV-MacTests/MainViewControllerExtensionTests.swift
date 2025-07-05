@@ -11,6 +11,7 @@ final class MainViewControllerExtensionTests: XCTestCase {
     override func setUpWithError() throws {
         viewController = MainViewController()
         viewController.loadView()
+        viewController.setupMockUIForTesting() // Setup mock UI for testing
         mockDelegate = MockDVDRipperDelegate()
         
         // Create test output directory
@@ -39,6 +40,9 @@ final class MainViewControllerExtensionTests: XCTestCase {
     }
     
     func testAppendToLogWithTimestamp() {
+        // Clear any existing content first
+        viewController.logTextView.string = ""
+        
         let message1 = "First message"
         let message2 = "Second message"
         
@@ -327,20 +331,29 @@ final class MainViewControllerExtensionTests: XCTestCase {
 // MARK: - Test Helpers
 
 private extension MainViewController {
-    // Expose internal UI components for testing
-    var logTextView: NSTextView {
-        return self.value(forKey: "logTextView") as! NSTextView
+    // Helper for testing - checks if UI components are accessible
+    var hasUIComponentsInitialized: Bool {
+        return logTextView != nil && progressIndicator != nil && ripButton != nil && outputPathField != nil
     }
     
-    var progressIndicator: NSProgressIndicator {
-        return self.value(forKey: "progressIndicator") as! NSProgressIndicator
-    }
-    
-    var ripButton: NSButton {
-        return self.value(forKey: "ripButton") as! NSButton
-    }
-    
-    var outputPathField: NSTextField {
-        return self.value(forKey: "outputPathField") as! NSTextField
+    // Mock UI components for testing when real ones aren't available
+    func setupMockUIForTesting() {
+        // Create mock UI components if they don't exist
+        if logTextView == nil {
+            logTextView = NSTextView()
+        }
+        if progressIndicator == nil {
+            progressIndicator = NSProgressIndicator()
+        }
+        if ripButton == nil {
+            ripButton = NSButton()
+            ripButton.title = "Start Ripping"
+        }
+        if outputPathField == nil {
+            outputPathField = NSTextField()
+        }
+        if sourceDropDown == nil {
+            sourceDropDown = NSPopUpButton()
+        }
     }
 }
