@@ -31,6 +31,9 @@ class MainViewController: NSViewController {
     private var dvdRipper: DVDRipper!
     private var currentTitles: [DVDTitle] = []
     
+    // Settings Window
+    private var detailedSettingsWindowController: DetailedSettingsWindowController?
+    
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         setupUI()
@@ -324,13 +327,18 @@ class MainViewController: NSViewController {
     }
     
     @objc private func showSettings() {
-        // TODO: Implement a detailed settings window
-        let alert = NSAlert()
-        alert.messageText = "Settings"
-        alert.informativeText = "Detailed settings panel coming soon. For now, use the checkboxes above to control automation."
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        print("[DEBUG] showSettings called - using DetailedSettingsWindowController")
+        
+        // Create or reuse the detailed settings window controller
+        if detailedSettingsWindowController == nil {
+            detailedSettingsWindowController = DetailedSettingsWindowController()
+        }
+        
+        // Show the window
+        detailedSettingsWindowController?.showWindow(nil)
+        print("[DEBUG] Detailed settings window should be visible now")
     }
+    
     
 }
 

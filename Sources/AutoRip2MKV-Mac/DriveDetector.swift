@@ -394,6 +394,141 @@ class SettingsManager {
         if userDefaults.object(forKey: Keys.includeChapters) == nil {
             includeChapters = true
         }
+        
+        // Set extended defaults
+        setExtendedDefaultsIfNeeded()
+        
         userDefaults.synchronize()
+    }
+    
+    // MARK: - Extended Settings with Defaults
+    
+    private func setExtendedDefaultsIfNeeded() {
+        // File Storage defaults
+        if userDefaults.object(forKey: "outputStructureType") == nil {
+            userDefaults.set(1, forKey: "outputStructureType") // By Media Type
+        }
+        if userDefaults.object(forKey: "createSeriesDirectory") == nil {
+            userDefaults.set(true, forKey: "createSeriesDirectory")
+        }
+        if userDefaults.object(forKey: "createSeasonDirectory") == nil {
+            userDefaults.set(true, forKey: "createSeasonDirectory")
+        }
+        if userDefaults.object(forKey: "movieDirectoryFormat") == nil {
+            userDefaults.set("Movies/{title} ({year})", forKey: "movieDirectoryFormat")
+        }
+        if userDefaults.object(forKey: "tvShowDirectoryFormat") == nil {
+            userDefaults.set("TV Shows/{series}/Season {season}", forKey: "tvShowDirectoryFormat")
+        }
+        
+        // Bonus Content defaults
+        if userDefaults.object(forKey: "includeBonusFeatures") == nil {
+            userDefaults.set(false, forKey: "includeBonusFeatures")
+        }
+        if userDefaults.object(forKey: "includeCommentaries") == nil {
+            userDefaults.set(false, forKey: "includeCommentaries")
+        }
+        if userDefaults.object(forKey: "includeDeletedScenes") == nil {
+            userDefaults.set(false, forKey: "includeDeletedScenes")
+        }
+        if userDefaults.object(forKey: "includeMakingOf") == nil {
+            userDefaults.set(false, forKey: "includeMakingOf")
+        }
+        if userDefaults.object(forKey: "includeTrailers") == nil {
+            userDefaults.set(false, forKey: "includeTrailers")
+        }
+        if userDefaults.object(forKey: "bonusContentStructure") == nil {
+            userDefaults.set(1, forKey: "bonusContentStructure") // Separate 'Bonus' subdirectory
+        }
+        if userDefaults.object(forKey: "bonusContentDirectory") == nil {
+            userDefaults.set("Bonus", forKey: "bonusContentDirectory")
+        }
+        
+        // File Naming defaults
+        if userDefaults.object(forKey: "movieFileFormat") == nil {
+            userDefaults.set("{title} ({year}).mkv", forKey: "movieFileFormat")
+        }
+        if userDefaults.object(forKey: "tvShowFileFormat") == nil {
+            userDefaults.set("{series} - S{season:02d}E{episode:02d} - {title}.mkv", forKey: "tvShowFileFormat")
+        }
+        if userDefaults.object(forKey: "seasonEpisodeFormat") == nil {
+            userDefaults.set("S{season:02d}E{episode:02d}", forKey: "seasonEpisodeFormat")
+        }
+        if userDefaults.object(forKey: "includeYearInFilename") == nil {
+            userDefaults.set(true, forKey: "includeYearInFilename")
+        }
+        if userDefaults.object(forKey: "includeResolutionInFilename") == nil {
+            userDefaults.set(false, forKey: "includeResolutionInFilename")
+        }
+        if userDefaults.object(forKey: "includeCodecInFilename") == nil {
+            userDefaults.set(false, forKey: "includeCodecInFilename")
+        }
+        
+        // Advanced defaults
+        if userDefaults.object(forKey: "preserveOriginalTimestamps") == nil {
+            userDefaults.set(false, forKey: "preserveOriginalTimestamps")
+        }
+        if userDefaults.object(forKey: "createBackups") == nil {
+            userDefaults.set(false, forKey: "createBackups")
+        }
+        if userDefaults.object(forKey: "autoRetryOnFailure") == nil {
+            userDefaults.set(true, forKey: "autoRetryOnFailure")
+        }
+        if userDefaults.object(forKey: "maxRetryAttempts") == nil {
+            userDefaults.set(3, forKey: "maxRetryAttempts")
+        }
+        if userDefaults.object(forKey: "postProcessingScript") == nil {
+            userDefaults.set("", forKey: "postProcessingScript")
+        }
+    }
+    
+    // MARK: - Extended Settings Getters
+    
+    var outputStructureType: Int {
+        return userDefaults.integer(forKey: "outputStructureType")
+    }
+    
+    var createSeriesDirectory: Bool {
+        return userDefaults.bool(forKey: "createSeriesDirectory")
+    }
+    
+    var createSeasonDirectory: Bool {
+        return userDefaults.bool(forKey: "createSeasonDirectory")
+    }
+    
+    var movieDirectoryFormat: String {
+        return userDefaults.string(forKey: "movieDirectoryFormat") ?? "Movies/{title} ({year})"
+    }
+    
+    var tvShowDirectoryFormat: String {
+        return userDefaults.string(forKey: "tvShowDirectoryFormat") ?? "TV Shows/{series}/Season {season}"
+    }
+    
+    var includeBonusFeatures: Bool {
+        return userDefaults.bool(forKey: "includeBonusFeatures")
+    }
+    
+    var includeCommentaries: Bool {
+        return userDefaults.bool(forKey: "includeCommentaries")
+    }
+    
+    var includeDeletedScenes: Bool {
+        return userDefaults.bool(forKey: "includeDeletedScenes")
+    }
+    
+    var includeMakingOf: Bool {
+        return userDefaults.bool(forKey: "includeMakingOf")
+    }
+    
+    var includeTrailers: Bool {
+        return userDefaults.bool(forKey: "includeTrailers")
+    }
+    
+    var bonusContentStructure: Int {
+        return userDefaults.integer(forKey: "bonusContentStructure")
+    }
+    
+    var bonusContentDirectory: String {
+        return userDefaults.string(forKey: "bonusContentDirectory") ?? "Bonus"
     }
 }
