@@ -49,7 +49,12 @@ final class MediaRipperOrganizationTests: XCTestCase {
         let uhdMarker = Data([0x0F, 0x00])
         indexData.replaceSubrange(100..<102, with: uhdMarker)
         
-        try! indexData.write(to: URL(fileURLWithPath: indexPath))
+        do {
+            try indexData.write(to: URL(fileURLWithPath: indexPath))
+        } catch {
+            XCTFail("Failed to write test index file: \(error)")
+            return
+        }
         
         let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
         XCTAssertTrue(result, "Should detect UHD Blu-ray with UHD marker")
@@ -64,7 +69,12 @@ final class MediaRipperOrganizationTests: XCTestCase {
         let resolution4K = "3840".data(using: .utf8)!
         indexData.replaceSubrange(200..<204, with: resolution4K)
         
-        try! indexData.write(to: URL(fileURLWithPath: indexPath))
+        do {
+            try indexData.write(to: URL(fileURLWithPath: indexPath))
+        } catch {
+            XCTFail("Failed to write test index file: \(error)")
+            return
+        }
         
         let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
         XCTAssertTrue(result, "Should detect UHD Blu-ray with 4K resolution marker")
@@ -76,8 +86,13 @@ final class MediaRipperOrganizationTests: XCTestCase {
         let idPath = certificatePath.appending("/id.bdmv")
         
         // Create certificate structure
-        try! FileManager.default.createDirectory(atPath: certificatePath, withIntermediateDirectories: true)
-        try! Data().write(to: URL(fileURLWithPath: idPath))
+        do {
+            try FileManager.default.createDirectory(atPath: certificatePath, withIntermediateDirectories: true)
+            try Data().write(to: URL(fileURLWithPath: idPath))
+        } catch {
+            XCTFail("Failed to create test certificate structure: \(error)")
+            return
+        }
         
         let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
         XCTAssertTrue(result, "Should detect UHD Blu-ray with certificate structure")
@@ -104,7 +119,12 @@ final class MediaRipperOrganizationTests: XCTestCase {
         let hdMarker = Data([0x04, 0x00])
         vmgiData.replaceSubrange(100..<102, with: hdMarker)
         
-        try! vmgiData.write(to: URL(fileURLWithPath: vmgiPath))
+        do {
+            try vmgiData.write(to: URL(fileURLWithPath: vmgiPath))
+        } catch {
+            XCTFail("Failed to write test VMGI file: \(error)")
+            return
+        }
         
         let result = mediaRipper.isUltraHDDVD(videoTSPath: videoTSPath)
         XCTAssertTrue(result, "Should detect Ultra HD DVD with HD marker")
@@ -158,11 +178,21 @@ final class MediaRipperOrganizationTests: XCTestCase {
     func testExtractCoverArtBluray() {
         // Create mock cover art
         let metaPath = testBlurayPath.appending("/BDMV/META/DL")
-        try! FileManager.default.createDirectory(atPath: metaPath, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(atPath: metaPath, withIntermediateDirectories: true)
+        } catch {
+            XCTFail("Failed to create test meta directory: \(error)")
+            return
+        }
         
         let coverPath = metaPath.appending("/cover.jpg")
         let mockImageData = Data([0xFF, 0xD8, 0xFF, 0xE0]) // JPEG header
-        try! mockImageData.write(to: URL(fileURLWithPath: coverPath))
+        do {
+            try mockImageData.write(to: URL(fileURLWithPath: coverPath))
+        } catch {
+            XCTFail("Failed to write test cover art: \(error)")
+            return
+        }
         
         // Set media type to Blu-ray
         mediaRipper.currentMediaType = .bluray
@@ -344,7 +374,12 @@ final class MediaRipperOrganizationTests: XCTestCase {
             for i in 0..<50 {
                 let movieName = "Test Movie \(i)"
                 let outputDir = testOutputPath.appending("/perf_test_\(i)")
-                try! FileManager.default.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+                do {
+                    try FileManager.default.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+                } catch {
+                    XCTFail("Failed to create test output directory: \(error)")
+                    return
+                }
                 
                 _ = mediaRipper.createOrganizedOutputDirectory(
                     baseDirectory: outputDir,
