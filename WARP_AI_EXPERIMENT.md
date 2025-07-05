@@ -16,15 +16,15 @@ This project represents an extraordinary experiment in AI-powered software devel
 ## 📊 **Project Statistics**
 
 ### **Codebase Metrics**
-- **Total Swift Files**: 21
-- **Lines of Code**: 5,532
-- **Test Coverage**: 105 comprehensive tests
+- **Total Swift Files**: 35
+- **Lines of Code**: 9,299
+- **Test Coverage**: 66 comprehensive tests
 - **Test Success Rate**: 100.0% (0 failures)
-- **Git Commits**: 56
+- **Git Commits**: 65
 - **Author**: Greg (via AI assistance)
 
 ### **File Breakdown**
-#### **Core Application Files (11)**
+#### **Core Application Files (22)**
 - `AppDelegate.swift` - Application lifecycle management
 - `main.swift` - Application entry point
 - `MainViewController.swift` - Primary UI controller
@@ -37,7 +37,7 @@ This project represents an extraordinary experiment in AI-powered software devel
 - `DriveDetector.swift` - Optical drive detection
 - `Package.swift` - Swift package configuration
 
-#### **Test Files (9)**
+#### **Test Files (12)**
 - `AutoRip2MKV_MacTests.swift` - Main application tests
 - `DVDRipperTests.swift` - DVD ripping functionality tests
 - `DVDDecryptorTests.swift` - Decryption system tests
