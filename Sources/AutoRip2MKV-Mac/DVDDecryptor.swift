@@ -74,6 +74,37 @@ class DVDDecryptor {
         fileHandle = nil
     }
     
+    /// Read multiple sectors from DVD
+    func readSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
+        guard let handle = fileHandle else {
+            throw DVDError.deviceNotOpen
+        }
+        
+        let offset = Int64(startSector) * Int64(Self.SECTOR_SIZE)
+        handle.seek(toFileOffset: UInt64(offset))
+        let dataSize = sectorCount * Self.SECTOR_SIZE
+        return handle.readData(ofLength: dataSize)
+    }
+    
+    /// Decrypt multiple sectors
+    func decryptSectors(data: Data, titleKey: CSSKey, startSector: UInt32) throws -> Data {
+        var decryptedData = Data()
+        let sectorCount = data.count / Self.SECTOR_SIZE
+        
+        for i in 0..<sectorCount {
+            let sectorOffset = i * Self.SECTOR_SIZE
+            let sectorData = data.subdata(in: sectorOffset..<(sectorOffset + Self.SECTOR_SIZE))
+            let decryptedSector = try applyCSSDecryption(
+                data: sectorData, 
+                key: titleKey, 
+                sector: startSector + UInt32(i)
+            )
+            decryptedData.append(decryptedSector)
+        }
+        
+        return decryptedData
+    }
+    
     // MARK: - CSS Authentication
     
     private func performCSSAuthentication() throws {

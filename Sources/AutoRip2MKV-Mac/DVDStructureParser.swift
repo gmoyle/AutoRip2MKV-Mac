@@ -277,6 +277,15 @@ class DVDTitle {
     var chapters: [DVDChapter] = []
     var vobFiles: [String] = []
     
+    // Computed property for sectors - calculate from chapters or estimate
+    var sectors: UInt32 {
+        if !chapters.isEmpty {
+            return chapters.last?.endSector ?? startSector
+        }
+        // Estimate based on duration (rough approximation)
+        return UInt32(duration * 25) // ~25 sectors per second for DVD
+    }
+    
     init(number: Int, vtsNumber: Int, vtsTitleNumber: Int, startSector: UInt32, 
          chapters: Int, angles: Int, duration: TimeInterval) {
         self.number = number

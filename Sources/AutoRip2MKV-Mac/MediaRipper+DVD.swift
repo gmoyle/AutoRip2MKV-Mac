@@ -30,6 +30,9 @@ extension MediaRipper {
         // Step 3: Initialize DVD decryptor
         delegate?.ripperDidUpdateStatus("Initializing DVD CSS decryption...")
         let devicePath = findDVDDevice(dvdPath: dvdPath)
+        guard let devicePath = devicePath else {
+            throw MediaRipperError.deviceNotFound
+        }
         dvdDecryptor = DVDDecryptor(devicePath: devicePath)
         try dvdDecryptor!.initializeDevice()
         
@@ -100,7 +103,7 @@ extension MediaRipper {
             let startSector = title.startSector + sectorOffset
             
             // Read encrypted data
-            let encryptedData = try dvdDecryptor!.readSectors(startSector: startSector, sectorCount: sectorsToRead)
+            let encryptedData = try dvdDecryptor!.readSectors(startSector: startSector, sectorCount: Int(sectorsToRead))
             
             // Decrypt data
             let decryptedData = try dvdDecryptor!.decryptSectors(
@@ -122,7 +125,7 @@ extension MediaRipper {
         return tempFilePath
     }
     
-    private func createFileAndGetHandle(at path: String) -> FileHandle? {
+    internal func createFileAndGetHandle(at path: String) -> FileHandle? {
         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
         return FileHandle(forWritingAtPath: path)
     }

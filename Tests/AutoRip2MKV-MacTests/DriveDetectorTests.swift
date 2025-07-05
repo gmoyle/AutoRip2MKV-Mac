@@ -34,16 +34,17 @@ class DriveDetectorTests: XCTestCase {
         let testDrive = OpticalDrive(
             mountPoint: "/Volumes/TEST_DVD",
             name: "Test DVD",
-            type: .dvd
+            type: .dvd,
+            devicePath: "/dev/disk1"
         )
         
         XCTAssertEqual(testDrive.displayName, "Test DVD (/Volumes/TEST_DVD)")
     }
     
     func testOpticalDriveTypes() {
-        let dvdDrive = OpticalDrive(mountPoint: "/Volumes/DVD", name: "DVD", type: .dvd)
-        let blurayDrive = OpticalDrive(mountPoint: "/Volumes/BLURAY", name: "Blu-ray", type: .bluray)
-        let unknownDrive = OpticalDrive(mountPoint: "/Volumes/UNKNOWN", name: "Unknown", type: .unknown)
+        let dvdDrive = OpticalDrive(mountPoint: "/Volumes/DVD", name: "DVD", type: .dvd, devicePath: "/dev/disk1")
+        let blurayDrive = OpticalDrive(mountPoint: "/Volumes/BLURAY", name: "Blu-ray", type: .bluray, devicePath: "/dev/disk2")
+        let unknownDrive = OpticalDrive(mountPoint: "/Volumes/UNKNOWN", name: "Unknown", type: .unknown, devicePath: "/dev/disk3")
         
         XCTAssertEqual(dvdDrive.type, .dvd)
         XCTAssertEqual(blurayDrive.type, .bluray)

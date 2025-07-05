@@ -48,11 +48,10 @@ extension MediaRipper {
     
     private func getFFmpegPath() throws -> String {
         // Check bundled FFmpeg first
-        if let bundlePath = Bundle.main.bundlePath {
-            let bundledFFmpeg = bundlePath.appending("/Contents/Resources/ffmpeg")
-            if FileManager.default.fileExists(atPath: bundledFFmpeg) {
-                return bundledFFmpeg
-            }
+        let bundlePath = Bundle.main.bundlePath
+        let bundledFFmpeg = bundlePath.appending("/Contents/Resources/ffmpeg")
+        if FileManager.default.fileExists(atPath: bundledFFmpeg) {
+            return bundledFFmpeg
         }
         
         // Check system PATH

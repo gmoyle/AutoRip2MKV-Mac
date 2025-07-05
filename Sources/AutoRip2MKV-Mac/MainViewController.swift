@@ -3,23 +3,29 @@ import Cocoa
 class MainViewController: NSViewController {
     
     // UI Elements
-    private var titleLabel: NSTextField!
-    private var sourceLabel: NSTextField!
-    private var sourceDropDown: NSPopUpButton!
-    private var refreshDrivesButton: NSButton!
-    private var browseSourceButton: NSButton!
-    private var outputLabel: NSTextField!
-    private var outputPathField: NSTextField!
-    private var browseOutputButton: NSButton!
-    private var ripButton: NSButton!
-    private var progressIndicator: NSProgressIndicator!
-    private var logTextView: NSTextView!
-    private var scrollView: NSScrollView!
+    // UI Components - internal for extension access
+    internal var titleLabel: NSTextField!
+    internal var sourceLabel: NSTextField!
+    internal var sourceDropDown: NSPopUpButton!
+    internal var refreshDrivesButton: NSButton!
+    internal var browseSourceButton: NSButton!
+    internal var outputLabel: NSTextField!
+    internal var outputPathField: NSTextField!
+    internal var browseOutputButton: NSButton!
+    internal var ripButton: NSButton!
+    internal var progressIndicator: NSProgressIndicator!
+    internal var logTextView: NSTextView!
+    internal var scrollView: NSScrollView!
     
-    // Drive Detection
-    private var detectedDrives: [OpticalDrive] = []
-    private var driveDetector = DriveDetector.shared
-    private var settingsManager = SettingsManager.shared
+    // Automation Settings
+    internal var autoRipCheckbox: NSButton!
+    internal var autoEjectCheckbox: NSButton!
+    internal var settingsButton: NSButton!
+    
+    // Drive Detection - internal for extension access
+    internal var detectedDrives: [OpticalDrive] = []
+    internal var driveDetector = DriveDetector.shared
+    internal var settingsManager = SettingsManager.shared
     
     // DVD Ripper
     private var dvdRipper: DVDRipper!
@@ -31,6 +37,9 @@ class MainViewController: NSViewController {
         setupDVDRipper()
         loadSettings()
         refreshDrives()
+        driveDetector.delegate = self
+        driveDetector.startMonitoring()
+        settingsManager.setDefaultsIfNeeded()
     }
     
     private func setupUI() {
@@ -72,6 +81,19 @@ class MainViewController: NSViewController {
         browseOutputButton = NSButton(title: "Browse", target: self, action: #selector(browseOutputPath))
         browseOutputButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(browseOutputButton)
+        
+        // Automation Settings
+        autoRipCheckbox = NSButton(checkboxWithTitle: "Auto-rip inserted discs", target: self, action: #selector(autoRipToggled))
+        autoRipCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(autoRipCheckbox)
+        
+        autoEjectCheckbox = NSButton(checkboxWithTitle: "Auto-eject after ripping", target: self, action: #selector(autoEjectToggled))
+        autoEjectCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(autoEjectCheckbox)
+        
+        settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(settingsButton)
         
         // Rip Button
         ripButton = NSButton(title: "Start Ripping", target: self, action: #selector(startRipping))
@@ -143,8 +165,19 @@ class MainViewController: NSViewController {
             browseOutputButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             browseOutputButton.widthAnchor.constraint(equalToConstant: 80),
             
+            // Automation Settings
+            autoRipCheckbox.topAnchor.constraint(equalTo: outputPathField.bottomAnchor, constant: 20),
+            autoRipCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            
+            autoEjectCheckbox.topAnchor.constraint(equalTo: autoRipCheckbox.bottomAnchor, constant: 5),
+            autoEjectCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            
+            settingsButton.topAnchor.constraint(equalTo: autoEjectCheckbox.topAnchor),
+            settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            settingsButton.widthAnchor.constraint(equalToConstant: 80),
+            
             // Rip Button
-            ripButton.topAnchor.constraint(equalTo: outputPathField.bottomAnchor, constant: 30),
+            ripButton.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 20),
             ripButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             ripButton.widthAnchor.constraint(equalToConstant: 120),
             
@@ -234,116 +267,6 @@ class MainViewController: NSViewController {
         saveCurrentSettings()
     }
     
-    private func appendToLog(_ message: String) {
-        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        let logMessage = "[\(timestamp)] \(message)\n"
-        
-        logTextView.textStorage?.append(NSAttributedString(string: logMessage))
-        logTextView.scrollToEndOfDocument(nil)
-    }
-    
-    private func showAlert(title: String, message: String) {
-        testingUtils.showAlert(title: title, message: message) { [weak self] alertTitle, alertMessage in
-            self?.appendToLog("ALERT: \(alertTitle) - \(alertMessage)")
-        }
-    }
-    
-    private func isFFmpegAvailable() -> Bool {
-        // First check if bundled FFmpeg exists
-        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
-            return true
-        }
-        
-        // Then check system PATH
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["ffmpeg"]
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
-    
-    private func getFFmpegExecutablePath() -> String? {
-        // First try bundled FFmpeg
-        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
-            return bundledPath
-        }
-        
-        // Then try system PATH
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["ffmpeg"]
-        
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            
-            if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    return path
-                }
-            }
-        } catch {
-            // Ignore errors
-        }
-        
-        return nil
-    }
-    
-    private func installFFmpegIfNeeded() {
-        if !isFFmpegAvailable() {
-            // Check if we have a bundled FFmpeg first
-            if let bundledFFmpegPath = getBundledFFmpegPath(), 
-               FileManager.default.fileExists(atPath: bundledFFmpegPath) {
-                appendToLog("Using bundled FFmpeg: \(bundledFFmpegPath)")
-                return
-            }
-            
-            appendToLog("FFmpeg not found. Downloading FFmpeg binary...")
-            
-            // Disable the rip button during download
-            ripButton.isEnabled = false
-            ripButton.title = "Downloading FFmpeg..."
-            
-            // Download FFmpeg in background
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.downloadAndInstallFFmpeg()
-            }
-        } else {
-            appendToLog("FFmpeg is already installed and available.")
-        }
-    }
-    
-    private func getBundledFFmpegPath() -> String? {
-        // Check if FFmpeg is bundled with the app
-        guard let bundlePath = Bundle.main.resourcePath else { return nil }
-        let ffmpegPath = (bundlePath as NSString).appendingPathComponent("ffmpeg")
-        
-        if FileManager.default.fileExists(atPath: ffmpegPath) {
-            return ffmpegPath
-        }
-        
-        // Check in application support directory
-        let appSupportPath = getApplicationSupportPath()
-        let appSupportFFmpegPath = (appSupportPath as NSString).appendingPathComponent("ffmpeg")
-        
-        if FileManager.default.fileExists(atPath: appSupportFFmpegPath) {
-            return appSupportFFmpegPath
-        }
-        
-        return nil
-    }
-    
     // MARK: - Drive Detection and Settings
     
     @objc private func refreshDrives() {
@@ -388,4 +311,87 @@ class MainViewController: NSViewController {
         saveCurrentSettings()
     }
     
+    // MARK: - Automation Settings Actions
+    
+    @objc private func autoRipToggled() {
+        settingsManager.autoRipEnabled = autoRipCheckbox.state == .on
+        appendToLog("Auto-rip \(settingsManager.autoRipEnabled ? "enabled" : "disabled")")
+    }
+    
+    @objc private func autoEjectToggled() {
+        settingsManager.autoEjectEnabled = autoEjectCheckbox.state == .on
+        appendToLog("Auto-eject \(settingsManager.autoEjectEnabled ? "enabled" : "disabled")")
+    }
+    
+    @objc private func showSettings() {
+        // TODO: Implement a detailed settings window
+        let alert = NSAlert()
+        alert.messageText = "Settings"
+        alert.informativeText = "Detailed settings panel coming soon. For now, use the checkboxes above to control automation."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+    
+}
+
+// MARK: - DriveDetectorDelegate
+
+extension MainViewController: DriveDetectorDelegate {
+    func driveDetector(_ detector: DriveDetector, didDetectNewDisc drive: OpticalDrive) {
+        appendToLog("New disc detected: \(drive.displayName)")
+        autoStartRipping(for: drive)
+    }
+    
+    func driveDetector(_ detector: DriveDetector, didEjectDisc drive: OpticalDrive) {
+        appendToLog("Disc ejected: \(drive.displayName)")
+    }
+    
+    private func autoStartRipping(for drive: OpticalDrive) {
+        guard settingsManager.autoRipEnabled else {
+            appendToLog("Auto-ripping is disabled. Insert disc manually to start ripping.")
+            return
+        }
+        
+        guard !outputPathField.stringValue.isEmpty else {
+            showAlert(title: "Error", message: "Output directory must be set for auto-ripping.")
+            return
+        }
+        
+        // Check if FFmpeg is available
+        installFFmpegIfNeeded()
+        
+        // Start the native DVD ripping process
+        ripButton.isEnabled = false
+        progressIndicator.isHidden = false
+        progressIndicator.isIndeterminate = false
+        progressIndicator.doubleValue = 0.0
+        
+        appendToLog("Starting automated ripping process for: \(drive.displayName)")
+        
+        // Configure ripping using saved settings
+        let videoCodec: DVDRipper.RippingConfiguration.VideoCodec = settingsManager.videoCodec == "h265" ? .h265 : .h264
+        let audioCodec: DVDRipper.RippingConfiguration.AudioCodec = settingsManager.audioCodec == "ac3" ? .ac3 : .aac
+        let quality: DVDRipper.RippingConfiguration.RippingQuality = {
+            switch settingsManager.quality {
+            case "low": return .low
+            case "medium": return .medium
+            case "high": return .high
+            default: return .medium
+            }
+        }()
+        
+        let configuration = DVDRipper.RippingConfiguration(
+            outputDirectory: outputPathField.stringValue,
+            selectedTitles: [], // Rip all titles
+            videoCodec: videoCodec,
+            audioCodec: audioCodec,
+            quality: quality,
+            includeSubtitles: true,
+            includeChapters: true
+        )
+        dvdRipper.startRipping(dvdPath: drive.mountPoint, configuration: configuration)
+        
+        // Save current settings
+        saveCurrentSettings()
+    }
 }

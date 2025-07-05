@@ -176,6 +176,7 @@ enum MediaRipperError: Error {
     case conversionFailed
     case ffmpegNotFound
     case cancelled
+    case deviceNotFound
     
     var localizedDescription: String {
         switch self {
@@ -195,6 +196,8 @@ enum MediaRipperError: Error {
             return "FFmpeg not found"
         case .cancelled:
             return "Operation was cancelled"
+        case .deviceNotFound:
+            return "DVD/Blu-ray device not found"
         }
     }
 }

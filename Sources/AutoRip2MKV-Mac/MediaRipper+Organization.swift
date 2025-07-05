@@ -10,7 +10,7 @@ extension MediaRipper {
     func isUltraHDBluRay(bdmvPath: String) -> Bool {
         // Check for 4K indicators in BDMV structure
         let indexPath = bdmvPath.appending("/index.bdmv")
-        let movieObjectPath = bdmvPath.appending("/MovieObject.bdmv")
+        _ = bdmvPath.appending("/MovieObject.bdmv") // Future use for 4K detection
         
         guard FileManager.default.fileExists(atPath: indexPath) else { return false }
         
@@ -310,17 +310,6 @@ extension MediaRipper {
             try jsonData.write(to: URL(fileURLWithPath: infoPath))
         } catch {
             // Info file creation failed, but continue with ripping
-        }
-    }
-    
-    /// Convert media type to string for logging
-    func mediaTypeString(_ type: MediaType) -> String {
-        switch type {
-        case .dvd: return "DVD"
-        case .ultraHDDVD: return "Ultra HD DVD"
-        case .bluray: return "Blu-ray"
-        case .bluray4K: return "4K Blu-ray"
-        case .unknown: return "Unknown"
         }
     }
 }

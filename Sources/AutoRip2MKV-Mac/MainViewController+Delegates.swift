@@ -33,8 +33,16 @@ extension MainViewController: DVDRipperDelegate {
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
             
-            // Eject the disk after successful completion
-            self.ejectCurrentDisk()
+            // Show completion notification
+            self.showCompletionNotification()
+            
+            // Automatically eject if enabled
+            if self.settingsManager.autoEjectEnabled {
+                self.appendToLog("Auto-ejecting disc...")
+                self.ejectCurrentDisk()
+            } else {
+                self.appendToLog("Ripping complete. Disc ready for manual ejection.")
+            }
         }
     }
     
@@ -44,6 +52,9 @@ extension MainViewController: DVDRipperDelegate {
             self.progressIndicator.isHidden = true
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
+            
+            // Show error notification
+            self.showErrorNotification("Ripping failed: \(error.localizedDescription)")
             
             self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
         }

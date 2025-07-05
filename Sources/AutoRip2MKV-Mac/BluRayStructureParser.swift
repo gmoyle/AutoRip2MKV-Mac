@@ -10,7 +10,7 @@ class BluRayStructureParser {
     private static let CLIPINF_PATH = "CLIPINF"
     private static let AUXDATA_PATH = "AUXDATA"
     
-    private var blurayPath: String
+    internal var blurayPath: String
     private var playlists: [BluRayPlaylist] = []
     private var clips: [BluRayClip] = []
     private var indexParser: BluRayIndexParser
@@ -309,6 +309,21 @@ class BluRayPlaylist {
     var duration: TimeInterval = 0
     var playItems: [BluRayPlayItem] = []
     var marks: [BluRayMark] = []
+    
+    // Computed properties for MediaRipper compatibility
+    var totalSize: UInt64 {
+        // Estimate total size based on duration and bitrate
+        // Blu-ray typically has ~36 Mbps for video+audio
+        let estimatedBitrate: UInt64 = 36_000_000 // bits per second
+        return UInt64(duration) * estimatedBitrate / 8 // bytes
+    }
+    
+    var clips: [BluRayClip] {
+        // Convert playItems to clips for compatibility
+        return playItems.map { playItem in
+            BluRayClip(name: playItem.clipName, filename: "\(playItem.clipName).m2ts")
+        }
+    }
     
     init(number: Int, filename: String) {
         self.number = number

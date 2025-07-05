@@ -33,7 +33,7 @@ extension MediaRipper {
         
         // Step 4: Initialize Blu-ray decryptor
         delegate?.ripperDidUpdateStatus("Initializing Blu-ray AACS decryption...")
-        blurayDecryptor = BluRayDecryptor(blurayPath: blurayPath)
+        blurayDecryptor = BluRayDecryptor(devicePath: blurayPath)
         try blurayDecryptor!.initializeDecryption()
         
         // Step 5: Determine which playlists to rip

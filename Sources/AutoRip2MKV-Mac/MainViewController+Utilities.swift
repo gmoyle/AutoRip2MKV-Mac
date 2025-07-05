@@ -9,7 +9,7 @@ extension MainViewController {
         let logMessage = "[\(timestamp)] \(message)\n"
         
         logTextView.textStorage?.append(NSAttributedString(string: logMessage))
-        logTextView.scrollToEndOfDocument(nil)
+        logTextView.scrollToEndOfDocument(self)
     }
     
     func showAlert(title: String, message: String) {
@@ -73,7 +73,7 @@ extension MainViewController {
     }
     
     func getBundledFFmpegPath() -> String? {
-        guard let bundlePath = Bundle.main.bundlePath else { return nil }
+        let bundlePath = Bundle.main.bundlePath
         let ffmpegPath = bundlePath.appending("/Contents/Resources/ffmpeg")
         return ffmpegPath
     }
@@ -211,6 +211,10 @@ extension MainViewController {
         if let lastOutputPath = settingsManager.lastOutputPath {
             outputPathField.stringValue = lastOutputPath
         }
+        
+        // Load automation settings
+        autoRipCheckbox.state = settingsManager.autoRipEnabled ? .on : .off
+        autoEjectCheckbox.state = settingsManager.autoEjectEnabled ? .on : .off
     }
     
     func saveCurrentSettings() {
@@ -223,5 +227,25 @@ extension MainViewController {
             outputPath: outputPath,
             driveIndex: driveIndex
         )
+    }
+    
+    // MARK: - Notification System
+    
+    func showCompletionNotification() {
+        let notification = NSUserNotification()
+        notification.title = "AutoRip2MKV"
+        notification.informativeText = "Disc ripping completed successfully!"
+        notification.soundName = NSUserNotificationDefaultSoundName
+        
+        NSUserNotificationCenter.default.deliver(notification)
+    }
+    
+    func showErrorNotification(_ message: String) {
+        let notification = NSUserNotification()
+        notification.title = "AutoRip2MKV - Error"
+        notification.informativeText = message
+        notification.soundName = NSUserNotificationDefaultSoundName
+        
+        NSUserNotificationCenter.default.deliver(notification)
     }
 }

@@ -84,6 +84,18 @@ class BluRayDecryptor {
         fileHandle = nil
     }
     
+    /// Initialize AACS decryption (alias for initializeDevice)
+    func initializeDecryption() throws {
+        try initializeDevice()
+    }
+    
+    /// Decrypt a Blu-ray clip
+    func decryptClip(data: Data, clip: BluRayClip) throws -> Data {
+        // For now, return data as-is (placeholder implementation)
+        // Real implementation would decrypt based on clip's encryption status
+        return data
+    }
+    
     // MARK: - AACS Authentication
     
     private func performAACSAuthentication() throws {
