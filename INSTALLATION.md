@@ -11,10 +11,7 @@ This guide helps you install and run AutoRip2MKV on macOS despite Apple's securi
 ### Step 1: Download and Install
 1. **Download the latest DMG** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
 2. **Open the DMG file** and drag AutoRip2MKV to Applications
-3. **Install FFmpeg** (required for video conversion):
-   ```bash
-   brew install ffmpeg
-   ```
+3. **FFmpeg** will be automatically downloaded and installed when needed
 
 ### Step 2: First Launch (Security Override)
 
@@ -79,9 +76,9 @@ swift build && swift run
 
 ### App Won't Open After Following Steps
 
-1. **Check if FFmpeg is installed**: `ffmpeg -version`
-2. **Verify app permissions**: Right-click → Get Info → ensure you have read/write access
-3. **Try the terminal method** to remove quarantine completely
+1. **Verify app permissions**: Right-click → Get Info → ensure you have read/write access
+2. **Try the terminal method** to remove quarantine completely
+3. **Check Console.app** for any error messages during launch
 
 ### "Operation not permitted" Error
 
@@ -92,27 +89,24 @@ This usually means you need to grant additional permissions:
    - Full Disk Access (for reading DVD files)
    - Accessibility (if needed for automation)
 
-### FFmpeg Not Found
+### FFmpeg Issues
 
-Install FFmpeg using Homebrew:
+FFmpeg is automatically downloaded and installed by the app. If you encounter issues:
 
 ```bash
-# Install Homebrew if you don't have it
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Check if FFmpeg was installed in app support directory
+ls ~/Library/Application\ Support/AutoRip2MKV-Mac/
 
-# Install FFmpeg
+# Or manually install via Homebrew if preferred
 brew install ffmpeg
-
-# Verify installation
-ffmpeg -version
 ```
 
 ## 📋 System Requirements
 
 - **macOS 13.0** or later (macOS Ventura+)
-- **FFmpeg** for video conversion
+- **FFmpeg** automatically downloaded on first use
 - **Optical drive** or mounted DVD/Blu-ray images
-- **Admin privileges** for some operations
+- **Internet connection** for initial FFmpeg download
 
 ## 🆘 Need Help?
 
@@ -127,10 +121,10 @@ If you encounter issues:
 
 ## 🎯 Pro Tips
 
-- **First launch takes longer** - FFmpeg may be downloaded automatically
+- **First launch takes longer** - FFmpeg is downloaded automatically when needed
 - **Keep the app in Applications** - don't run it from Downloads
 - **Use right-click method** - it's the most reliable for unsigned apps
-- **FFmpeg path is cached** - restart the app if you install FFmpeg after first launch
+- **Internet connection required** - for initial FFmpeg download
 
 ---
 
