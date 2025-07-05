@@ -1,4 +1,5 @@
 import Cocoa
+import UserNotifications
 
 // MARK: - Utility Functions
 
@@ -232,20 +233,58 @@ extension MainViewController {
     // MARK: - Notification System
     
     func showCompletionNotification() {
-        let notification = NSUserNotification()
-        notification.title = "AutoRip2MKV"
-        notification.informativeText = "Disc ripping completed successfully!"
-        notification.soundName = NSUserNotificationDefaultSoundName
-        
-        NSUserNotificationCenter.default.deliver(notification)
+        if #available(macOS 10.14, *) {
+            let content = UNMutableNotificationContent()
+            content.title = "AutoRip2MKV"
+            content.body = "Disc ripping completed successfully!"
+            content.sound = UNNotificationSound.default
+            
+            let request = UNNotificationRequest(
+                identifier: "rip-completion", 
+                content: content, 
+                trigger: nil
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("Failed to show notification: \(error)")
+                }
+            }
+        } else {
+            // Fallback for older macOS versions
+            let notification = NSUserNotification()
+            notification.title = "AutoRip2MKV"
+            notification.informativeText = "Disc ripping completed successfully!"
+            notification.soundName = NSUserNotificationDefaultSoundName
+            NSUserNotificationCenter.default.deliver(notification)
+        }
     }
     
     func showErrorNotification(_ message: String) {
-        let notification = NSUserNotification()
-        notification.title = "AutoRip2MKV - Error"
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        
-        NSUserNotificationCenter.default.deliver(notification)
+        if #available(macOS 10.14, *) {
+            let content = UNMutableNotificationContent()
+            content.title = "AutoRip2MKV - Error"
+            content.body = message
+            content.sound = UNNotificationSound.default
+            
+            let request = UNNotificationRequest(
+                identifier: "rip-error", 
+                content: content, 
+                trigger: nil
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("Failed to show error notification: \(error)")
+                }
+            }
+        } else {
+            // Fallback for older macOS versions
+            let notification = NSUserNotification()
+            notification.title = "AutoRip2MKV - Error"
+            notification.informativeText = message
+            notification.soundName = NSUserNotificationDefaultSoundName
+            NSUserNotificationCenter.default.deliver(notification)
+        }
     }
 }

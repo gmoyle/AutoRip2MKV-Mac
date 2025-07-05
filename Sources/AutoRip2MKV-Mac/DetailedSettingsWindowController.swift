@@ -178,7 +178,10 @@ class DetailedSettingsWindowController: NSWindowController {
         // Set width constraints for all sections
         for arrangedSubview in mainStackView.arrangedSubviews {
             if arrangedSubview != titleLabel {
-                arrangedSubview.widthAnchor.constraint(equalTo: mainStackView.widthAnchor, constant: -40).isActive = true
+                arrangedSubview.widthAnchor.constraint(
+                    equalTo: mainStackView.widthAnchor, 
+                    constant: -40
+                ).isActive = true
             }
         }
         
@@ -220,13 +223,25 @@ class DetailedSettingsWindowController: NSWindowController {
         fileOrganizationBox.addSubview(sectionStackView)
         
         // Auto-rename files
-        autoRenameFilesCheckbox = NSButton(checkboxWithTitle: "Automatically rename files for better organization", target: self, action: nil)
+        autoRenameFilesCheckbox = NSButton(
+            checkboxWithTitle: "Automatically rename files for better organization", 
+            target: self, 
+            action: nil
+        )
         autoRenameFilesCheckbox.state = .on
         sectionStackView.addArrangedSubview(autoRenameFilesCheckbox)
         
         // Directory creation options
-        createYearDirectoriesCheckbox = NSButton(checkboxWithTitle: "Create year-based subdirectories", target: self, action: nil)
-        createGenreDirectoriesCheckbox = NSButton(checkboxWithTitle: "Create genre-based subdirectories (when available)", target: self, action: nil)
+        createYearDirectoriesCheckbox = NSButton(
+            checkboxWithTitle: "Create year-based subdirectories", 
+            target: self, 
+            action: nil
+        )
+        createGenreDirectoriesCheckbox = NSButton(
+            checkboxWithTitle: "Create genre-based subdirectories (when available)", 
+            target: self, 
+            action: nil
+        )
         sectionStackView.addArrangedSubview(createYearDirectoriesCheckbox)
         sectionStackView.addArrangedSubview(createGenreDirectoriesCheckbox)
         
@@ -756,7 +771,6 @@ class DetailedSettingsWindowController: NSWindowController {
             buttonStackView.heightAnchor.constraint(equalToConstant: 32)
         ])
     }
-    
     
     // MARK: - Helper Methods
     

@@ -404,81 +404,50 @@ class SettingsManager {
     // MARK: - Extended Settings with Defaults
     
     private func setExtendedDefaultsIfNeeded() {
-        // File Storage defaults
-        if userDefaults.object(forKey: "outputStructureType") == nil {
-            userDefaults.set(1, forKey: "outputStructureType") // By Media Type
-        }
-        if userDefaults.object(forKey: "createSeriesDirectory") == nil {
-            userDefaults.set(true, forKey: "createSeriesDirectory")
-        }
-        if userDefaults.object(forKey: "createSeasonDirectory") == nil {
-            userDefaults.set(true, forKey: "createSeasonDirectory")
-        }
-        if userDefaults.object(forKey: "movieDirectoryFormat") == nil {
-            userDefaults.set("Movies/{title} ({year})", forKey: "movieDirectoryFormat")
-        }
-        if userDefaults.object(forKey: "tvShowDirectoryFormat") == nil {
-            userDefaults.set("TV Shows/{series}/Season {season}", forKey: "tvShowDirectoryFormat")
-        }
-        
-        // Bonus Content defaults
-        if userDefaults.object(forKey: "includeBonusFeatures") == nil {
-            userDefaults.set(false, forKey: "includeBonusFeatures")
-        }
-        if userDefaults.object(forKey: "includeCommentaries") == nil {
-            userDefaults.set(false, forKey: "includeCommentaries")
-        }
-        if userDefaults.object(forKey: "includeDeletedScenes") == nil {
-            userDefaults.set(false, forKey: "includeDeletedScenes")
-        }
-        if userDefaults.object(forKey: "includeMakingOf") == nil {
-            userDefaults.set(false, forKey: "includeMakingOf")
-        }
-        if userDefaults.object(forKey: "includeTrailers") == nil {
-            userDefaults.set(false, forKey: "includeTrailers")
-        }
-        if userDefaults.object(forKey: "bonusContentStructure") == nil {
-            userDefaults.set(1, forKey: "bonusContentStructure") // Separate 'Bonus' subdirectory
-        }
-        if userDefaults.object(forKey: "bonusContentDirectory") == nil {
-            userDefaults.set("Bonus", forKey: "bonusContentDirectory")
-        }
-        
-        // File Naming defaults
-        if userDefaults.object(forKey: "movieFileFormat") == nil {
-            userDefaults.set("{title} ({year}).mkv", forKey: "movieFileFormat")
-        }
-        if userDefaults.object(forKey: "tvShowFileFormat") == nil {
-            userDefaults.set("{series} - S{season:02d}E{episode:02d} - {title}.mkv", forKey: "tvShowFileFormat")
-        }
-        if userDefaults.object(forKey: "seasonEpisodeFormat") == nil {
-            userDefaults.set("S{season:02d}E{episode:02d}", forKey: "seasonEpisodeFormat")
-        }
-        if userDefaults.object(forKey: "includeYearInFilename") == nil {
-            userDefaults.set(true, forKey: "includeYearInFilename")
-        }
-        if userDefaults.object(forKey: "includeResolutionInFilename") == nil {
-            userDefaults.set(false, forKey: "includeResolutionInFilename")
-        }
-        if userDefaults.object(forKey: "includeCodecInFilename") == nil {
-            userDefaults.set(false, forKey: "includeCodecInFilename")
-        }
-        
-        // Advanced defaults
-        if userDefaults.object(forKey: "preserveOriginalTimestamps") == nil {
-            userDefaults.set(false, forKey: "preserveOriginalTimestamps")
-        }
-        if userDefaults.object(forKey: "createBackups") == nil {
-            userDefaults.set(false, forKey: "createBackups")
-        }
-        if userDefaults.object(forKey: "autoRetryOnFailure") == nil {
-            userDefaults.set(true, forKey: "autoRetryOnFailure")
-        }
-        if userDefaults.object(forKey: "maxRetryAttempts") == nil {
-            userDefaults.set(3, forKey: "maxRetryAttempts")
-        }
-        if userDefaults.object(forKey: "postProcessingScript") == nil {
-            userDefaults.set("", forKey: "postProcessingScript")
+        setFileStorageDefaults()
+        setBonusContentDefaults()
+        setFileNamingDefaults()
+        setAdvancedDefaults()
+    }
+    
+    private func setFileStorageDefaults() {
+        setDefaultIfNeeded("outputStructureType", value: 1) // By Media Type
+        setDefaultIfNeeded("createSeriesDirectory", value: true)
+        setDefaultIfNeeded("createSeasonDirectory", value: true)
+        setDefaultIfNeeded("movieDirectoryFormat", value: "Movies/{title} ({year})")
+        setDefaultIfNeeded("tvShowDirectoryFormat", value: "TV Shows/{series}/Season {season}")
+    }
+    
+    private func setBonusContentDefaults() {
+        setDefaultIfNeeded("includeBonusFeatures", value: false)
+        setDefaultIfNeeded("includeCommentaries", value: false)
+        setDefaultIfNeeded("includeDeletedScenes", value: false)
+        setDefaultIfNeeded("includeMakingOf", value: false)
+        setDefaultIfNeeded("includeTrailers", value: false)
+        setDefaultIfNeeded("bonusContentStructure", value: 1) // Separate 'Bonus' subdirectory
+        setDefaultIfNeeded("bonusContentDirectory", value: "Bonus")
+    }
+    
+    private func setFileNamingDefaults() {
+        setDefaultIfNeeded("movieFileFormat", value: "{title} ({year}).mkv")
+        setDefaultIfNeeded("tvShowFileFormat", value: "{series} - S{season:02d}E{episode:02d} - {title}.mkv")
+        setDefaultIfNeeded("seasonEpisodeFormat", value: "S{season:02d}E{episode:02d}")
+        setDefaultIfNeeded("includeYearInFilename", value: true)
+        setDefaultIfNeeded("includeResolutionInFilename", value: false)
+        setDefaultIfNeeded("includeCodecInFilename", value: false)
+    }
+    
+    private func setAdvancedDefaults() {
+        setDefaultIfNeeded("preserveOriginalTimestamps", value: false)
+        setDefaultIfNeeded("createBackups", value: false)
+        setDefaultIfNeeded("autoRetryOnFailure", value: true)
+        setDefaultIfNeeded("maxRetryAttempts", value: 3)
+        setDefaultIfNeeded("postProcessingScript", value: "")
+    }
+    
+    private func setDefaultIfNeeded<T>(_ key: String, value: T) {
+        if userDefaults.object(forKey: key) == nil {
+            userDefaults.set(value, forKey: key)
         }
     }
     

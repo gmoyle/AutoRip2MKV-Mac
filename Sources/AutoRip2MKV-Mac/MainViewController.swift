@@ -339,7 +339,6 @@ class MainViewController: NSViewController {
         print("[DEBUG] Detailed settings window should be visible now")
     }
     
-    
 }
 
 // MARK: - DriveDetectorDelegate
