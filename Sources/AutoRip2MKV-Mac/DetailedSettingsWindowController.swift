@@ -943,7 +943,11 @@ class DetailedSettingsWindowController: NSWindowController {
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = false
         openPanel.canChooseFiles = true
-        openPanel.allowedFileTypes = ["sh", "py", "rb", "pl", "js"]
+        if #available(macOS 12.0, *) {
+            openPanel.allowedContentTypes = [.shellScript, .pythonScript, .rubyScript, .perlScript, .javaScript]
+        } else {
+            openPanel.allowedFileTypes = ["sh", "py", "rb", "pl", "js"]
+        }
         openPanel.title = "Select Post-processing Script"
         
         if openPanel.runModal() == .OK {
