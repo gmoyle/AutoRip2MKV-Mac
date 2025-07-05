@@ -20,7 +20,9 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         let startTime = Date()
         
         // This should complete quickly without user interaction in test environment
-        viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: 123, userInfo: [NSLocalizedDescriptionKey: "Test error"]))
+        viewController.ripperDidFail(
+            with: NSError(domain: "TestDomain", code: 123, userInfo: [NSLocalizedDescriptionKey: "Test error"])
+        )
         
         let elapsed = Date().timeIntervalSince(startTime)
         
@@ -75,7 +77,13 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
                         expectation.fulfill()
                         return
                     }
-                    strongSelf.viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: i, userInfo: [NSLocalizedDescriptionKey: "Test error \\(i)"]))
+                    strongSelf.viewController.ripperDidFail(
+                        with: NSError(
+                            domain: "TestDomain", 
+                            code: i, 
+                            userInfo: [NSLocalizedDescriptionKey: "Test error \\(i)"]
+                        )
+                    )
                     expectation.fulfill()
                 }
             }
@@ -111,7 +119,13 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
             for i in 0..<100 {
                 viewController.ripperDidUpdateStatus("Status update \\(i)")
                 if i % 10 == 0 {
-                    viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: i, userInfo: [NSLocalizedDescriptionKey: "Error \\(i)"]))
+                    viewController.ripperDidFail(
+                        with: NSError(
+                            domain: "TestDomain", 
+                            code: i, 
+                            userInfo: [NSLocalizedDescriptionKey: "Error \\(i)"]
+                        )
+                    )
                 }
             }
         }
@@ -134,7 +148,9 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
         
         // Test with very long error message
         let longMessage = String(repeating: "This is a very long error message. ", count: 100)
-        viewController.ripperDidFail(with: NSError(domain: "TestDomain", code: 999, userInfo: [NSLocalizedDescriptionKey: longMessage]))
+        viewController.ripperDidFail(
+            with: NSError(domain: "TestDomain", code: 999, userInfo: [NSLocalizedDescriptionKey: longMessage])
+        )
         
         let elapsed = Date().timeIntervalSince(startTime)
         XCTAssertLessThan(elapsed, 0.1, "Long message dialog should not block")

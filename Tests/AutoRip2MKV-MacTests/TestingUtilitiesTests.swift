@@ -101,7 +101,7 @@ final class TestingUtilitiesTests: XCTestCase {
         let openPanel = NSOpenPanel()
         openPanel.title = "Test Panel with Default Path"
         
-        let result = testingUtils.showFilePanel(openPanel) { logMessage in
+        let result = testingUtils.showFilePanel(openPanel) { _ in
             // Log handler called
         }
         
