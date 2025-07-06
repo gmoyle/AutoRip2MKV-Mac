@@ -89,7 +89,7 @@ jobs:
         
         # Get release assets
         gh api repos/${{ github.repository }}/releases/${{ steps.release_info.outputs.RELEASE_ID }}/assets \
-          --jq '.[] | {name: .name, size: .size, download_url: .browser_download_url}' > assets.json
+          --jq '[.[] | {name: .name, size: .size, download_url: .browser_download_url}]' > assets.json
         
         echo "Found assets:"
         cat assets.json
