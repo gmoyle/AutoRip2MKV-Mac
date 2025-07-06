@@ -6,7 +6,9 @@ import PackageDescription
 let package = Package(
     name: "AutoRip2MKV-Mac",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v13),
+        .linux,
+        .windows(.v10)
     ],
     products: [
         .executable(name: "AutoRip2MKV-Mac", targets: ["AutoRip2MKV-Mac"])
