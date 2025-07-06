@@ -23,19 +23,16 @@ class QueueWindowController: NSWindowController {
         // Always try XIB first, fallback to programmatic creation
         self.init(windowNibName: "QueueWindow")
         self.conversionQueue = conversionQueue
-        self.conversionQueue.delegate = self
+        // Delay delegate assignment until after window is loaded
     }
     
     override func loadWindow() {
-        // Try to load XIB first
-        do {
+        // Try to load XIB first, but handle failure gracefully
+        if Bundle.main.path(forResource: "QueueWindow", ofType: "nib") != nil {
             super.loadWindow()
-            // If successful and window exists, we're done
             if window != nil {
                 return
             }
-        } catch {
-            // XIB loading failed, continue to programmatic creation
         }
         
         // Fallback to programmatic creation (for tests or when XIB is missing)
@@ -52,6 +49,11 @@ class QueueWindowController: NSWindowController {
     
     override func windowDidLoad() {
         super.windowDidLoad()
+        
+        // Set up delegate after window is loaded
+        if conversionQueue != nil {
+            conversionQueue.delegate = self
+        }
         
         setupWindow()
         setupTableView()

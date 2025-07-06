@@ -176,8 +176,18 @@ class ConversionQueue {
         }
     }
     
+    /// Queue status information
+    struct QueueStatus {
+        let total: Int
+        let pending: Int
+        let extracting: Int
+        let converting: Int
+        let completed: Int
+        let failed: Int
+    }
+    
     /// Get current queue status
-    func getQueueStatus() -> (total: Int, pending: Int, extracting: Int, converting: Int, completed: Int, failed: Int) {
+    func getQueueStatus() -> QueueStatus {
         return jobsQueue.sync {
             let total = jobs.count
             let pending = jobs.filter { if case .pending = $0.status { return true }; return false }.count
@@ -186,7 +196,14 @@ class ConversionQueue {
             let completed = jobs.filter { if case .completed = $0.status { return true }; return false }.count
             let failed = jobs.filter { if case .failed = $0.status { return true }; return false }.count
             
-            return (total, pending, extracting, converting, completed, failed)
+            return QueueStatus(
+                total: total,
+                pending: pending,
+                extracting: extracting,
+                converting: converting,
+                completed: completed,
+                failed: failed
+            )
         }
     }
     
