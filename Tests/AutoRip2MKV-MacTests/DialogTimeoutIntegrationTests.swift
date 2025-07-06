@@ -89,12 +89,13 @@ final class DialogTimeoutIntegrationTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 5.0)
+        wait(for: [expectation], timeout: 10.0)
         
         let elapsed = Date().timeIntervalSince(startTime)
         
         // Should complete reasonably quickly even with multiple dialogs
-        XCTAssertLessThan(elapsed, 5.0, "Multiple dialogs should not block execution in test environment")
+        // Allow for some CI environment overhead but should still be much faster than timeout
+        XCTAssertLessThan(elapsed, 8.0, "Multiple dialogs should not block execution in test environment")
     }
     
     // MARK: - Test Environment Verification

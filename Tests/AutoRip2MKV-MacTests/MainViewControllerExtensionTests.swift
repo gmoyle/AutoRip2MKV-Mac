@@ -186,34 +186,50 @@ final class MainViewControllerExtensionTests: XCTestCase {
     }
     
     func testDelegateMethodsUpdateUI() {
+        let expectation = XCTestExpectation(description: "UI updates completed")
+        
         // Test that delegate methods update the UI appropriately
         viewController.ripperDidStart()
-        
-        // Should log the start
-        var logContent = viewController.logTextView.string
-        XCTAssertTrue(logContent.contains("started"), "Should log ripper start")
         
         // Test status update
         let testStatus = "Test status update"
         viewController.ripperDidUpdateStatus(testStatus)
         
-        logContent = viewController.logTextView.string
-        XCTAssertTrue(logContent.contains(testStatus), "Should log status update")
-        
         // Test progress update
         viewController.ripperDidUpdateProgress(0.75, currentTitle: nil, totalTitles: 1)
-        XCTAssertEqual(viewController.progressIndicator.doubleValue, 75.0, "Progress should be updated")
         
         // Test completion
         viewController.ripperDidComplete()
+        
+        // Wait for all async operations to complete
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        
+        wait(for: [expectation], timeout: 1.0)
+        
+        // Now check the results
+        let logContent = viewController.logTextView.string
+        XCTAssertTrue(logContent.contains("started"), "Should log ripper start")
+        XCTAssertTrue(logContent.contains(testStatus), "Should log status update")
+        
+        XCTAssertEqual(viewController.progressIndicator.doubleValue, 75.0, "Progress should be updated")
         XCTAssertTrue(viewController.progressIndicator.isHidden, "Progress should be hidden on completion")
         XCTAssertTrue(viewController.ripButton.isEnabled, "Rip button should be enabled on completion")
     }
     
     func testDelegateErrorHandling() {
         let testError = NSError(domain: "TestDomain", code: 456, userInfo: [NSLocalizedDescriptionKey: "Test error message"])
+        let expectation = XCTestExpectation(description: "Error handling completed")
         
         viewController.ripperDidFail(with: testError)
+        
+        // Wait a brief moment for the async dispatch to complete
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        
+        wait(for: [expectation], timeout: 1.0)
         
         // Should reset UI state
         XCTAssertTrue(viewController.progressIndicator.isHidden, "Progress should be hidden on error")
@@ -230,8 +246,16 @@ final class MainViewControllerExtensionTests: XCTestCase {
         // Create a test media item for progress updates
         let testTitle = DVDTitle(number: 1, vtsNumber: 1, vtsTitleNumber: 1, startSector: 100, chapters: 5, angles: 1, duration: 3600)
         let mediaItem = MediaRipper.MediaItem.dvdTitle(testTitle)
+        let expectation = XCTestExpectation(description: "Progress update completed")
         
         XCTAssertNoThrow(viewController.ripperDidUpdateProgress(0.6, currentItem: mediaItem, totalItems: 3))
+        
+        // Wait for async dispatch to complete
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        
+        wait(for: [expectation], timeout: 1.0)
         
         // Should update progress
         XCTAssertEqual(viewController.progressIndicator.doubleValue, 60.0, "Progress should be updated")
