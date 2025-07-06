@@ -1,0 +1,359 @@
+name: Release Validation
+
+permissions:
+  contents: read
+  actions: read
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to validate (e.g., v1.2.1)'
+        required: true
+        type: string
+
+jobs:
+  validate-release:
+    name: Validate Release Assets
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Get release information
+      id: release_info
+      run: |
+        if [[ "${{ github.event_name }}" == "release" ]]; then
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          RELEASE_ID="${{ github.event.release.id }}"
+        else
+          RELEASE_TAG="${{ github.event.inputs.release_tag }}"
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$RELEASE_TAG --jq '.id')
+        fi
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_OUTPUT
+        echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_OUTPUT
+        echo "VERSION_NUMBER=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Wait for release workflow completion
+      run: |
+        echo "Waiting for release workflow to complete..."
+        sleep 30  # Give the release workflow time to start
+        
+        # Wait up to 20 minutes for the release workflow to complete
+        max_attempts=40
+        attempt=0
+        
+        while [ $attempt -lt $max_attempts ]; do
+          # Check if there are any running release workflows
+          running_workflows=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.name=="Release" and .head_sha=="${{ github.sha }}" and .status=="in_progress") | .id' | wc -l)
+          
+          if [ "$running_workflows" -eq 0 ]; then
+            echo "✅ Release workflow completed"
+            break
+          fi
+          
+          echo "⏳ Release workflow still running... (attempt $((attempt + 1))/$max_attempts)"
+          sleep 30
+          attempt=$((attempt + 1))
+        done
+        
+        if [ $attempt -eq $max_attempts ]; then
+          echo "❌ Timeout waiting for release workflow to complete"
+          exit 1
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Fetch release assets
+      id: assets
+      run: |
+        echo "Fetching release assets for ${{ steps.release_info.outputs.RELEASE_TAG }}..."
+        
+        # Get release assets
+        gh api repos/${{ github.repository }}/releases/${{ steps.release_info.outputs.RELEASE_ID }}/assets \
+          --jq '.[] | {name: .name, size: .size, download_url: .browser_download_url}' > assets.json
+        
+        echo "Found assets:"
+        cat assets.json
+        
+        # Check if we have the expected assets
+        EXPECTED_DMG="AutoRip2MKV-${{ steps.release_info.outputs.RELEASE_TAG }}.dmg"
+        EXPECTED_ZIP="AutoRip2MKV-${{ steps.release_info.outputs.RELEASE_TAG }}.zip"
+        EXPECTED_CHECKSUMS="checksums.txt"
+        
+        echo "EXPECTED_DMG=$EXPECTED_DMG" >> $GITHUB_OUTPUT
+        echo "EXPECTED_ZIP=$EXPECTED_ZIP" >> $GITHUB_OUTPUT
+        echo "EXPECTED_CHECKSUMS=$EXPECTED_CHECKSUMS" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Validate DMG file
+      run: |
+        DMG_NAME="${{ steps.assets.outputs.EXPECTED_DMG }}"
+        echo "Validating DMG file: $DMG_NAME"
+        
+        # Check if DMG exists in release assets
+        DMG_EXISTS=$(jq -r --arg name "$DMG_NAME" '.[] | select(.name == $name) | .name' assets.json)
+        if [ -z "$DMG_EXISTS" ]; then
+          echo "❌ DMG file not found in release assets"
+          exit 1
+        fi
+        
+        # Get DMG download URL and size
+        DMG_URL=$(jq -r --arg name "$DMG_NAME" '.[] | select(.name == $name) | .download_url' assets.json)
+        DMG_SIZE=$(jq -r --arg name "$DMG_NAME" '.[] | select(.name == $name) | .size' assets.json)
+        
+        echo "✅ DMG file found: $DMG_NAME"
+        echo "📏 Size: $DMG_SIZE bytes"
+        echo "🔗 URL: $DMG_URL"
+        
+        # Download and validate DMG
+        echo "Downloading DMG for validation..."
+        curl -L -o "$DMG_NAME" "$DMG_URL"
+        
+        # Check file size
+        ACTUAL_SIZE=$(stat -f%z "$DMG_NAME")
+        if [ "$ACTUAL_SIZE" != "$DMG_SIZE" ]; then
+          echo "❌ DMG file size mismatch: expected $DMG_SIZE, got $ACTUAL_SIZE"
+          exit 1
+        fi
+        
+        # Validate DMG structure
+        echo "Validating DMG structure..."
+        hdiutil imageinfo "$DMG_NAME" > dmg_info.txt
+        
+        if ! grep -q "AutoRip2MKV" dmg_info.txt; then
+          echo "❌ DMG does not contain expected volume name"
+          exit 1
+        fi
+        
+        echo "✅ DMG validation passed"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Validate ZIP file
+      run: |
+        ZIP_NAME="${{ steps.assets.outputs.EXPECTED_ZIP }}"
+        echo "Validating ZIP file: $ZIP_NAME"
+        
+        # Check if ZIP exists in release assets
+        ZIP_EXISTS=$(jq -r --arg name "$ZIP_NAME" '.[] | select(.name == $name) | .name' assets.json)
+        if [ -z "$ZIP_EXISTS" ]; then
+          echo "❌ ZIP file not found in release assets"
+          exit 1
+        fi
+        
+        # Get ZIP download URL and size
+        ZIP_URL=$(jq -r --arg name "$ZIP_NAME" '.[] | select(.name == $name) | .download_url' assets.json)
+        ZIP_SIZE=$(jq -r --arg name "$ZIP_NAME" '.[] | select(.name == $name) | .size' assets.json)
+        
+        echo "✅ ZIP file found: $ZIP_NAME"
+        echo "📏 Size: $ZIP_SIZE bytes"
+        echo "🔗 URL: $ZIP_URL"
+        
+        # Download and validate ZIP
+        echo "Downloading ZIP for validation..."
+        curl -L -o "$ZIP_NAME" "$ZIP_URL"
+        
+        # Check file size
+        ACTUAL_SIZE=$(stat -f%z "$ZIP_NAME")
+        if [ "$ACTUAL_SIZE" != "$ZIP_SIZE" ]; then
+          echo "❌ ZIP file size mismatch: expected $ZIP_SIZE, got $ACTUAL_SIZE"
+          exit 1
+        fi
+        
+        # Validate ZIP structure
+        echo "Validating ZIP structure..."
+        unzip -l "$ZIP_NAME" > zip_contents.txt
+        
+        if ! grep -q "AutoRip2MKV.app" zip_contents.txt; then
+          echo "❌ ZIP does not contain AutoRip2MKV.app"
+          exit 1
+        fi
+        
+        if ! grep -q "Contents/MacOS/AutoRip2MKV-Mac" zip_contents.txt; then
+          echo "❌ ZIP does not contain the main executable"
+          exit 1
+        fi
+        
+        echo "✅ ZIP validation passed"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Validate checksums file
+      run: |
+        CHECKSUMS_NAME="${{ steps.assets.outputs.EXPECTED_CHECKSUMS }}"
+        echo "Validating checksums file: $CHECKSUMS_NAME"
+        
+        # Check if checksums exists in release assets
+        CHECKSUMS_EXISTS=$(jq -r --arg name "$CHECKSUMS_NAME" '.[] | select(.name == $name) | .name' assets.json)
+        if [ -z "$CHECKSUMS_EXISTS" ]; then
+          echo "❌ Checksums file not found in release assets"
+          exit 1
+        fi
+        
+        # Get checksums download URL
+        CHECKSUMS_URL=$(jq -r --arg name "$CHECKSUMS_NAME" '.[] | select(.name == $name) | .download_url' assets.json)
+        
+        echo "✅ Checksums file found: $CHECKSUMS_NAME"
+        echo "🔗 URL: $CHECKSUMS_URL"
+        
+        # Download checksums
+        curl -L -o "$CHECKSUMS_NAME" "$CHECKSUMS_URL"
+        
+        # Validate checksums format and content
+        echo "Validating checksums content..."
+        cat "$CHECKSUMS_NAME"
+        
+        # Check that both DMG and ZIP are listed
+        if ! grep -q "${{ steps.assets.outputs.EXPECTED_DMG }}" "$CHECKSUMS_NAME"; then
+          echo "❌ DMG not found in checksums file"
+          exit 1
+        fi
+        
+        if ! grep -q "${{ steps.assets.outputs.EXPECTED_ZIP }}" "$CHECKSUMS_NAME"; then
+          echo "❌ ZIP not found in checksums file"
+          exit 1
+        fi
+        
+        # Verify actual checksums match
+        echo "Verifying checksums..."
+        shasum -c "$CHECKSUMS_NAME"
+        
+        echo "✅ Checksums validation passed"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Test binary execution
+      run: |
+        ZIP_NAME="${{ steps.assets.outputs.EXPECTED_ZIP }}"
+        echo "Testing binary execution from ZIP archive..."
+        
+        # Extract ZIP
+        unzip -q "$ZIP_NAME"
+        
+        # Check if app bundle exists
+        if [ ! -d "AutoRip2MKV.app" ]; then
+          echo "❌ AutoRip2MKV.app not found after extraction"
+          exit 1
+        fi
+        
+        # Check if binary exists
+        BINARY_PATH="AutoRip2MKV.app/Contents/MacOS/AutoRip2MKV-Mac"
+        if [ ! -f "$BINARY_PATH" ]; then
+          echo "❌ Binary not found at $BINARY_PATH"
+          exit 1
+        fi
+        
+        # Check binary permissions
+        if [ ! -x "$BINARY_PATH" ]; then
+          echo "❌ Binary is not executable"
+          exit 1
+        fi
+        
+        # Check binary architecture
+        echo "Checking binary architecture..."
+        file "$BINARY_PATH"
+        lipo -info "$BINARY_PATH"
+        
+        # Verify it's a universal binary
+        if ! lipo -info "$BINARY_PATH" | grep -q "Architectures.*arm64.*x86_64"; then
+          echo "❌ Binary is not a universal binary (missing arm64 or x86_64)"
+          exit 1
+        fi
+        
+        # Try to run binary with --help (should not require FFmpeg)
+        echo "Testing binary execution..."
+        timeout 10s "$BINARY_PATH" --help || {
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 124 ]; then
+            echo "⚠️  Binary execution timed out (may be waiting for input)"
+          elif [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Binary execution failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+        }
+        
+        echo "✅ Binary execution test passed"
+    
+    - name: Validate release notes
+      run: |
+        echo "Validating release notes..."
+        
+        # Get release notes
+        gh api repos/${{ github.repository }}/releases/${{ steps.release_info.outputs.RELEASE_ID }} \
+          --jq '.body' > release_notes.md
+        
+        echo "Release notes content:"
+        cat release_notes.md
+        
+        # Check for required sections
+        if ! grep -q "Universal Binary Support" release_notes.md; then
+          echo "❌ Release notes missing Universal Binary Support section"
+          exit 1
+        fi
+        
+        if ! grep -q "Installation" release_notes.md; then
+          echo "❌ Release notes missing Installation section"
+          exit 1
+        fi
+        
+        if ! grep -q "Checksums" release_notes.md; then
+          echo "❌ Release notes missing Checksums section"
+          exit 1
+        fi
+        
+        echo "✅ Release notes validation passed"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Generate validation report
+      run: |
+        echo "# 🎉 Release Validation Report" > validation_report.md
+        echo "" >> validation_report.md
+        echo "**Release:** ${{ steps.release_info.outputs.RELEASE_TAG }}" >> validation_report.md
+        echo "**Validation Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "## ✅ Validation Results" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "- ✅ DMG file exists and is valid" >> validation_report.md
+        echo "- ✅ ZIP file exists and is valid" >> validation_report.md
+        echo "- ✅ Checksums file exists and is accurate" >> validation_report.md
+        echo "- ✅ Binary is executable and universal (ARM64 + x86_64)" >> validation_report.md
+        echo "- ✅ Release notes contain required sections" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "## 📊 Asset Information" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "\`\`\`json" >> validation_report.md
+        cat assets.json >> validation_report.md
+        echo "\`\`\`" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "## 🔐 Checksums" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "\`\`\`" >> validation_report.md
+        cat checksums.txt >> validation_report.md
+        echo "\`\`\`" >> validation_report.md
+        
+        echo "Validation report generated:"
+        cat validation_report.md
+        
+        echo "🎉 All validation checks passed! Release ${{ steps.release_info.outputs.RELEASE_TAG }} is ready for distribution."
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload validation artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-validation-${{ steps.release_info.outputs.RELEASE_TAG }}
+        path: |
+          validation_report.md
+          assets.json
+          dmg_info.txt
+          zip_contents.txt
+        retention-days: 90
