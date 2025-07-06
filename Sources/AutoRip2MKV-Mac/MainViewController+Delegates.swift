@@ -3,39 +3,39 @@ import Cocoa
 // MARK: - DVDRipperDelegate
 
 extension MainViewController: DVDRipperDelegate {
-    
+
     func ripperDidStart() {
         DispatchQueue.main.async {
             self.appendToLog("DVD ripper started")
         }
     }
-    
+
     func ripperDidUpdateStatus(_ status: String) {
         DispatchQueue.main.async {
             self.appendToLog(status)
         }
     }
-    
+
     func ripperDidUpdateProgress(_ progress: Double, currentTitle: DVDTitle?, totalTitles: Int) {
         DispatchQueue.main.async {
             self.progressIndicator.doubleValue = progress * 100.0
-            
+
             if let title = currentTitle {
                 self.appendToLog("Processing title \(title.number) - \(Int(progress * 100))% complete")
             }
         }
     }
-    
+
     func ripperDidComplete() {
         DispatchQueue.main.async {
             self.appendToLog("DVD ripping completed successfully!")
             self.progressIndicator.isHidden = true
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
-            
+
             // Show completion notification
             self.showCompletionNotification()
-            
+
             // Automatically eject if enabled
             if self.settingsManager.autoEjectEnabled {
                 self.appendToLog("Auto-ejecting disc...")
@@ -45,17 +45,17 @@ extension MainViewController: DVDRipperDelegate {
             }
         }
     }
-    
+
     func ripperDidFail(with error: Error) {
         DispatchQueue.main.async {
             self.appendToLog("Error: \(error.localizedDescription)")
             self.progressIndicator.isHidden = true
             self.ripButton.isEnabled = true
             self.ripButton.title = "Start Ripping"
-            
+
             // Show error notification
             self.showErrorNotification("Ripping failed: \(error.localizedDescription)")
-            
+
             self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
         }
     }
@@ -64,11 +64,11 @@ extension MainViewController: DVDRipperDelegate {
 // MARK: - MediaRipperDelegate
 
 extension MainViewController: MediaRipperDelegate {
-    
+
     func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         DispatchQueue.main.async {
             self.progressIndicator.doubleValue = progress * 100.0
-            
+
             if let item = currentItem {
                 switch item {
                 case .dvdTitle(let title):

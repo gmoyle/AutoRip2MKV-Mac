@@ -4,7 +4,7 @@ import AVFoundation
 /// Unified media ripper that handles both DVD and Blu-ray formats with native decryption
 /// Implementation details are in separate extension files for better organization
 class MediaRipper {
-    
+
     // Media type detection
     enum MediaType {
         case dvd
@@ -12,7 +12,7 @@ class MediaRipper {
         case bluray
         case bluray4K
         case unknown
-        
+
         var folderName: String {
             switch self {
             case .dvd: return "DVD"
@@ -23,10 +23,10 @@ class MediaRipper {
             }
         }
     }
-    
+
     // Progress and status tracking
     weak var delegate: MediaRipperDelegate?
-    
+
     var dvdParser: DVDStructureParser?
     var blurayParser: BluRayStructureParser?
     var dvdDecryptor: DVDDecryptor?
@@ -34,7 +34,7 @@ class MediaRipper {
     var isRipping = false
     var shouldCancel = false
     var currentMediaType: MediaType = .unknown
-    
+
     // Ripping configuration
     struct RippingConfiguration {
         let outputDirectory: String
@@ -45,18 +45,18 @@ class MediaRipper {
         let includeSubtitles: Bool
         let includeChapters: Bool
         let mediaType: MediaType? // Optional override for media type detection
-        
+
         enum VideoCodec {
             case h264, h265, av1
         }
-        
+
         enum AudioCodec {
             case aac, ac3, dts, flac
         }
-        
+
         enum RippingQuality {
             case low, medium, high, lossless
-            
+
             var crf: Int {
                 switch self {
                 case .low: return 28
@@ -67,18 +67,18 @@ class MediaRipper {
             }
         }
     }
-    
+
     init() {
-        
+
     }
-    
+
     // MARK: - Public Interface
-    
+
     /// Detect media type from directory structure
     func detectMediaType(path: String) -> MediaType {
         let videoTSPath = path.appending("/VIDEO_TS")
         let bdmvPath = path.appending("/BDMV")
-        
+
         if FileManager.default.fileExists(atPath: bdmvPath) {
             // Check if it's 4K Blu-ray by looking for UHD indicators
             if isUltraHDBluRay(bdmvPath: bdmvPath) {
@@ -92,20 +92,20 @@ class MediaRipper {
             }
             return .dvd
         }
-        
+
         return .unknown
     }
-    
+
     /// Start the media ripping process
     func startRipping(mediaPath: String, configuration: RippingConfiguration) {
         guard !isRipping else {
             delegate?.ripperDidFail(with: MediaRipperError.alreadyRipping)
             return
         }
-        
+
         isRipping = true
         shouldCancel = false
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 try self.performRipping(mediaPath: mediaPath, configuration: configuration)
@@ -117,27 +117,27 @@ class MediaRipper {
             }
         }
     }
-    
+
     /// Cancel the current ripping operation
     func cancelRipping() {
         shouldCancel = true
     }
-    
+
     /// Check if currently ripping
     var isCurrentlyRipping: Bool {
         return isRipping
     }
-    
+
     // MARK: - Private Implementation
-    
+
     private func performRipping(mediaPath: String, configuration: RippingConfiguration) throws {
         delegate?.ripperDidStart()
-        
+
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
-        
+
         delegate?.ripperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
-        
+
         switch currentMediaType {
         case .dvd, .ultraHDDVD:
             try performDVDRipping(dvdPath: mediaPath, configuration: configuration)
@@ -146,7 +146,7 @@ class MediaRipper {
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
         }
-        
+
         // Complete
         DispatchQueue.main.async {
             self.delegate?.ripperDidComplete()
@@ -177,7 +177,7 @@ enum MediaRipperError: Error {
     case ffmpegNotFound
     case cancelled
     case deviceNotFound
-    
+
     var localizedDescription: String {
         switch self {
         case .alreadyRipping:
