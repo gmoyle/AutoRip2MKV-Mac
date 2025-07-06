@@ -52,7 +52,7 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - Chapter preservation and metadata inclusion
 - Multiple video/audio codec support (H.264, H.265, AV1, AAC, AC3, DTS, FLAC)
 - Configurable quality settings
-- **🤖 100% AI-Generated**: 13,435 lines of Swift code created entirely by AI
+- **🤖 100% AI-Generated**: 13,584 lines of Swift code created entirely by AI
 
 ## Installation
 
@@ -201,8 +201,8 @@ This project represents a groundbreaking experiment in AI-powered software devel
 - **Developer**: Art degree, zero Swift experience
 - **Code Written by Human**: 0 lines
 - **Git Commands by Human**: 0
-- **Total Swift Code**: 13,435 lines (100% AI-generated)
-- **Tests**: 66 comprehensive tests (100.0% pass rate)
+- **Total Swift Code**: 13,584 lines (100% AI-generated)
+- **Tests**: 277 comprehensive tests (100.0% pass rate)
 - **Development Method**: 100% AI-assisted via Warp 2.0
 - **Features Implemented**: DVD/Blu-ray ripping, CSS/AACS decryption, auto drive detection, persistent settings
 
