@@ -319,22 +319,20 @@ class MockConversionQueue: ConversionQueue {
         return (total, pending)
     }
     
-    override func getDetailedQueueStatus() -> (
-        total: Int, 
-        pending: Int, 
-        extracting: Int, 
-        converting: Int, 
-        completed: Int, 
-        failed: Int
-    ) {
-        let total = mockJobs.count
-        let pending = mockJobs.count { case .pending = $0.status; return true; default: return false }
-        let extracting = mockJobs.count { case .extracting = $0.status; return true; default: return false }
-        let converting = mockJobs.count { case .converting = $0.status; return true; default: return false }
-        let completed = mockJobs.count { case .completed = $0.status; return true; default: return false }
-        let failed = mockJobs.count { case .failed = $0.status; return true; default: return false }
-        
-        return (total, pending, extracting, converting, completed, failed)
+    override func getExtractingCount() -> Int {
+        return mockJobs.count { case .extracting = $0.status; return true; default: return false }
+    }
+    
+    override func getConvertingCount() -> Int {
+        return mockJobs.count { case .converting = $0.status; return true; default: return false }
+    }
+    
+    override func getCompletedCount() -> Int {
+        return mockJobs.count { case .completed = $0.status; return true; default: return false }
+    }
+    
+    override func getFailedCount() -> Int {
+        return mockJobs.count { case .failed = $0.status; return true; default: return false }
     }
     
     override func getAllJobs() -> [ConversionJob] {

@@ -159,39 +159,31 @@ class ConversionQueue {
         }
     }
     
-    /// Get detailed queue status
-    func getDetailedQueueStatus() -> (
-        total: Int, 
-        pending: Int, 
-        extracting: Int, 
-        converting: Int, 
-        completed: Int, 
-        failed: Int
-    ) {
+    /// Get extracting job count
+    func getExtractingCount() -> Int {
         return jobsQueue.sync {
-            let total = jobs.count
-            let pending = jobs.filter { 
-                if case .pending = $0.status { return true } 
-                return false 
-            }.count
-            let extracting = jobs.filter { 
-                if case .extracting = $0.status { return true } 
-                return false 
-            }.count
-            let converting = jobs.filter { 
-                if case .converting = $0.status { return true } 
-                return false 
-            }.count
-            let completed = jobs.filter { 
-                if case .completed = $0.status { return true } 
-                return false 
-            }.count
-            let failed = jobs.filter { 
-                if case .failed = $0.status { return true } 
-                return false 
-            }.count
-            
-            return (total, pending, extracting, converting, completed, failed)
+            jobs.filter { if case .extracting = $0.status { return true }; return false }.count
+        }
+    }
+    
+    /// Get converting job count
+    func getConvertingCount() -> Int {
+        return jobsQueue.sync {
+            jobs.filter { if case .converting = $0.status { return true }; return false }.count
+        }
+    }
+    
+    /// Get completed job count
+    func getCompletedCount() -> Int {
+        return jobsQueue.sync {
+            jobs.filter { if case .completed = $0.status { return true }; return false }.count
+        }
+    }
+    
+    /// Get failed job count
+    func getFailedCount() -> Int {
+        return jobsQueue.sync {
+            jobs.filter { if case .failed = $0.status { return true }; return false }.count
         }
     }
     

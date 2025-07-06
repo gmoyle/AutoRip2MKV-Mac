@@ -245,7 +245,14 @@ class QueueWindowController: NSWindowController {
     
     private func updateStatusLabel() {
         let status = conversionQueue.getQueueStatus()
-        let statusText = "Total: \(status.total) | Pending: \(status.pending) | Extracting: \(status.extracting) | Converting: \(status.converting) | Completed: \(status.completed) | Failed: \(status.failed)"
+        let extracting = conversionQueue.getExtractingCount()
+        let converting = conversionQueue.getConvertingCount()
+        let completed = conversionQueue.getCompletedCount()
+        let failed = conversionQueue.getFailedCount()
+        
+        let statusText = "Total: \(status.total) | Pending: \(status.pending) | " +
+                        "Extracting: \(extracting) | Converting: \(converting) | " +
+                        "Completed: \(completed) | Failed: \(failed)"
         statusLabel.stringValue = statusText
     }
     
