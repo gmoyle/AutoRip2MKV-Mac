@@ -251,10 +251,10 @@ final class MainViewControllerExtensionTests: XCTestCase {
         
         // Create a mock drive
         let mockDrive = OpticalDrive(
-            name: "Test Drive",
-            devicePath: "/dev/disk2",
             mountPoint: "/Volumes/TEST_DVD",
-            type: .dvd
+            name: "Test Drive",
+            type: .dvd,
+            devicePath: "/dev/disk2"
         )
         
         // Test auto-ripping with queue
@@ -450,7 +450,7 @@ final class MainViewControllerExtensionTests: XCTestCase {
 
 // MARK: - Test Helpers
 
-private extension MainViewController {
+internal extension MainViewController {
     // Helper for testing - checks if UI components are accessible
     var hasUIComponentsInitialized: Bool {
         return logTextView != nil && progressIndicator != nil && ripButton != nil && outputPathField != nil

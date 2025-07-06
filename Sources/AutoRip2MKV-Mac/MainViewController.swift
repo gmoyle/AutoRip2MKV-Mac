@@ -251,7 +251,7 @@ class MainViewController: NSViewController {
         }
     }
     
-    @objc private func startRipping() {
+    @objc internal func startRipping() {
         guard let sourcePath = getSelectedSourcePath(), !outputPathField.stringValue.isEmpty else {
             showAlert(title: "Error", message: "Please select both source and output directories.")
             return
@@ -368,12 +368,12 @@ class MainViewController: NSViewController {
     
     // MARK: - Automation Settings Actions
     
-    @objc private func autoRipToggled() {
+    @objc internal func autoRipToggled() {
         settingsManager.autoRipEnabled = autoRipCheckbox.state == .on
         appendToLog("Auto-rip \(settingsManager.autoRipEnabled ? "enabled" : "disabled")")
     }
     
-    @objc private func autoEjectToggled() {
+    @objc internal func autoEjectToggled() {
         settingsManager.autoEjectEnabled = autoEjectCheckbox.state == .on
         appendToLog("Auto-eject \(settingsManager.autoEjectEnabled ? "enabled" : "disabled")")
     }
@@ -391,7 +391,7 @@ class MainViewController: NSViewController {
         print("[DEBUG] Detailed settings window should be visible now")
     }
     
-    @objc private func showQueue() {
+    @objc internal func showQueue() {
         // Create or reuse the queue window controller
         if queueWindowController == nil {
             queueWindowController = QueueWindowController(conversionQueue: conversionQueue)
@@ -415,7 +415,7 @@ extension MainViewController: DriveDetectorDelegate {
         appendToLog("Disc ejected: \(drive.displayName)")
     }
     
-    private func autoStartRipping(for drive: OpticalDrive) {
+    internal func autoStartRipping(for drive: OpticalDrive) {
         guard settingsManager.autoRipEnabled else {
             appendToLog("Auto-ripping is disabled. Insert disc manually to start ripping.")
             return

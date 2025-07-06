@@ -7,7 +7,7 @@ class ConversionQueue {
     
     // MARK: - Types
     
-    enum JobStatus {
+    enum JobStatus: Equatable {
         case pending        // Waiting to start
         case extracting     // Reading from disc
         case extracted      // Ready for conversion, disc can be ejected
@@ -15,6 +15,22 @@ class ConversionQueue {
         case completed      // Finished successfully
         case failed(Error)  // Failed with error
         case cancelled      // User cancelled
+        
+        static func == (lhs: JobStatus, rhs: JobStatus) -> Bool {
+            switch (lhs, rhs) {
+            case (.pending, .pending),
+                 (.extracting, .extracting),
+                 (.extracted, .extracted),
+                 (.converting, .converting),
+                 (.completed, .completed),
+                 (.cancelled, .cancelled):
+                return true
+            case (.failed, .failed):
+                return true  // For testing purposes, consider all failures equal
+            default:
+                return false
+            }
+        }
     }
     
     struct ConversionJob {
@@ -150,12 +166,16 @@ class ConversionQueue {
     }
     
     /// Get current queue status
-    func getQueueStatus() -> (total: Int, pending: Int) {
+    func getQueueStatus() -> (total: Int, pending: Int, extracting: Int, converting: Int, completed: Int, failed: Int) {
         return jobsQueue.sync {
             let total = jobs.count
             let pending = jobs.filter { if case .pending = $0.status { return true }; return false }.count
+            let extracting = jobs.filter { if case .extracting = $0.status { return true }; return false }.count
+            let converting = jobs.filter { if case .converting = $0.status { return true }; return false }.count
+            let completed = jobs.filter { if case .completed = $0.status { return true }; return false }.count
+            let failed = jobs.filter { if case .failed = $0.status { return true }; return false }.count
             
-            return (total, pending)
+            return (total, pending, extracting, converting, completed, failed)
         }
     }
     

@@ -148,10 +148,10 @@ final class QueueIntegrationTests: XCTestCase {
         
         // Create mock drive
         let mockDrive = OpticalDrive(
-            name: "Test Drive",
-            devicePath: "/dev/disk2",
             mountPoint: testSourcePath,
-            type: .dvd
+            name: "Test Drive",
+            type: .dvd,
+            devicePath: "/dev/disk2"
         )
         
         // Add the mock drive to detected drives

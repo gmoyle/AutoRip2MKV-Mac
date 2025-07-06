@@ -312,27 +312,31 @@ class MockConversionQueue: ConversionQueue {
         }
     }
     
-    override func getQueueStatus() -> (total: Int, pending: Int) {
+    override func getQueueStatus() -> (total: Int, pending: Int, extracting: Int, converting: Int, completed: Int, failed: Int) {
         let total = mockJobs.count
-        let pending = mockJobs.count { case .pending = $0.status; return true; default: return false }
+        let pending = mockJobs.filter { if case .pending = $0.status { return true }; return false }.count
+        let extracting = mockJobs.filter { if case .extracting = $0.status { return true }; return false }.count
+        let converting = mockJobs.filter { if case .converting = $0.status { return true }; return false }.count
+        let completed = mockJobs.filter { if case .completed = $0.status { return true }; return false }.count
+        let failed = mockJobs.filter { if case .failed = $0.status { return true }; return false }.count
         
-        return (total, pending)
+        return (total, pending, extracting, converting, completed, failed)
     }
     
     override func getExtractingCount() -> Int {
-        return mockJobs.count { case .extracting = $0.status; return true; default: return false }
+        return mockJobs.filter { if case .extracting = $0.status { return true }; return false }.count
     }
     
     override func getConvertingCount() -> Int {
-        return mockJobs.count { case .converting = $0.status; return true; default: return false }
+        return mockJobs.filter { if case .converting = $0.status { return true }; return false }.count
     }
     
     override func getCompletedCount() -> Int {
-        return mockJobs.count { case .completed = $0.status; return true; default: return false }
+        return mockJobs.filter { if case .completed = $0.status { return true }; return false }.count
     }
     
     override func getFailedCount() -> Int {
-        return mockJobs.count { case .failed = $0.status; return true; default: return false }
+        return mockJobs.filter { if case .failed = $0.status { return true }; return false }.count
     }
     
     override func getAllJobs() -> [ConversionJob] {
