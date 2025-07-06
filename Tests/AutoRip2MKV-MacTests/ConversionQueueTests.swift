@@ -10,7 +10,7 @@ final class ConversionQueueTests: XCTestCase {
     let testOutputPath = "/tmp/test_conversion_output"
     
     override func setUpWithError() throws {
-        conversionQueue = ConversionQueue()
+        conversionQueue = ConversionQueue(testMode: true)
         mockDelegate = MockConversionQueueDelegate()
         mockEjectionDelegate = MockConversionQueueEjectionDelegate()
         

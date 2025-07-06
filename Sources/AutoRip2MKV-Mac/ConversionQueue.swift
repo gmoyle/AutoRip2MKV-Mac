@@ -95,6 +95,15 @@ class ConversionQueue {
     weak var delegate: ConversionQueueDelegate?
     weak var ejectionDelegate: ConversionQueueEjectionDelegate?
     
+    // Testing mode - when true, jobs are not automatically processed
+    private let testMode: Bool
+    
+    // MARK: - Initialization
+    
+    init(testMode: Bool = false) {
+        self.testMode = testMode
+    }
+    
     // MARK: - Public Interface
     
     /// Add a new job to the queue
@@ -114,7 +123,9 @@ class ConversionQueue {
             }
         }
         
-        processNextJob()
+        if !testMode {
+            processNextJob()
+        }
         return job.id
     }
     
@@ -498,8 +509,12 @@ class ConversionQueue {
     private func validateDiskSpace(for job: ConversionJob, outputDirectory: String) throws {
         let fileManager = FileManager.default
         
+        // Check space on the parent directory since outputDirectory may not exist yet
+        let parentDirectory = (outputDirectory as NSString).deletingLastPathComponent
+        let directoryToCheck = fileManager.fileExists(atPath: outputDirectory) ? outputDirectory : parentDirectory
+        
         // Get available space
-        guard let attributes = try? fileManager.attributesOfFileSystem(forPath: outputDirectory),
+        guard let attributes = try? fileManager.attributesOfFileSystem(forPath: directoryToCheck),
               let freeBytes = attributes[.systemFreeSize] as? Int64 else {
             throw ConversionQueueError.diskSpaceCheckFailed
         }
