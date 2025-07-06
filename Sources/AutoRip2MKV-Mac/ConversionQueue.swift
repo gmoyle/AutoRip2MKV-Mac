@@ -150,14 +150,46 @@ class ConversionQueue {
     }
     
     /// Get current queue status
-    func getQueueStatus() -> (total: Int, pending: Int, extracting: Int, converting: Int, completed: Int, failed: Int) {
+    func getQueueStatus() -> (total: Int, pending: Int) {
         return jobsQueue.sync {
             let total = jobs.count
             let pending = jobs.filter { if case .pending = $0.status { return true }; return false }.count
-            let extracting = jobs.filter { if case .extracting = $0.status { return true }; return false }.count
-            let converting = jobs.filter { if case .converting = $0.status { return true }; return false }.count
-            let completed = jobs.filter { if case .completed = $0.status { return true }; return false }.count
-            let failed = jobs.filter { if case .failed = $0.status { return true }; return false }.count
+            
+            return (total, pending)
+        }
+    }
+    
+    /// Get detailed queue status
+    func getDetailedQueueStatus() -> (
+        total: Int, 
+        pending: Int, 
+        extracting: Int, 
+        converting: Int, 
+        completed: Int, 
+        failed: Int
+    ) {
+        return jobsQueue.sync {
+            let total = jobs.count
+            let pending = jobs.filter { 
+                if case .pending = $0.status { return true } 
+                return false 
+            }.count
+            let extracting = jobs.filter { 
+                if case .extracting = $0.status { return true } 
+                return false 
+            }.count
+            let converting = jobs.filter { 
+                if case .converting = $0.status { return true } 
+                return false 
+            }.count
+            let completed = jobs.filter { 
+                if case .completed = $0.status { return true } 
+                return false 
+            }.count
+            let failed = jobs.filter { 
+                if case .failed = $0.status { return true } 
+                return false 
+            }.count
             
             return (total, pending, extracting, converting, completed, failed)
         }
@@ -174,7 +206,10 @@ class ConversionQueue {
         jobsQueue.async {
             // Start extraction if not already running and there are pending jobs
             if !self.isExtracting {
-                if let nextExtractionJob = self.jobs.first(where: { if case .pending = $0.status { return true }; return false }) {
+                if let nextExtractionJob = self.jobs.first(where: { 
+                    if case .pending = $0.status { return true } 
+                    return false 
+                }) {
                     self.startExtraction(for: nextExtractionJob.id)
                 }
             }
@@ -182,7 +217,10 @@ class ConversionQueue {
             // Start conversions if under limit and there are extracted jobs waiting
             if self.activeConversions < self.maxConcurrentConversions {
                 let availableSlots = self.maxConcurrentConversions - self.activeConversions
-                let extractedJobs = self.jobs.filter { if case .extracted = $0.status { return true }; return false }
+                let extractedJobs = self.jobs.filter { 
+                    if case .extracted = $0.status { return true } 
+                    return false 
+                }
                 
                 for job in extractedJobs.prefix(availableSlots) {
                     self.startConversion(for: job.id)
@@ -235,7 +273,7 @@ class ConversionQueue {
             try extractDiscData(job: job, toDirectory: tempDir)
             
             // Update job status atomically
-            let sourcePath = jobsQueue.sync(flags: .barrier) -> String? {
+            let sourcePath: String? = jobsQueue.sync(flags: .barrier) {
                 guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return nil }
                 
                 self.jobs[jobIndex].status = .extracted

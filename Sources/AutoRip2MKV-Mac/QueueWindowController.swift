@@ -296,7 +296,7 @@ class QueueWindowController: NSWindowController {
         alert.informativeText = details
         alert.addButton(withTitle: "OK")
         
-        if case .failed(let error) = job.status {
+        if case .failed = job.status {
             alert.addButton(withTitle: "Show Error Details")
         }
         
