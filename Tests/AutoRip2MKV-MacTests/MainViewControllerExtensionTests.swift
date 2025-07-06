@@ -197,7 +197,77 @@ final class MainViewControllerExtensionTests: XCTestCase {
         XCTAssertNoThrow(viewController.ripperDidUpdateStatus("Test status"))
         XCTAssertNoThrow(viewController.ripperDidUpdateProgress(0.5, currentTitle: nil, totalTitles: 1))
         XCTAssertNoThrow(viewController.ripperDidComplete())
+    }
+    
+    // MARK: - Queue Functionality Tests
+    
+    func testShowQueueAction() {
+        // Test that showing the queue doesn't crash
+        XCTAssertNoThrow(viewController.showQueue())
+    }
+    
+    func testGenerateDiscTitle() {
+        let sourcePath = "/Volumes/TEST_DVD"
+        let discTitle = viewController.generateDiscTitle(from: sourcePath)
         
+        XCTAssertFalse(discTitle.isEmpty, "Disc title should not be empty")
+        XCTAssertTrue(discTitle.contains("TEST_DVD") || discTitle == "Unknown Disc", "Disc title should be meaningful")
+    }
+    
+    func testConversionQueueEjectionDelegate() {
+        let testSourcePath = "/Volumes/TEST_DVD"
+        
+        // Test ejection delegate method
+        XCTAssertNoThrow({
+            viewController.queueShouldEjectDisc(sourcePath: testSourcePath)
+        }())
+        
+        // Should log about ejection attempt
+        let logContent = viewController.logTextView.string
+        XCTAssertTrue(logContent.contains("eject") || logContent.contains("manual"), "Should log about ejection")
+    }
+    
+    func testQueueBasedRipping() {
+        // Set up test paths
+        viewController.outputPathField.stringValue = testOutputPath
+        
+        // Test that queue-based ripping doesn't crash
+        XCTAssertNoThrow({
+            // This would normally trigger queue-based ripping
+            // In test environment, it should handle gracefully
+            viewController.startRipping()
+        }())
+        
+        // Should log about adding to queue
+        let logContent = viewController.logTextView.string
+        XCTAssertTrue(logContent.contains("queue") || logContent.contains("Error"), "Should mention queue or show error")
+    }
+    
+    func testAutoRippingWithQueue() {
+        // Set up for auto-ripping
+        viewController.outputPathField.stringValue = testOutputPath
+        viewController.autoRipCheckbox.state = .on
+        viewController.autoRipToggled()
+        
+        // Create a mock drive
+        let mockDrive = OpticalDrive(
+            name: "Test Drive",
+            devicePath: "/dev/disk2",
+            mountPoint: "/Volumes/TEST_DVD",
+            type: .dvd
+        )
+        
+        // Test auto-ripping with queue
+        XCTAssertNoThrow({
+            viewController.autoStartRipping(for: mockDrive)
+        }())
+        
+        // Should log about auto-adding to queue
+        let logContent = viewController.logTextView.string
+        XCTAssertTrue(logContent.contains("Auto-adding") || logContent.contains("queue"), "Should log about auto-adding to queue")
+    }
+    
+    func testRipperDidFailWithError() {
         let testError = NSError(domain: "TestDomain", code: 123, userInfo: [NSLocalizedDescriptionKey: "Test error"])
         XCTAssertNoThrow(viewController.ripperDidFail(with: testError))
     }

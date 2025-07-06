@@ -21,6 +21,7 @@ class MainViewController: NSViewController {
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
     internal var settingsButton: NSButton!
+    internal var queueButton: NSButton!
     
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
@@ -31,18 +32,27 @@ class MainViewController: NSViewController {
     private var dvdRipper: DVDRipper!
     private var currentTitles: [DVDTitle] = []
     
-    // Settings Window
+    // Conversion Queue
+    private let conversionQueue = ConversionQueue()
+    
+    // Settings Windows
     private var detailedSettingsWindowController: DetailedSettingsWindowController?
+    private var queueWindowController: QueueWindowController?
     
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         setupUI()
         setupDVDRipper()
+        setupConversionQueue()
         loadSettings()
         refreshDrives()
         driveDetector.delegate = self
         driveDetector.startMonitoring()
         settingsManager.setDefaultsIfNeeded()
+    }
+    
+    private func setupConversionQueue() {
+        conversionQueue.ejectionDelegate = self
     }
     
     private func setupUI() {
@@ -97,6 +107,10 @@ class MainViewController: NSViewController {
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
+        
+        queueButton = NSButton(title: "Queue", target: self, action: #selector(showQueue))
+        queueButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(queueButton)
         
         // Rip Button
         ripButton = NSButton(title: "Start Ripping", target: self, action: #selector(startRipping))
@@ -179,6 +193,10 @@ class MainViewController: NSViewController {
             settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             settingsButton.widthAnchor.constraint(equalToConstant: 80),
             
+            queueButton.topAnchor.constraint(equalTo: autoEjectCheckbox.topAnchor),
+            queueButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor, constant: -10),
+            queueButton.widthAnchor.constraint(equalToConstant: 80),
+            
             // Rip Button
             ripButton.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 20),
             ripButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -242,32 +260,66 @@ class MainViewController: NSViewController {
         // Check if FFmpeg is available
         installFFmpegIfNeeded()
         
-        // Start the native DVD ripping process
-        ripButton.isEnabled = false
-        progressIndicator.isHidden = false
-        progressIndicator.isIndeterminate = false
-        progressIndicator.doubleValue = 0.0
+        // Detect media type
+        let mediaRipper = MediaRipper()
+        let mediaType = mediaRipper.detectMediaType(path: sourcePath)
         
-        appendToLog("Starting native DVD ripping process...")
+        // Generate disc title from source path or drive info
+        let discTitle = generateDiscTitle(from: sourcePath)
+        
+        appendToLog("Adding \(discTitle) to conversion queue...")
         appendToLog("Source: \(sourcePath)")
         appendToLog("Output: \(outputPathField.stringValue)")
         
-        // Configure ripping
-        let configuration = DVDRipper.RippingConfiguration(
+        // Configure ripping for the queue
+        let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: outputPathField.stringValue,
             selectedTitles: [], // Rip all titles
-            videoCodec: .h264,
-            audioCodec: .aac,
-            quality: .high,
+            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
+            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
+            quality: {
+                switch settingsManager.quality {
+                case "low": return .low
+                case "medium": return .medium
+                case "high": return .high
+                default: return .medium
+                }
+            }(),
             includeSubtitles: true,
-            includeChapters: true
+            includeChapters: true,
+            mediaType: mediaType
         )
         
-        // Start ripping
-        dvdRipper.startRipping(dvdPath: sourcePath, configuration: configuration)
+        // Add to queue instead of starting immediately
+        let jobId = conversionQueue.addJob(
+            sourcePath: sourcePath,
+            outputDirectory: outputPathField.stringValue,
+            configuration: configuration,
+            mediaType: mediaType,
+            discTitle: discTitle
+        )
+        
+        appendToLog("Added to queue with ID: \(jobId.uuidString)")
+        appendToLog("Disc will be ejected automatically after reading is complete")
         
         // Save current settings
         saveCurrentSettings()
+        
+        // Show queue window to monitor progress
+        showQueue()
+    }
+    
+    func generateDiscTitle(from sourcePath: String) -> String {
+        // Try to get disc title from selected drive using the utility method
+        let selectedIndex = sourceDropDown.indexOfSelectedItem
+        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
+            let selectedDrive = detectedDrives[selectedIndex]
+            return selectedDrive.displayName
+        }
+        
+        // Fall back to last path component
+        let pathComponent = URL(fileURLWithPath: sourcePath).lastPathComponent
+        return pathComponent.isEmpty ? "Unknown Disc" : pathComponent
     }
     
     // MARK: - Drive Detection and Settings
@@ -339,6 +391,16 @@ class MainViewController: NSViewController {
         print("[DEBUG] Detailed settings window should be visible now")
     }
     
+    @objc private func showQueue() {
+        // Create or reuse the queue window controller
+        if queueWindowController == nil {
+            queueWindowController = QueueWindowController(conversionQueue: conversionQueue)
+        }
+        
+        // Show the window
+        queueWindowController?.showWindow(nil)
+    }
+    
 }
 
 // MARK: - DriveDetectorDelegate
@@ -367,38 +429,89 @@ extension MainViewController: DriveDetectorDelegate {
         // Check if FFmpeg is available
         installFFmpegIfNeeded()
         
-        // Start the native DVD ripping process
-        ripButton.isEnabled = false
-        progressIndicator.isHidden = false
-        progressIndicator.isIndeterminate = false
-        progressIndicator.doubleValue = 0.0
+        // Detect media type
+        let mediaRipper = MediaRipper()
+        let mediaType = mediaRipper.detectMediaType(path: drive.mountPoint)
         
-        appendToLog("Starting automated ripping process for: \(drive.displayName)")
+        appendToLog("Auto-adding \(drive.displayName) to conversion queue...")
         
-        // Configure ripping using saved settings
-        let videoCodec: DVDRipper.RippingConfiguration.VideoCodec = settingsManager.videoCodec == "h265" ? .h265 : .h264
-        let audioCodec: DVDRipper.RippingConfiguration.AudioCodec = settingsManager.audioCodec == "ac3" ? .ac3 : .aac
-        let quality: DVDRipper.RippingConfiguration.RippingQuality = {
-            switch settingsManager.quality {
-            case "low": return .low
-            case "medium": return .medium
-            case "high": return .high
-            default: return .medium
-            }
-        }()
-        
-        let configuration = DVDRipper.RippingConfiguration(
+        // Configure ripping using saved settings for the queue
+        let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: outputPathField.stringValue,
             selectedTitles: [], // Rip all titles
-            videoCodec: videoCodec,
-            audioCodec: audioCodec,
-            quality: quality,
+            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
+            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
+            quality: {
+                switch settingsManager.quality {
+                case "low": return .low
+                case "medium": return .medium
+                case "high": return .high
+                default: return .medium
+                }
+            }(),
             includeSubtitles: true,
-            includeChapters: true
+            includeChapters: true,
+            mediaType: mediaType
         )
-        dvdRipper.startRipping(dvdPath: drive.mountPoint, configuration: configuration)
+        
+        // Add to queue for processing
+        let jobId = conversionQueue.addJob(
+            sourcePath: drive.mountPoint,
+            outputDirectory: outputPathField.stringValue,
+            configuration: configuration,
+            mediaType: mediaType,
+            discTitle: drive.displayName
+        )
+        
+        appendToLog("Auto-added to queue with ID: \(jobId.uuidString)")
+        appendToLog("Disc will be ejected automatically after reading is complete")
         
         // Save current settings
         saveCurrentSettings()
+    }
+}
+
+// MARK: - ConversionQueueEjectionDelegate
+
+extension MainViewController: ConversionQueueEjectionDelegate {
+    func queueShouldEjectDisc(sourcePath: String) {
+        // Only eject if auto-eject is enabled
+        guard settingsManager.autoEjectEnabled else {
+            appendToLog("Disc reading complete. Auto-eject is disabled - manual ejection required.")
+            return
+        }
+        
+        // Find the drive that matches the source path
+        if let drive = detectedDrives.first(where: { $0.mountPoint == sourcePath }) {
+            appendToLog("Auto-ejecting \(drive.displayName) after successful extraction...")
+            
+            DispatchQueue.global(qos: .background).async {
+                let result = self.ejectDisk(at: drive.devicePath)
+                
+                DispatchQueue.main.async {
+                    if result {
+                        self.appendToLog("\(drive.displayName) ejected successfully - ready for next disc")
+                    } else {
+                        self.appendToLog("Failed to eject \(drive.displayName) - manual ejection may be required")
+                    }
+                }
+            }
+        } else {
+            appendToLog("Disc reading complete. Could not find drive for auto-ejection.")
+        }
+    }
+    
+    private func ejectDisk(at devicePath: String) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/diskutil")
+        task.arguments = ["eject", devicePath]
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 }
