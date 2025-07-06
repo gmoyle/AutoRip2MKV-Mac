@@ -11,7 +11,7 @@ This guide helps you install and run AutoRip2MKV on macOS despite Apple's securi
 ### Step 1: Download and Install
 1. **Download the latest DMG** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
 2. **Open the DMG file** and drag AutoRip2MKV to Applications
-3. **FFmpeg** will be automatically downloaded and installed when needed
+3. **FFmpeg** is already bundled - no downloads needed!
 
 ### Step 2: First Launch (Security Override)
 
@@ -91,22 +91,25 @@ This usually means you need to grant additional permissions:
 
 ### FFmpeg Issues
 
-FFmpeg is automatically downloaded and installed by the app. If you encounter issues:
+FFmpeg is bundled with the app (no downloads required). If you encounter issues:
 
 ```bash
-# Check if FFmpeg was installed in app support directory
-ls ~/Library/Application\ Support/AutoRip2MKV-Mac/
+# Check if the bundled FFmpeg is present
+ls /Applications/AutoRip2MKV.app/Contents/Resources/ffmpeg
 
-# Or manually install via Homebrew if preferred
-brew install ffmpeg
+# Verify FFmpeg version
+/Applications/AutoRip2MKV.app/Contents/Resources/ffmpeg -version
+
+# For development builds, check Application Support directory
+ls ~/Library/Application\ Support/AutoRip2MKV-Mac/
 ```
 
 ## 📋 System Requirements
 
 - **macOS 13.0** or later (macOS Ventura+)
-- **FFmpeg** automatically downloaded on first use
+- **FFmpeg** bundled with the application (v7.1.1-tessus)
 - **Optical drive** or mounted DVD/Blu-ray images
-- **Internet connection** for initial FFmpeg download
+- **Internet connection** not required for core functionality
 
 ## 🆘 Need Help?
 
@@ -121,10 +124,10 @@ If you encounter issues:
 
 ## 🎯 Pro Tips
 
-- **First launch takes longer** - FFmpeg is downloaded automatically when needed
+- **First launch is immediate** - FFmpeg is already bundled, no downloads
 - **Keep the app in Applications** - don't run it from Downloads
 - **Use right-click method** - it's the most reliable for unsigned apps
-- **Internet connection required** - for initial FFmpeg download
+- **Works offline** - no internet connection required for ripping
 
 ---
 

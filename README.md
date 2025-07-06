@@ -44,6 +44,7 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - **Native DVD decryption** - Built-in CSS (Content Scramble System) decryption
 - **Blu-ray Support** - AACS decryption framework and BDMV parsing
 - **No dependencies on MakeMKV** - Completely self-contained solution
+- **FFmpeg Bundled** - No separate downloads or installations required
 - **Automatic Drive Detection** - Smart optical drive detection and selection
 - Native macOS interface built with Swift and AppKit
 - Easy-to-use GUI with persistent settings
@@ -63,8 +64,8 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 1. **Download the latest release** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
 2. **Open the DMG file** and drag AutoRip2MKV to Applications
 3. **⚠️ First Launch**: Right-click the app → "Open" to bypass macOS security
-4. **FFmpeg**: Automatically downloaded and installed on first run
-5. **Start ripping!** - No additional setup required
+4. **FFmpeg**: Already bundled - no downloads needed!
+5. **Start ripping!** - Fully self-contained, works offline
 
 > 📋 **Need help with installation?** See the detailed [Installation Guide](INSTALLATION.md) for step-by-step instructions to handle macOS security restrictions.
 
@@ -89,11 +90,11 @@ swift build && swift run
 2. **Launch AutoRip2MKV** from Applications
 3. **Select your disc** from the automatically detected drives dropdown
 4. **Choose output directory** where MKV files will be saved
-5. **Click "Start Ripping"** - FFmpeg will be downloaded automatically if needed
+5. **Click "Start Ripping"** - uses bundled FFmpeg for immediate processing
 6. **Monitor progress** in the real-time log area
 
 **That's it!** The app handles everything automatically including:
-- ✅ FFmpeg installation (no Homebrew needed)
+- ✅ FFmpeg bundled (no downloads or Homebrew needed)
 - ✅ Drive detection and selection
 - ✅ CSS/AACS decryption
 - ✅ Video conversion to MKV
@@ -147,6 +148,13 @@ AutoRip2MKV-Mac/
 swift build && swift test && swift run
 ```
 
+## 📚 Documentation
+
+- **[Installation Guide](INSTALLATION.md)** - Detailed setup instructions for macOS
+- **[User Guide](WIKI_USER_GUIDE.md)** - Comprehensive feature documentation
+- **[FFmpeg Bundling](FFMPEG_BUNDLING.md)** - Technical details on bundled FFmpeg integration
+- **[Roadmap](ROADMAP.md)** - Project timeline and planned features
+
 ## 🗺️ Roadmap
 
 See our comprehensive [**Roadmap**](ROADMAP.md) for planned features, enhancements, and long-term project goals including:
@@ -192,13 +200,15 @@ The application parses the DVD structure natively:
 
 ### Video Conversion
 
-After decryption, the application uses FFmpeg for video conversion:
+After decryption, the application uses bundled FFmpeg for video conversion:
 
+- **FFmpeg v7.1.1-tessus** bundled for immediate use
 - Support for multiple codecs (H.264, H.265, AV1)
 - Audio codec options (AAC, AC3, DTS, FLAC)
 - Chapter preservation
 - Metadata inclusion
 - Quality settings (CRF-based)
+- No external dependencies or downloads required
 
 ## Legal Notice
 

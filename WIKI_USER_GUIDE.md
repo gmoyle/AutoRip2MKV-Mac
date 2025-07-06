@@ -27,8 +27,8 @@ Welcome to the comprehensive user guide for AutoRip2MKV-Mac! This guide covers a
 AutoRip2MKV-Mac is a powerful DVD and Blu-ray ripping application that converts your physical media to high-quality MKV files. The application provides professional-grade control over encoding, organization, and output quality.
 
 ### System Requirements
-- macOS 10.15 or later
-- FFmpeg (automatically installed if needed)
+- macOS 13.0 or later
+- FFmpeg (bundled with application - v7.1.1-tessus)
 - DVD/Blu-ray drive or disc image files
 - Sufficient storage space for output files
 
