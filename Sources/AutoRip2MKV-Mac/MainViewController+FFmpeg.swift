@@ -21,6 +21,32 @@ extension MainViewController {
         return appPath.path
     }
     
+    func ensureFFmpegAvailable() {
+        // First check if FFmpeg is bundled with the app
+        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+            DispatchQueue.main.async {
+                self.appendToLog("Using bundled FFmpeg binary")
+                self.appendToLog("FFmpeg is ready for use!")
+                self.resetRipButton()
+            }
+            return
+        }
+        
+        // Check if already installed in Application Support
+        let installedPath = getInstalledFFmpegPath()
+        if FileManager.default.fileExists(atPath: installedPath) {
+            DispatchQueue.main.async {
+                self.appendToLog("Using previously installed FFmpeg")
+                self.appendToLog("FFmpeg is ready for use!")
+                self.resetRipButton()
+            }
+            return
+        }
+        
+        // Fall back to downloading
+        downloadAndInstallFFmpeg()
+    }
+    
     func downloadAndInstallFFmpeg() {
         let architecture = getCurrentArchitecture()
         let downloadURL = getFFmpegDownloadURL(for: architecture)
@@ -153,5 +179,39 @@ extension MainViewController {
     func resetRipButton() {
         ripButton.title = "Start Ripping"
         ripButton.isEnabled = true
+    }
+    
+    // MARK: - FFmpeg Path Management
+    
+    func getBundledFFmpegPath() -> String? {
+        // Check if FFmpeg is bundled in the app bundle (Contents/Resources)
+        let bundlePath = Bundle.main.bundlePath
+        let ffmpegPath = bundlePath.appending("/Contents/Resources/ffmpeg")
+        if FileManager.default.fileExists(atPath: ffmpegPath) {
+            return ffmpegPath
+        }
+        
+        // Fallback to legacy path
+        return Bundle.main.path(forResource: "ffmpeg", ofType: nil)
+    }
+    
+    func getInstalledFFmpegPath() -> String {
+        // Get path to FFmpeg in Application Support directory
+        let appSupportPath = getApplicationSupportPath()
+        return (appSupportPath as NSString).appendingPathComponent("ffmpeg")
+    }
+    
+    func getFFmpegExecutablePath() -> String? {
+        // Return the path to the FFmpeg executable, checking bundled first
+        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
+            return bundledPath
+        }
+        
+        let installedPath = getInstalledFFmpegPath()
+        if FileManager.default.fileExists(atPath: installedPath) {
+            return installedPath
+        }
+        
+        return nil
     }
 }

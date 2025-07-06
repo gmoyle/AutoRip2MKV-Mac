@@ -41,72 +41,10 @@ extension MainViewController {
         }
     }
     
-    func getFFmpegExecutablePath() -> String? {
-        // First try bundled FFmpeg
-        if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
-            return bundledPath
-        }
-        
-        // Then try system PATH
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["ffmpeg"]
-        
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            
-            if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    return path
-                }
-            }
-        } catch {
-            appendToLog("Error checking for FFmpeg: \(error.localizedDescription)")
-        }
-        
-        return nil
-    }
-    
-    func getBundledFFmpegPath() -> String? {
-        let bundlePath = Bundle.main.bundlePath
-        let ffmpegPath = bundlePath.appending("/Contents/Resources/ffmpeg")
-        return ffmpegPath
-    }
     
     func installFFmpegIfNeeded() {
-        guard !isFFmpegAvailable() else {
-            appendToLog("FFmpeg is available")
-            return
-        }
-        
-        appendToLog("FFmpeg not found. Attempting to install via Homebrew...")
-        
-        // Check if Homebrew is available
-        let homebrewCheck = Process()
-        homebrewCheck.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        homebrewCheck.arguments = ["brew"]
-        
-        do {
-            try homebrewCheck.run()
-            homebrewCheck.waitUntilExit()
-            
-            if homebrewCheck.terminationStatus == 0 {
-                installFFmpegWithHomebrew()
-            } else {
-                appendToLog("Homebrew not found. Please install FFmpeg manually.")
-                showAlert(title: "FFmpeg Required", 
-                         message: "FFmpeg is required for video conversion. Please install it manually or via Homebrew."
-                )
-            }
-        } catch {
-            appendToLog("Error checking for Homebrew: \(error.localizedDescription)")
-        }
+        // Use the new comprehensive FFmpeg availability check and installation
+        ensureFFmpegAvailable()
     }
     
     private func installFFmpegWithHomebrew() {

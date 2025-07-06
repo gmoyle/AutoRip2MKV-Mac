@@ -47,14 +47,26 @@ extension MediaRipper {
     }
     
     private func getFFmpegPath() throws -> String {
-        // Check bundled FFmpeg first
+        // 1. Check if FFmpeg is bundled in the app bundle (Contents/Resources)
         let bundlePath = Bundle.main.bundlePath
         let bundledFFmpeg = bundlePath.appending("/Contents/Resources/ffmpeg")
         if FileManager.default.fileExists(atPath: bundledFFmpeg) {
             return bundledFFmpeg
         }
         
-        // Check system PATH
+        // 2. Check if FFmpeg is bundled using Bundle.main.path (legacy)
+        if let bundledPath = Bundle.main.path(forResource: "ffmpeg", ofType: nil) {
+            return bundledPath
+        }
+        
+        // 3. Check Application Support directory (downloaded/installed)
+        let appSupportPath = getApplicationSupportPath()
+        let installedFFmpeg = (appSupportPath as NSString).appendingPathComponent("ffmpeg")
+        if FileManager.default.fileExists(atPath: installedFFmpeg) {
+            return installedFFmpeg
+        }
+        
+        // 4. Check system PATH as fallback
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         process.arguments = ["ffmpeg"]
@@ -78,6 +90,23 @@ extension MediaRipper {
         }
         
         throw MediaRipperError.ffmpegNotFound
+    }
+    
+    private func getApplicationSupportPath() -> String {
+        let fileManager = FileManager.default
+        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, 
+                                                   in: .userDomainMask).first else {
+            return NSTemporaryDirectory()
+        }
+        
+        let appPath = appSupportURL.appendingPathComponent("AutoRip2MKV-Mac")
+        
+        // Create directory if it doesn't exist
+        if !fileManager.fileExists(atPath: appPath.path) {
+            try? fileManager.createDirectory(at: appPath, withIntermediateDirectories: true)
+        }
+        
+        return appPath.path
     }
     
     private func videoCodecArgument(for codec: RippingConfiguration.VideoCodec) -> String {

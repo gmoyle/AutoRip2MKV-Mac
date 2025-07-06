@@ -10,6 +10,7 @@ AutoRip2MKV-Mac aims to be the most comprehensive, user-friendly, and technicall
 - ✅ **Advanced Settings System**: Comprehensive configuration options
 - ✅ **Queue-based Processing**: Efficient batch operations
 - ✅ **Professional UI**: Native macOS interface with extensive customization
+- ✅ **Bundled FFmpeg**: Self-contained binary eliminates downloads
 - ✅ **AI-Generated Codebase**: 13,584+ lines of 100% AI-written Swift code
 
 ---
@@ -103,6 +104,19 @@ AutoRip2MKV-Mac aims to be the most comprehensive, user-friendly, and technicall
   - Kodi/XBMC support
 
 ### **Phase 4: Enterprise & Advanced Users** (v1.6.x)
+
+#### **Native FFmpeg Integration**
+- **Direct Library Integration**
+  - Swift bindings for FFmpeg C libraries
+  - Memory-mapped processing for large files
+  - Eliminating external process overhead
+  - Custom codec selection and optimization
+
+- **FFmpeg Framework Development**
+  - Modular FFmpeg Swift framework
+  - Selective codec inclusion to reduce bundle size
+  - Hardware acceleration through Metal
+  - Real-time encoding progress and controls
 
 #### **Professional Workflow Tools**
 - **Command-Line Interface (CLI)**
