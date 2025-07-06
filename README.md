@@ -147,6 +147,16 @@ AutoRip2MKV-Mac/
 swift build && swift test && swift run
 ```
 
+## 🗺️ Roadmap
+
+See our comprehensive [**Roadmap**](ROADMAP.md) for planned features, enhancements, and long-term project goals including:
+
+- **Enhanced 4K Support**: Ultra HD Blu-ray detection and processing
+- **Advanced Automation**: Intelligent batch processing and workflow tools
+- **Professional Features**: Metadata management and enterprise tools
+- **Cross-Platform Expansion**: Linux and Windows support evaluation
+- **AI Development Evolution**: Next-generation code generation experiments
+
 ## Contributing
 
 1. Fork the repository

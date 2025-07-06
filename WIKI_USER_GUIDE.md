@@ -819,10 +819,11 @@ Complete reference for all available template variables.
 - **GitHub Issues**: https://github.com/gmoyle/AutoRip2MKV-Mac/issues
 - **Wiki**: https://github.com/gmoyle/AutoRip2MKV-Mac/wiki
 - **Discussions**: Community support and feature requests
+- **Roadmap**: See [ROADMAP.md](ROADMAP.md) for planned features and project direction
 
 ### Contributing
 - **Bug Reports**: Detailed issue descriptions help improve the app
-- **Feature Requests**: Suggest new functionality
+- **Feature Requests**: Suggest new functionality (check [roadmap](ROADMAP.md) first)
 - **Documentation**: Help improve user guides
 - **Code Contributions**: Submit pull requests for improvements
 
