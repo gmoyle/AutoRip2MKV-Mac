@@ -289,8 +289,10 @@ jobs:
         lipo -info "$BINARY_PATH"
         
         # Verify it's a universal binary
-        if ! lipo -info "$BINARY_PATH" | grep -q "Architectures.*arm64.*x86_64"; then
+        LIPO_OUTPUT=$(lipo -info "$BINARY_PATH")
+        if ! echo "$LIPO_OUTPUT" | grep -q "x86_64" || ! echo "$LIPO_OUTPUT" | grep -q "arm64"; then
           echo "❌ Binary is not a universal binary (missing arm64 or x86_64)"
+          echo "Actual lipo output: $LIPO_OUTPUT"
           exit 1
         fi
         
