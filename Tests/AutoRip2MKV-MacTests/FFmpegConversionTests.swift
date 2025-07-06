@@ -150,7 +150,7 @@ final class FFmpegConversionTests: XCTestCase {
     
     func testConversionWithSubtitles() throws {
         let testTitle = createTestDVDTitle()
-        let mediaItem = MediaRipper.MediaItem.dvdTitle(testTitle)
+        let _ = MediaRipper.MediaItem.dvdTitle(testTitle)
         
         let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: "/tmp",
@@ -172,7 +172,7 @@ final class FFmpegConversionTests: XCTestCase {
     
     func testConversionWithChapters() throws {
         let testTitle = createTestDVDTitle()
-        let mediaItem = MediaRipper.MediaItem.dvdTitle(testTitle)
+        let _ = MediaRipper.MediaItem.dvdTitle(testTitle)
         
         let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: "/tmp",

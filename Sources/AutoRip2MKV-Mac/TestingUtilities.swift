@@ -22,6 +22,18 @@ class TestingUtilities {
             return true
         }
         
+        // Check if the main bundle is the XCTest bundle (more reliable for CI)
+        if let bundleIdentifier = Bundle.main.bundleIdentifier,
+           bundleIdentifier.contains("xctest") {
+            return true
+        }
+        
+        // Check for test bundle path patterns
+        let mainBundlePath = Bundle.main.bundlePath
+        if mainBundlePath.contains(".xctest") || mainBundlePath.contains("xctest") {
+            return true
+        }
+        
         // Check for command line arguments that indicate testing/headless mode
         let arguments = CommandLine.arguments + ProcessInfo.processInfo.arguments
         if arguments.contains("--headless") || 

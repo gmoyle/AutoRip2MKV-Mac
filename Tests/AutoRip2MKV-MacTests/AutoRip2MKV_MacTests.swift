@@ -57,12 +57,9 @@ final class MainViewControllerTests: XCTestCase {
     
     func testDVDRipperDelegateConformance() {
         XCTAssertNotNil(viewController)
-        // Test delegate conformance by unwrapping safely
-        if let controller = viewController {
-            XCTAssertTrue(controller is DVDRipperDelegate)
-        } else {
-            XCTFail("View controller should not be nil")
-        }
+        // Test delegate conformance
+        XCTAssertTrue(viewController is DVDRipperDelegate)
+        XCTAssertNotNil(viewController)
     }
     
     func testRipperDidStart() {

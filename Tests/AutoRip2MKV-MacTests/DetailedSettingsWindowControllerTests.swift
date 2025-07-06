@@ -226,12 +226,19 @@ final class DetailedSettingsWindowControllerTests: XCTestCase {
         autoreleasepool {
             let controller = DetailedSettingsWindowControllerNew()
             weakController = controller
-            controller.windowDidLoad()
-            // controller goes out of scope here
+            
+            // Window creation should be successful
+            XCTAssertNotNil(controller.window)
+            
+            // Reference should exist while in scope
+            XCTAssertNotNil(weakController)
         }
         
-        // Note: Controller might not be deallocated immediately due to window retention
-        // This test ensures no crashes occur during deallocation
+        // Reference should be nil after autoreleasepool
+        XCTAssertNil(weakController)
+        
+        // Verify the weak reference was properly tested
+        _ = weakController // Suppress unused variable warning
     }
     
     func testWindowMemoryManagement() {
@@ -247,6 +254,7 @@ final class DetailedSettingsWindowControllerTests: XCTestCase {
         // Test that window cleanup doesn't cause crashes
         // Note: Window may or may not be deallocated depending on system behavior
         // The important thing is that no crashes occur during cleanup
+        _ = weakWindow // Suppress unused variable warning
     }
     
     // MARK: - Error Handling Tests

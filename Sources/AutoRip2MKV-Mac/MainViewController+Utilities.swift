@@ -233,6 +233,23 @@ extension MainViewController {
     // MARK: - Notification System
     
     func showCompletionNotification() {
+        // Multiple layers of test environment detection for robustness
+        let testEnvironmentDetected = isRunningInTestEnvironment ||
+                                     NSClassFromString("XCTestCase") != nil ||
+                                     ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+                                     Bundle.main.bundlePath.contains("xctest")
+        
+        guard !testEnvironmentDetected else {
+            print("[AutoRip2MKV] Skipping completion notification in test environment")
+            return
+        }
+        
+        // Additional safety check for notification center availability
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[AutoRip2MKV] No valid bundle identifier, skipping notification")
+            return
+        }
+        
         if #available(macOS 10.14, *) {
             let content = UNMutableNotificationContent()
             content.title = "AutoRip2MKV"
@@ -247,7 +264,7 @@ extension MainViewController {
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("Failed to show notification: \(error)")
+                    print("[AutoRip2MKV] Failed to show notification: \(error)")
                 }
             }
         } else {
@@ -261,6 +278,23 @@ extension MainViewController {
     }
     
     func showErrorNotification(_ message: String) {
+        // Multiple layers of test environment detection for robustness
+        let testEnvironmentDetected = isRunningInTestEnvironment ||
+                                     NSClassFromString("XCTestCase") != nil ||
+                                     ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+                                     Bundle.main.bundlePath.contains("xctest")
+        
+        guard !testEnvironmentDetected else {
+            print("[AutoRip2MKV] Skipping error notification in test environment: \(message)")
+            return
+        }
+        
+        // Additional safety check for notification center availability
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[AutoRip2MKV] No valid bundle identifier, skipping error notification")
+            return
+        }
+        
         if #available(macOS 10.14, *) {
             let content = UNMutableNotificationContent()
             content.title = "AutoRip2MKV - Error"
@@ -275,7 +309,7 @@ extension MainViewController {
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("Failed to show error notification: \(error)")
+                    print("[AutoRip2MKV] Failed to show error notification: \(error)")
                 }
             }
         } else {
