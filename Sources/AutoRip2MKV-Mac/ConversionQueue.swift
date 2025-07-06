@@ -314,7 +314,7 @@ class ConversionQueue {
 
             // Update job status atomically
             let sourcePath: String? = jobsQueue.sync(flags: .barrier) {
-                guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return nil }
+                guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return "" }
 
                 self.jobs[jobIndex].status = .extracted
                 self.jobs[jobIndex].extractedDataPath = tempDir
@@ -607,23 +607,6 @@ private class ConversionProgressDelegate: MediaRipperDelegate {
     }
 }
 
-// MARK: - Delegate Protocol
-
-protocol ConversionQueueDelegate: AnyObject {
-    func queueDidUpdateJobs(_ jobs: [ConversionQueue.ConversionJob])
-    func queueDidStartExtraction(jobId: UUID)
-    func queueDidCompleteExtraction(jobId: UUID)
-    func queueDidFailExtraction(jobId: UUID, error: Error)
-    func queueDidStartConversion(jobId: UUID)
-    func queueDidCompleteConversion(jobId: UUID, outputFiles: [String])
-    func queueDidFailConversion(jobId: UUID, error: Error)
-    func queueDidUpdateConversionStatus(jobId: UUID, status: String)
-    func queueDidUpdateConversionProgress(jobId: UUID, progress: Double)
-}
-
-protocol ConversionQueueEjectionDelegate: AnyObject {
-    func queueShouldEjectDisc(sourcePath: String)
-}
 
 // MARK: - Error Types
 

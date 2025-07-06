@@ -26,12 +26,12 @@ class DetailedSettingsWindowController: NSWindowController {
     private var bonusContentDirectoryField: NSTextField!
 
     // File Organization Section (NEW)
-    private var fileOrganizationBox: NSBox!
-    private var autoRenameFilesCheckbox: NSButton!
-    private var createYearDirectoriesCheckbox: NSButton!
-    private var createGenreDirectoriesCheckbox: NSButton!
-    private var duplicateHandlingPopup: NSPopUpButton!
-    private var minimumFileSizeField: NSTextField!
+    var fileOrganizationBox: NSBox!
+    var autoRenameFilesCheckbox: NSButton!
+    var createYearDirectoriesCheckbox: NSButton!
+    var createGenreDirectoriesCheckbox: NSButton!
+    var duplicateHandlingPopup: NSPopUpButton!
+    var minimumFileSizeField: NSTextField!
 
     // Advanced Encoding Section (NEW)
     private var advancedEncodingBox: NSBox!
@@ -209,72 +209,6 @@ class DetailedSettingsWindowController: NSWindowController {
 
     // MARK: - New Settings Sections
 
-    private func setupFileOrganizationSection(in stackView: NSStackView) {
-        fileOrganizationBox = NSBox()
-        fileOrganizationBox.title = "File Organization Options"
-        fileOrganizationBox.titlePosition = .atTop
-        fileOrganizationBox.translatesAutoresizingMaskIntoConstraints = false
-        stackView.addArrangedSubview(fileOrganizationBox)
-
-        let sectionStackView = NSStackView()
-        sectionStackView.orientation = .vertical
-        sectionStackView.spacing = 8
-        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
-        fileOrganizationBox.addSubview(sectionStackView)
-
-        // Auto-rename files
-        autoRenameFilesCheckbox = NSButton(
-            checkboxWithTitle: "Automatically rename files for better organization",
-            target: self,
-            action: nil
-        )
-        autoRenameFilesCheckbox.state = .on
-        sectionStackView.addArrangedSubview(autoRenameFilesCheckbox)
-
-        // Directory creation options
-        createYearDirectoriesCheckbox = NSButton(
-            checkboxWithTitle: "Create year-based subdirectories",
-            target: self,
-            action: nil
-        )
-        createGenreDirectoriesCheckbox = NSButton(
-            checkboxWithTitle: "Create genre-based subdirectories (when available)",
-            target: self,
-            action: nil
-        )
-        sectionStackView.addArrangedSubview(createYearDirectoriesCheckbox)
-        sectionStackView.addArrangedSubview(createGenreDirectoriesCheckbox)
-
-        // Duplicate handling
-        let duplicateLabel = NSTextField(labelWithString: "Duplicate File Handling:")
-        duplicateHandlingPopup = NSPopUpButton()
-        duplicateHandlingPopup.addItems(withTitles: [
-            "Skip duplicate files",
-            "Overwrite existing files",
-            "Rename with suffix (e.g., _2)",
-            "Ask user for each duplicate"
-        ])
-        duplicateHandlingPopup.selectItem(at: 2) // Default to rename with suffix
-
-        let duplicateRow = createLabelControlRow(label: duplicateLabel, control: duplicateHandlingPopup)
-        sectionStackView.addArrangedSubview(duplicateRow)
-
-        // Minimum file size filter
-        let minSizeLabel = NSTextField(labelWithString: "Minimum File Size (MB):")
-        minimumFileSizeField = NSTextField()
-        minimumFileSizeField.stringValue = "100"
-        minimumFileSizeField.placeholderString = "100"
-
-        let minSizeRow = createLabelControlRow(label: minSizeLabel, control: minimumFileSizeField)
-        sectionStackView.addArrangedSubview(minSizeRow)
-
-        NSLayoutConstraint.activate([
-            sectionStackView.topAnchor.constraint(equalTo: fileOrganizationBox.topAnchor, constant: 25),
-            sectionStackView.leadingAnchor.constraint(equalTo: fileOrganizationBox.leadingAnchor, constant: 10),
-            sectionStackView.trailingAnchor.constraint(equalTo: fileOrganizationBox.trailingAnchor, constant: -10),
-            sectionStackView.bottomAnchor.constraint(equalTo: fileOrganizationBox.bottomAnchor, constant: -10)
-        ])
-    }
 
     private func setupAdvancedEncodingSection(in stackView: NSStackView) {
         advancedEncodingBox = NSBox()
@@ -534,11 +468,11 @@ class DetailedSettingsWindowController: NSWindowController {
         bonusContentBox.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(bonusContentBox)
 
-        let stackView = NSStackView()
-        stackView.orientation = .vertical
-        stackView.spacing = 8
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        bonusContentBox.addSubview(stackView)
+        let sectionStackView = NSStackView()
+        sectionStackView.orientation = .vertical
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+        bonusContentBox.addSubview(sectionStackView)
 
         // Bonus content inclusion options
         includeBonusFeaturesCheckbox = NSButton(checkboxWithTitle: "Include bonus features/special features", target: self, action: nil)
@@ -547,11 +481,11 @@ class DetailedSettingsWindowController: NSWindowController {
         includeMakingOfCheckbox = NSButton(checkboxWithTitle: "Include making-of documentaries", target: self, action: nil)
         includeTrailersCheckbox = NSButton(checkboxWithTitle: "Include trailers and previews", target: self, action: nil)
 
-        stackView.addArrangedSubview(includeBonusFeaturesCheckbox)
-        stackView.addArrangedSubview(includeCommentariesCheckbox)
-        stackView.addArrangedSubview(includeDeletedScenesCheckbox)
-        stackView.addArrangedSubview(includeMakingOfCheckbox)
-        stackView.addArrangedSubview(includeTrailersCheckbox)
+        sectionStackView.addArrangedSubview(includeBonusFeaturesCheckbox)
+        sectionStackView.addArrangedSubview(includeCommentariesCheckbox)
+        sectionStackView.addArrangedSubview(includeDeletedScenesCheckbox)
+        sectionStackView.addArrangedSubview(includeMakingOfCheckbox)
+        sectionStackView.addArrangedSubview(includeTrailersCheckbox)
 
         // Bonus content organization
         let bonusStructureLabel = NSTextField(labelWithString: "Bonus Content Organization:")
@@ -565,7 +499,7 @@ class DetailedSettingsWindowController: NSWindowController {
         bonusContentStructurePopup.selectItem(at: 1) // Default to "Separate 'Bonus' subdirectory"
 
         let bonusStructureRow = createLabelControlRow(label: bonusStructureLabel, control: bonusContentStructurePopup)
-        stackView.addArrangedSubview(bonusStructureRow)
+        sectionStackView.addArrangedSubview(bonusStructureRow)
 
         let bonusDirLabel = NSTextField(labelWithString: "Custom Bonus Directory Name:")
         bonusContentDirectoryField = NSTextField()
@@ -573,13 +507,13 @@ class DetailedSettingsWindowController: NSWindowController {
         bonusContentDirectoryField.stringValue = "Bonus"
 
         let bonusDirRow = createLabelControlRow(label: bonusDirLabel, control: bonusContentDirectoryField)
-        stackView.addArrangedSubview(bonusDirRow)
+        sectionStackView.addArrangedSubview(bonusDirRow)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: bonusContentBox.topAnchor, constant: 25),
-            stackView.leadingAnchor.constraint(equalTo: bonusContentBox.leadingAnchor, constant: 10),
-            stackView.trailingAnchor.constraint(equalTo: bonusContentBox.trailingAnchor, constant: -10),
-            stackView.bottomAnchor.constraint(equalTo: bonusContentBox.bottomAnchor, constant: -10)
+            sectionStackView.topAnchor.constraint(equalTo: bonusContentBox.topAnchor, constant: 25),
+            sectionStackView.leadingAnchor.constraint(equalTo: bonusContentBox.leadingAnchor, constant: 10),
+            sectionStackView.trailingAnchor.constraint(equalTo: bonusContentBox.trailingAnchor, constant: -10),
+            sectionStackView.bottomAnchor.constraint(equalTo: bonusContentBox.bottomAnchor, constant: -10)
         ])
     }
 
@@ -590,11 +524,11 @@ class DetailedSettingsWindowController: NSWindowController {
         fileNamingBox.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(fileNamingBox)
 
-        let stackView = NSStackView()
-        stackView.orientation = .vertical
-        stackView.spacing = 8
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        fileNamingBox.addSubview(stackView)
+        let sectionStackView = NSStackView()
+        sectionStackView.orientation = .vertical
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+        fileNamingBox.addSubview(sectionStackView)
 
         // File naming formats
         let movieFileLabel = NSTextField(labelWithString: "Movie File Format:")
@@ -603,7 +537,7 @@ class DetailedSettingsWindowController: NSWindowController {
         movieFileFormatField.stringValue = "{title} ({year}).mkv"
 
         let movieFileRow = createLabelControlRow(label: movieFileLabel, control: movieFileFormatField)
-        stackView.addArrangedSubview(movieFileRow)
+        sectionStackView.addArrangedSubview(movieFileRow)
 
         let tvFileLabel = NSTextField(labelWithString: "TV Episode File Format:")
         tvShowFileFormatField = NSTextField()
@@ -611,7 +545,7 @@ class DetailedSettingsWindowController: NSWindowController {
         tvShowFileFormatField.stringValue = "{series} - S{season:02d}E{episode:02d} - {title}.mkv"
 
         let tvFileRow = createLabelControlRow(label: tvFileLabel, control: tvShowFileFormatField)
-        stackView.addArrangedSubview(tvFileRow)
+        sectionStackView.addArrangedSubview(tvFileRow)
 
         let seasonEpisodeLabel = NSTextField(labelWithString: "Season/Episode Format:")
         seasonEpisodeFormatField = NSTextField()
@@ -619,22 +553,22 @@ class DetailedSettingsWindowController: NSWindowController {
         seasonEpisodeFormatField.stringValue = "S{season:02d}E{episode:02d}"
 
         let seasonEpisodeRow = createLabelControlRow(label: seasonEpisodeLabel, control: seasonEpisodeFormatField)
-        stackView.addArrangedSubview(seasonEpisodeRow)
+        sectionStackView.addArrangedSubview(seasonEpisodeRow)
 
         // Filename options
         includeYearInFilenameCheckbox = NSButton(checkboxWithTitle: "Include year in filename", target: self, action: nil)
         includeResolutionInFilenameCheckbox = NSButton(checkboxWithTitle: "Include resolution in filename", target: self, action: nil)
         includeCodecInFilenameCheckbox = NSButton(checkboxWithTitle: "Include codec info in filename", target: self, action: nil)
 
-        stackView.addArrangedSubview(includeYearInFilenameCheckbox)
-        stackView.addArrangedSubview(includeResolutionInFilenameCheckbox)
-        stackView.addArrangedSubview(includeCodecInFilenameCheckbox)
+        sectionStackView.addArrangedSubview(includeYearInFilenameCheckbox)
+        sectionStackView.addArrangedSubview(includeResolutionInFilenameCheckbox)
+        sectionStackView.addArrangedSubview(includeCodecInFilenameCheckbox)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: fileNamingBox.topAnchor, constant: 25),
-            stackView.leadingAnchor.constraint(equalTo: fileNamingBox.leadingAnchor, constant: 10),
-            stackView.trailingAnchor.constraint(equalTo: fileNamingBox.trailingAnchor, constant: -10),
-            stackView.bottomAnchor.constraint(equalTo: fileNamingBox.bottomAnchor, constant: -10)
+            sectionStackView.topAnchor.constraint(equalTo: fileNamingBox.topAnchor, constant: 25),
+            sectionStackView.leadingAnchor.constraint(equalTo: fileNamingBox.leadingAnchor, constant: 10),
+            sectionStackView.trailingAnchor.constraint(equalTo: fileNamingBox.trailingAnchor, constant: -10),
+            sectionStackView.bottomAnchor.constraint(equalTo: fileNamingBox.bottomAnchor, constant: -10)
         ])
     }
 
@@ -645,11 +579,11 @@ class DetailedSettingsWindowController: NSWindowController {
         qualityBox.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(qualityBox)
 
-        let stackView = NSStackView()
-        stackView.orientation = .vertical
-        stackView.spacing = 8
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        qualityBox.addSubview(stackView)
+        let sectionStackView = NSStackView()
+        sectionStackView.orientation = .vertical
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+        qualityBox.addSubview(sectionStackView)
 
         // Codec selection
         let videoCodecLabel = NSTextField(labelWithString: "Video Codec:")
@@ -658,7 +592,7 @@ class DetailedSettingsWindowController: NSWindowController {
         videoCodecPopup.selectItem(at: 0) // Default to H.264
 
         let videoCodecRow = createLabelControlRow(label: videoCodecLabel, control: videoCodecPopup)
-        stackView.addArrangedSubview(videoCodecRow)
+        sectionStackView.addArrangedSubview(videoCodecRow)
 
         let audioCodecLabel = NSTextField(labelWithString: "Audio Codec:")
         audioCodecPopup = NSPopUpButton()
@@ -666,7 +600,7 @@ class DetailedSettingsWindowController: NSWindowController {
         audioCodecPopup.selectItem(at: 0) // Default to AAC
 
         let audioCodecRow = createLabelControlRow(label: audioCodecLabel, control: audioCodecPopup)
-        stackView.addArrangedSubview(audioCodecRow)
+        sectionStackView.addArrangedSubview(audioCodecRow)
 
         let qualityLabel = NSTextField(labelWithString: "Quality:")
         qualityPopup = NSPopUpButton()
@@ -674,14 +608,14 @@ class DetailedSettingsWindowController: NSWindowController {
         qualityPopup.selectItem(at: 2) // Default to High
 
         let qualityRow = createLabelControlRow(label: qualityLabel, control: qualityPopup)
-        stackView.addArrangedSubview(qualityRow)
+        sectionStackView.addArrangedSubview(qualityRow)
 
         // Content options
         includeSubtitlesCheckbox = NSButton(checkboxWithTitle: "Include subtitles", target: self, action: nil)
         includeChaptersCheckbox = NSButton(checkboxWithTitle: "Include chapter markers", target: self, action: nil)
 
-        stackView.addArrangedSubview(includeSubtitlesCheckbox)
-        stackView.addArrangedSubview(includeChaptersCheckbox)
+        sectionStackView.addArrangedSubview(includeSubtitlesCheckbox)
+        sectionStackView.addArrangedSubview(includeChaptersCheckbox)
 
         let languageLabel = NSTextField(labelWithString: "Preferred Language:")
         preferredLanguagePopup = NSPopUpButton()
@@ -689,13 +623,13 @@ class DetailedSettingsWindowController: NSWindowController {
         preferredLanguagePopup.selectItem(at: 0) // Default to English
 
         let languageRow = createLabelControlRow(label: languageLabel, control: preferredLanguagePopup)
-        stackView.addArrangedSubview(languageRow)
+        sectionStackView.addArrangedSubview(languageRow)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: qualityBox.topAnchor, constant: 25),
-            stackView.leadingAnchor.constraint(equalTo: qualityBox.leadingAnchor, constant: 10),
-            stackView.trailingAnchor.constraint(equalTo: qualityBox.trailingAnchor, constant: -10),
-            stackView.bottomAnchor.constraint(equalTo: qualityBox.bottomAnchor, constant: -10)
+            sectionStackView.topAnchor.constraint(equalTo: qualityBox.topAnchor, constant: 25),
+            sectionStackView.leadingAnchor.constraint(equalTo: qualityBox.leadingAnchor, constant: 10),
+            sectionStackView.trailingAnchor.constraint(equalTo: qualityBox.trailingAnchor, constant: -10),
+            sectionStackView.bottomAnchor.constraint(equalTo: qualityBox.bottomAnchor, constant: -10)
         ])
     }
 
@@ -706,20 +640,20 @@ class DetailedSettingsWindowController: NSWindowController {
         advancedBox.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(advancedBox)
 
-        let stackView = NSStackView()
-        stackView.orientation = .vertical
-        stackView.spacing = 8
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        advancedBox.addSubview(stackView)
+        let sectionStackView = NSStackView()
+        sectionStackView.orientation = .vertical
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+        advancedBox.addSubview(sectionStackView)
 
         // Advanced options
         preserveOriginalTimestampsCheckbox = NSButton(checkboxWithTitle: "Preserve original file timestamps", target: self, action: nil)
         createBackupsCheckbox = NSButton(checkboxWithTitle: "Create backup of original disc structure", target: self, action: nil)
         autoRetryOnFailureCheckbox = NSButton(checkboxWithTitle: "Auto-retry on failure", target: self, action: nil)
 
-        stackView.addArrangedSubview(preserveOriginalTimestampsCheckbox)
-        stackView.addArrangedSubview(createBackupsCheckbox)
-        stackView.addArrangedSubview(autoRetryOnFailureCheckbox)
+        sectionStackView.addArrangedSubview(preserveOriginalTimestampsCheckbox)
+        sectionStackView.addArrangedSubview(createBackupsCheckbox)
+        sectionStackView.addArrangedSubview(autoRetryOnFailureCheckbox)
 
         let maxRetriesLabel = NSTextField(labelWithString: "Max Retry Attempts:")
         maxRetryAttemptsField = NSTextField()
@@ -727,7 +661,7 @@ class DetailedSettingsWindowController: NSWindowController {
         maxRetryAttemptsField.placeholderString = "3"
 
         let maxRetriesRow = createLabelControlRow(label: maxRetriesLabel, control: maxRetryAttemptsField)
-        stackView.addArrangedSubview(maxRetriesRow)
+        sectionStackView.addArrangedSubview(maxRetriesRow)
 
         let scriptLabel = NSTextField(labelWithString: "Post-processing Script:")
         postProcessingScriptField = NSTextField()
@@ -735,13 +669,13 @@ class DetailedSettingsWindowController: NSWindowController {
         browseScriptButton = NSButton(title: "Browse...", target: self, action: #selector(browseForScript))
 
         let scriptRow = createLabelControlButtonRow(label: scriptLabel, control: postProcessingScriptField, button: browseScriptButton)
-        stackView.addArrangedSubview(scriptRow)
+        sectionStackView.addArrangedSubview(scriptRow)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: advancedBox.topAnchor, constant: 25),
-            stackView.leadingAnchor.constraint(equalTo: advancedBox.leadingAnchor, constant: 10),
-            stackView.trailingAnchor.constraint(equalTo: advancedBox.trailingAnchor, constant: -10),
-            stackView.bottomAnchor.constraint(equalTo: advancedBox.bottomAnchor, constant: -10)
+            sectionStackView.topAnchor.constraint(equalTo: advancedBox.topAnchor, constant: 25),
+            sectionStackView.leadingAnchor.constraint(equalTo: advancedBox.leadingAnchor, constant: 10),
+            sectionStackView.trailingAnchor.constraint(equalTo: advancedBox.trailingAnchor, constant: -10),
+            sectionStackView.bottomAnchor.constraint(equalTo: advancedBox.bottomAnchor, constant: -10)
         ])
     }
 

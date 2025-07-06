@@ -1,4 +1,5 @@
 import Cocoa
+import UserNotifications
 
 /// Window controller for displaying and managing the conversion queue
 class QueueWindowController: NSWindowController {
@@ -506,11 +507,13 @@ extension QueueWindowController: ConversionQueueDelegate {
         // Optional: Show notification that disc can be ejected
         DispatchQueue.main.async {
             if let job = self.jobs.first(where: { $0.id == jobId }) {
-                let notification = NSUserNotification()
-                notification.title = "Disc Ready for Ejection"
-                notification.informativeText = "Disc '\(job.discTitle)' has been read and can now be ejected"
-                notification.soundName = NSUserNotificationDefaultSoundName
-                NSUserNotificationCenter.default.deliver(notification)
+                let content = UNMutableNotificationContent()
+                content.title = "Disc Ready for Ejection"
+                content.body = "Disc '\(job.discTitle)' has been read and can now be ejected"
+                content.sound = UNNotificationSound.default
+                
+                let request = UNNotificationRequest(identifier: "extraction-complete-\(jobId.uuidString)", content: content, trigger: nil)
+                UNUserNotificationCenter.current().add(request)
             }
         }
     }
@@ -527,11 +530,13 @@ extension QueueWindowController: ConversionQueueDelegate {
         // Optional: Show completion notification
         DispatchQueue.main.async {
             if let job = self.jobs.first(where: { $0.id == jobId }) {
-                let notification = NSUserNotification()
-                notification.title = "Conversion Complete"
-                notification.informativeText = "'\(job.discTitle)' has been converted to \(outputFiles.count) MKV file(s)"
-                notification.soundName = NSUserNotificationDefaultSoundName
-                NSUserNotificationCenter.default.deliver(notification)
+                let content = UNMutableNotificationContent()
+                content.title = "Conversion Complete"
+                content.body = "'\(job.discTitle)' has been converted to \(outputFiles.count) MKV file(s)"
+                content.sound = UNNotificationSound.default
+                
+                let request = UNNotificationRequest(identifier: "conversion-complete-\(jobId.uuidString)", content: content, trigger: nil)
+                UNUserNotificationCenter.current().add(request)
             }
         }
     }
