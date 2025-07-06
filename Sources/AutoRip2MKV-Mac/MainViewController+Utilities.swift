@@ -192,6 +192,11 @@ extension MainViewController {
     func getSelectedSourcePath() -> String? {
         let selectedIndex = sourceDropDown.indexOfSelectedItem
         
+        // If no drives are detected, return nil
+        if detectedDrives.isEmpty {
+            return nil
+        }
+        
         if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
             return detectedDrives[selectedIndex].mountPoint
         }

@@ -5,11 +5,11 @@ class QueueWindowController: NSWindowController {
     
     // MARK: - Outlets
     
-    @IBOutlet var queueTableView: NSTableView!
-    @IBOutlet var statusLabel: NSTextField!
-    @IBOutlet var clearCompletedButton: NSButton!
-    @IBOutlet var cancelAllButton: NSButton!
-    @IBOutlet var refreshButton: NSButton!
+    @IBOutlet var queueTableView: NSTableView?
+    @IBOutlet var statusLabel: NSTextField?
+    @IBOutlet var clearCompletedButton: NSButton?
+    @IBOutlet var cancelAllButton: NSButton?
+    @IBOutlet var refreshButton: NSButton?
     
     // MARK: - Properties
     
@@ -20,9 +20,34 @@ class QueueWindowController: NSWindowController {
     // MARK: - Initialization
     
     convenience init(conversionQueue: ConversionQueue) {
+        // Always try XIB first, fallback to programmatic creation
         self.init(windowNibName: "QueueWindow")
         self.conversionQueue = conversionQueue
         self.conversionQueue.delegate = self
+    }
+    
+    override func loadWindow() {
+        // Try to load XIB first
+        do {
+            super.loadWindow()
+            // If successful and window exists, we're done
+            if window != nil {
+                return
+            }
+        } catch {
+            // XIB loading failed, continue to programmatic creation
+        }
+        
+        // Fallback to programmatic creation (for tests or when XIB is missing)
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 500),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "Conversion Queue"
+        newWindow.center()
+        self.window = newWindow
     }
     
     override func windowDidLoad() {
@@ -51,54 +76,56 @@ class QueueWindowController: NSWindowController {
         // Create columns programmatically since we don't have a XIB
         createTableColumns()
         
-        queueTableView.delegate = self
-        queueTableView.dataSource = self
-        queueTableView.allowsMultipleSelection = true
-        queueTableView.usesAlternatingRowBackgroundColors = true
+        queueTableView?.delegate = self
+        queueTableView?.dataSource = self
+        queueTableView?.allowsMultipleSelection = true
+        queueTableView?.usesAlternatingRowBackgroundColors = true
     }
     
     private func createTableColumns() {
+        guard let tableView = queueTableView else { return }
+        
         // Title column
         let titleColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title"))
         titleColumn.title = "Disc Title"
         titleColumn.width = 150
         titleColumn.minWidth = 100
-        queueTableView.addTableColumn(titleColumn)
+        tableView.addTableColumn(titleColumn)
         
         // Status column
         let statusColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("status"))
         statusColumn.title = "Status"
         statusColumn.width = 120
         statusColumn.minWidth = 80
-        queueTableView.addTableColumn(statusColumn)
+        tableView.addTableColumn(statusColumn)
         
         // Progress column
         let progressColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("progress"))
         progressColumn.title = "Progress"
         progressColumn.width = 100
         progressColumn.minWidth = 80
-        queueTableView.addTableColumn(progressColumn)
+        tableView.addTableColumn(progressColumn)
         
         // Duration column
         let durationColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("duration"))
         durationColumn.title = "Duration"
         durationColumn.width = 80
         durationColumn.minWidth = 60
-        queueTableView.addTableColumn(durationColumn)
+        tableView.addTableColumn(durationColumn)
         
         // Output column
         let outputColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("output"))
         outputColumn.title = "Output Directory"
         outputColumn.width = 200
         outputColumn.minWidth = 150
-        queueTableView.addTableColumn(outputColumn)
+        tableView.addTableColumn(outputColumn)
         
         // Files column
         let filesColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("files"))
         filesColumn.title = "Output Files"
         filesColumn.width = 100
         filesColumn.minWidth = 80
-        queueTableView.addTableColumn(filesColumn)
+        tableView.addTableColumn(filesColumn)
     }
     
     private func setupUI() {
@@ -121,44 +148,50 @@ class QueueWindowController: NSWindowController {
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
         
-        queueTableView = NSTableView()
-        queueTableView.translatesAutoresizingMaskIntoConstraints = false
-        queueTableView.headerView = NSTableHeaderView()
-        scrollView.documentView = queueTableView
+        let tableView = NSTableView()
+        tableView.translatesAutoresizingMaskIntoConstraints = false
+        tableView.headerView = NSTableHeaderView()
+        scrollView.documentView = tableView
+        queueTableView = tableView
         
         // Create status label
-        statusLabel = NSTextField()
-        statusLabel.translatesAutoresizingMaskIntoConstraints = false
-        statusLabel.isEditable = false
-        statusLabel.isBezeled = false
-        statusLabel.drawsBackground = false
-        statusLabel.font = NSFont.systemFont(ofSize: 12)
-        statusLabel.textColor = .secondaryLabelColor
+        let statusLbl = NSTextField()
+        statusLbl.translatesAutoresizingMaskIntoConstraints = false
+        statusLbl.isEditable = false
+        statusLbl.isBezeled = false
+        statusLbl.drawsBackground = false
+        statusLbl.font = NSFont.systemFont(ofSize: 12)
+        statusLbl.textColor = .secondaryLabelColor
+        statusLabel = statusLbl
         
         // Create buttons
-        clearCompletedButton = NSButton()
-        clearCompletedButton.translatesAutoresizingMaskIntoConstraints = false
-        clearCompletedButton.title = "Clear Completed"
-        clearCompletedButton.target = self
-        clearCompletedButton.action = #selector(clearCompleted(_:))
-        cancelAllButton = NSButton()
-        cancelAllButton.translatesAutoresizingMaskIntoConstraints = false
-        cancelAllButton.title = "Cancel All"
-        cancelAllButton.target = self
-        cancelAllButton.action = #selector(cancelAll(_:))
+        let clearBtn = NSButton()
+        clearBtn.translatesAutoresizingMaskIntoConstraints = false
+        clearBtn.title = "Clear Completed"
+        clearBtn.target = self
+        clearBtn.action = #selector(clearCompleted(_:))
+        clearCompletedButton = clearBtn
         
-        refreshButton = NSButton()
-        refreshButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshButton.title = "Refresh"
-        refreshButton.target = self
-        refreshButton.action = #selector(refresh(_:))
+        let cancelBtn = NSButton()
+        cancelBtn.translatesAutoresizingMaskIntoConstraints = false
+        cancelBtn.title = "Cancel All"
+        cancelBtn.target = self
+        cancelBtn.action = #selector(cancelAll(_:))
+        cancelAllButton = cancelBtn
+        
+        let refreshBtn = NSButton()
+        refreshBtn.translatesAutoresizingMaskIntoConstraints = false
+        refreshBtn.title = "Refresh"
+        refreshBtn.target = self
+        refreshBtn.action = #selector(refresh(_:))
+        refreshButton = refreshBtn
         
         // Add to content view
         contentView.addSubview(scrollView)
-        contentView.addSubview(statusLabel)
-        contentView.addSubview(clearCompletedButton)
-        contentView.addSubview(cancelAllButton)
-        contentView.addSubview(refreshButton)
+        contentView.addSubview(statusLbl)
+        contentView.addSubview(clearBtn)
+        contentView.addSubview(cancelBtn)
+        contentView.addSubview(refreshBtn)
         
         // Setup constraints
         NSLayoutConstraint.activate([
@@ -166,21 +199,21 @@ class QueueWindowController: NSWindowController {
             scrollView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -20),
+            scrollView.bottomAnchor.constraint(equalTo: statusLbl.topAnchor, constant: -20),
             
             // Status label
-            statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            statusLabel.bottomAnchor.constraint(equalTo: clearCompletedButton.topAnchor, constant: -10),
+            statusLbl.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            statusLbl.bottomAnchor.constraint(equalTo: clearBtn.topAnchor, constant: -10),
             
             // Buttons
-            clearCompletedButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            clearCompletedButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+            clearBtn.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            clearBtn.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
             
-            cancelAllButton.leadingAnchor.constraint(equalTo: clearCompletedButton.trailingAnchor, constant: 10),
-            cancelAllButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+            cancelBtn.leadingAnchor.constraint(equalTo: clearBtn.trailingAnchor, constant: 10),
+            cancelBtn.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
             
-            refreshButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            refreshButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20)
+            refreshBtn.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            refreshBtn.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20)
         ])
     }
     
@@ -205,7 +238,8 @@ class QueueWindowController: NSWindowController {
     }
     
     @objc private func cancelSelectedJobs(_ sender: NSButton) {
-        let selectedRows = queueTableView.selectedRowIndexes
+        guard let tableView = queueTableView else { return }
+        let selectedRows = tableView.selectedRowIndexes
         
         guard !selectedRows.isEmpty else {
             let alert = NSAlert()
@@ -227,7 +261,8 @@ class QueueWindowController: NSWindowController {
     }
     
     @objc private func showJobDetails(_ sender: NSButton) {
-        let selectedRow = queueTableView.selectedRow
+        guard let tableView = queueTableView else { return }
+        let selectedRow = tableView.selectedRow
         guard selectedRow >= 0, selectedRow < jobs.count else { return }
         
         let job = jobs[selectedRow]
@@ -238,7 +273,7 @@ class QueueWindowController: NSWindowController {
     
     private func refreshQueueData() {
         jobs = conversionQueue.getAllJobs()
-        queueTableView.reloadData()
+        queueTableView?.reloadData()
         updateStatusLabel()
         updateButtons()
     }
@@ -253,7 +288,7 @@ class QueueWindowController: NSWindowController {
         let statusText = "Total: \(status.total) | Pending: \(status.pending) | " +
                         "Extracting: \(extracting) | Converting: \(converting) | " +
                         "Completed: \(completed) | Failed: \(failed)"
-        statusLabel.stringValue = statusText
+        statusLabel?.stringValue = statusText
     }
     
     private func updateButtons() {
@@ -275,8 +310,8 @@ class QueueWindowController: NSWindowController {
             }
         }
         
-        clearCompletedButton.isEnabled = hasCompletedJobs
-        cancelAllButton.isEnabled = hasPendingJobs
+        clearCompletedButton?.isEnabled = hasCompletedJobs
+        cancelAllButton?.isEnabled = hasPendingJobs
     }
     
     private func showJobDetailsAlert(for job: ConversionQueue.ConversionJob) {
@@ -455,7 +490,7 @@ extension QueueWindowController: ConversionQueueDelegate {
     func queueDidUpdateJobs(_ jobs: [ConversionQueue.ConversionJob]) {
         DispatchQueue.main.async {
             self.jobs = jobs
-            self.queueTableView.reloadData()
+            self.queueTableView?.reloadData()
             self.updateStatusLabel()
             self.updateButtons()
         }

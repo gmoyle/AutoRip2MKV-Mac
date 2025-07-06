@@ -475,5 +475,11 @@ internal extension MainViewController {
         if sourceDropDown == nil {
             sourceDropDown = NSPopUpButton()
         }
+        
+        // Ensure clean test state
+        detectedDrives = []
+        sourceDropDown.removeAllItems()
+        sourceDropDown.addItem(withTitle: "No drives detected")
+        sourceDropDown.isEnabled = false
     }
 }

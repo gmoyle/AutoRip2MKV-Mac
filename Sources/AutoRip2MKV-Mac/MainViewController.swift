@@ -310,6 +310,12 @@ class MainViewController: NSViewController {
     }
     
     func generateDiscTitle(from sourcePath: String) -> String {
+        // If no drives are detected, extract from source path
+        if detectedDrives.isEmpty {
+            let pathComponent = URL(fileURLWithPath: sourcePath).lastPathComponent
+            return pathComponent.isEmpty ? "Unknown Disc" : pathComponent
+        }
+        
         // Try to get disc title from selected drive using the utility method
         let selectedIndex = sourceDropDown.indexOfSelectedItem
         if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
