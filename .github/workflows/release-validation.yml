@@ -343,6 +343,17 @@ jobs:
           exit 1
         fi
         
+        # Check for modern macOS security instructions
+        if ! grep -q "System Settings" release_notes.md; then
+          echo "❌ Release notes missing modern macOS security instructions (System Settings)"
+          exit 1
+        fi
+        
+        if ! grep -q "Privacy & Security" release_notes.md; then
+          echo "❌ Release notes missing Privacy & Security instructions"
+          exit 1
+        fi
+        
         echo "✅ Release notes validation passed"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
