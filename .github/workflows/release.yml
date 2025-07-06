@@ -68,6 +68,9 @@ jobs:
         # Copy binary
         cp .build/apple/Products/Release/AutoRip2MKV-Mac "AutoRip2MKV.app/Contents/MacOS/"
         
+        # Copy app icon
+        cp assets/AppIcon.icns "AutoRip2MKV.app/Contents/Resources/"
+        
         # Create Info.plist
         cat > "AutoRip2MKV.app/Contents/Info.plist" << EOF
         <?xml version="1.0" encoding="UTF-8"?>
@@ -90,6 +93,8 @@ jobs:
             <string>APPL</string>
             <key>CFBundleSignature</key>
             <string>????</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
             <key>LSMinimumSystemVersion</key>
             <string>13.0</string>
             <key>NSHighResolutionCapable</key>

@@ -182,6 +182,11 @@ jobs:
           exit 1
         fi
         
+        if ! grep -q "Contents/Resources/AppIcon.icns" zip_contents.txt; then
+          echo "❌ ZIP does not contain the app icon"
+          exit 1
+        fi
+        
         echo "✅ ZIP validation passed"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -250,6 +255,15 @@ jobs:
           echo "❌ Binary not found at $BINARY_PATH"
           exit 1
         fi
+        
+        # Check if icon exists
+        ICON_PATH="AutoRip2MKV.app/Contents/Resources/AppIcon.icns"
+        if [ ! -f "$ICON_PATH" ]; then
+          echo "❌ App icon not found at $ICON_PATH"
+          exit 1
+        fi
+        
+        echo "✅ App icon found: $ICON_PATH"
         
         # Check binary permissions
         if [ ! -x "$BINARY_PATH" ]; then
@@ -326,6 +340,7 @@ jobs:
         echo "- ✅ ZIP file exists and is valid" >> validation_report.md
         echo "- ✅ Checksums file exists and is accurate" >> validation_report.md
         echo "- ✅ Binary is executable and universal (ARM64 + x86_64)" >> validation_report.md
+        echo "- ✅ App icon is present and properly configured" >> validation_report.md
         echo "- ✅ Release notes contain required sections" >> validation_report.md
         echo "" >> validation_report.md
         echo "## 📊 Asset Information" >> validation_report.md
