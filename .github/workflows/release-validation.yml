@@ -298,15 +298,21 @@ jobs:
         
         # Try to run binary with --help (should not require FFmpeg)
         echo "Testing binary execution..."
-        timeout 10s "$BINARY_PATH" --help || {
-          EXIT_CODE=$?
-          if [ $EXIT_CODE -eq 124 ]; then
-            echo "⚠️  Binary execution timed out (may be waiting for input)"
-          elif [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Binary execution failed with exit code $EXIT_CODE"
-            exit 1
-          fi
-        }
+        # Use a background process with timeout since 'timeout' command is not available on macOS
+        ("$BINARY_PATH" --help &
+         BINARY_PID=$!
+         sleep 10
+         if kill -0 "$BINARY_PID" 2>/dev/null; then
+           echo "⚠️  Binary execution timed out (may be waiting for input)"
+           kill "$BINARY_PID" 2>/dev/null
+         else
+           wait "$BINARY_PID"
+           EXIT_CODE=$?
+           if [ $EXIT_CODE -ne 0 ]; then
+             echo "❌ Binary execution failed with exit code $EXIT_CODE"
+             exit 1
+           fi
+         fi)
         
         echo "✅ Binary execution test passed"
     
