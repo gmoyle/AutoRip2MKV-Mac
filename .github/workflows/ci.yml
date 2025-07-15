@@ -16,7 +16,7 @@ jobs:
     
     strategy:
       matrix:
-        xcode: ['15.1', '15.0']
+        xcode: ['15.1']
         swift: ['5.9']
     
     steps:
