@@ -44,8 +44,9 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - **Native DVD decryption** - Built-in CSS (Content Scramble System) decryption
 - **Blu-ray Support** - AACS decryption framework and BDMV parsing
 - **No dependencies on MakeMKV** - Completely self-contained solution
-- **FFmpeg Bundled** - No separate downloads or installations required
-- **Startup FFmpeg Check** - Validates FFmpeg availability on application launch
+- **Smart FFmpeg Detection** - Automatically detects system-installed FFmpeg or uses bundled version
+- **Homebrew Compatible** - Works seamlessly with Homebrew-installed FFmpeg
+- **No Installation Dialogs** - Eliminates unnecessary FFmpeg installation prompts
 - **Hardware Acceleration** - Optional VideoToolbox acceleration for improved performance
 - **Intelligent First-Run Setup** - Automatically detects and offers to enable hardware acceleration
 - **Automatic Drive Detection** - Smart optical drive detection and selection
@@ -168,6 +169,7 @@ swift build && swift test && swift run
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup instructions for macOS
 - **[User Guide](WIKI_USER_GUIDE.md)** - Comprehensive feature documentation
 - **[FFmpeg Bundling](FFMPEG_BUNDLING.md)** - Technical details on bundled FFmpeg integration
+- **[Changelog](CHANGELOG.md)** - Release history and version changes
 - **[Roadmap](ROADMAP.md)** - Project timeline and planned features
 
 ## 🗺️ Roadmap
