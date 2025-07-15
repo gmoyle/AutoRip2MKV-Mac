@@ -209,6 +209,57 @@ class DetailedSettingsWindowController: NSWindowController {
 
     // MARK: - New Settings Sections
 
+    private func setupFileOrganizationSection(in stackView: NSStackView) {
+        fileOrganizationBox = NSBox()
+        fileOrganizationBox.title = "File Organization"
+        fileOrganizationBox.titlePosition = .atTop
+        fileOrganizationBox.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(fileOrganizationBox)
+        
+        let sectionStackView = NSStackView()
+        sectionStackView.orientation = .vertical
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+        fileOrganizationBox.addSubview(sectionStackView)
+        
+        // File organization options
+        autoRenameFilesCheckbox = NSButton(checkboxWithTitle: "Auto-rename files based on metadata", target: self, action: nil)
+        createYearDirectoriesCheckbox = NSButton(checkboxWithTitle: "Create year-based directories", target: self, action: nil)
+        createGenreDirectoriesCheckbox = NSButton(checkboxWithTitle: "Create genre-based directories", target: self, action: nil)
+        
+        sectionStackView.addArrangedSubview(autoRenameFilesCheckbox)
+        sectionStackView.addArrangedSubview(createYearDirectoriesCheckbox)
+        sectionStackView.addArrangedSubview(createGenreDirectoriesCheckbox)
+        
+        // Duplicate handling
+        let duplicateHandlingLabel = NSTextField(labelWithString: "Duplicate Handling:")
+        duplicateHandlingPopup = NSPopUpButton()
+        duplicateHandlingPopup.addItems(withTitles: [
+            "Overwrite existing files",
+            "Skip duplicate files",
+            "Rename with suffix"
+        ])
+        duplicateHandlingPopup.selectItem(at: 2) // Default to rename with suffix
+        
+        let duplicateRow = createLabelControlRow(label: duplicateHandlingLabel, control: duplicateHandlingPopup)
+        sectionStackView.addArrangedSubview(duplicateRow)
+        
+        // Minimum file size
+        let minFileSizeLabel = NSTextField(labelWithString: "Minimum File Size (MB):")
+        minimumFileSizeField = NSTextField()
+        minimumFileSizeField.stringValue = "100"
+        minimumFileSizeField.placeholderString = "100"
+        
+        let minFileSizeRow = createLabelControlRow(label: minFileSizeLabel, control: minimumFileSizeField)
+        sectionStackView.addArrangedSubview(minFileSizeRow)
+        
+        NSLayoutConstraint.activate([
+            sectionStackView.topAnchor.constraint(equalTo: fileOrganizationBox.topAnchor, constant: 25),
+            sectionStackView.leadingAnchor.constraint(equalTo: fileOrganizationBox.leadingAnchor, constant: 10),
+            sectionStackView.trailingAnchor.constraint(equalTo: fileOrganizationBox.trailingAnchor, constant: -10),
+            sectionStackView.bottomAnchor.constraint(equalTo: fileOrganizationBox.bottomAnchor, constant: -10)
+        ])
+    }
 
     private func setupAdvancedEncodingSection(in stackView: NSStackView) {
         advancedEncodingBox = NSBox()
@@ -265,7 +316,7 @@ class DetailedSettingsWindowController: NSWindowController {
         // Encoding options
         twoPassEncodingCheckbox = NSButton(checkboxWithTitle: "Use two-pass encoding (slower, better quality)", target: self, action: nil)
         hardwareAccelerationCheckbox = NSButton(checkboxWithTitle: "Enable hardware acceleration (when available)", target: self, action: nil)
-        hardwareAccelerationCheckbox.state = .on
+        hardwareAccelerationCheckbox.state = .off
 
         sectionStackView.addArrangedSubview(twoPassEncodingCheckbox)
         sectionStackView.addArrangedSubview(hardwareAccelerationCheckbox)
@@ -811,7 +862,7 @@ class DetailedSettingsWindowController: NSWindowController {
             targetBitrateField.stringValue = targetBitrate
         }
         twoPassEncodingCheckbox.state = defaults.bool(forKey: "twoPassEncoding") ? .on : .off
-        hardwareAccelerationCheckbox.state = defaults.bool(forKey: "hardwareAcceleration") ? .on : .off
+        hardwareAccelerationCheckbox.state = settingsManager.hardwareAcceleration ? .on : .off
         if let customArgs = defaults.string(forKey: "customFFmpegArgs") {
             customFFmpegArgsField.stringValue = customArgs
         }
@@ -1010,7 +1061,7 @@ class DetailedSettingsWindowController: NSWindowController {
         bitrateControlPopup.selectItem(at: 0) // CRF
         targetBitrateField.stringValue = "5.0"
         twoPassEncodingCheckbox.state = .off
-        hardwareAccelerationCheckbox.state = .on
+        hardwareAccelerationCheckbox.state = .off
         customFFmpegArgsField.stringValue = ""
 
         // Reset Output Directory settings (NEW)
@@ -1107,7 +1158,7 @@ class DetailedSettingsWindowController: NSWindowController {
         defaults.set(bitrateControlPopup.indexOfSelectedItem, forKey: "bitrateControl")
         defaults.set(targetBitrateField.stringValue, forKey: "targetBitrate")
         defaults.set(twoPassEncodingCheckbox.state == .on, forKey: "twoPassEncoding")
-        defaults.set(hardwareAccelerationCheckbox.state == .on, forKey: "hardwareAcceleration")
+        settingsManager.hardwareAcceleration = hardwareAccelerationCheckbox.state == .on
         defaults.set(customFFmpegArgsField.stringValue, forKey: "customFFmpegArgs")
 
         // Output Directory settings (NEW)

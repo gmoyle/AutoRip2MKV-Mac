@@ -214,4 +214,93 @@ extension MainViewController {
 
         return nil
     }
+    
+    // MARK: - Hardware Acceleration Detection
+    
+    func checkHardwareAccelerationSupport() -> Bool {
+        guard let ffmpegPath = getFFmpegExecutablePath() else {
+            return false
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ffmpegPath)
+        process.arguments = ["-hide_banner", "-hwaccels"]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                // Check for VideoToolbox (macOS hardware acceleration)
+                return output.contains("videotoolbox")
+            }
+        } catch {
+            // If we can't check, assume no hardware acceleration
+            return false
+        }
+        
+        return false
+    }
+    
+    func checkFFmpegAndHardwareAcceleration() {
+        // Check if FFmpeg is available first
+        ensureFFmpegAvailable()
+        
+        // Check if this is the first run and hardware acceleration hasn't been checked yet
+        if !settingsManager.hardwareAccelerationChecked {
+            DispatchQueue.main.async {
+                self.performFirstRunHardwareAccelerationCheck()
+            }
+        }
+    }
+    
+    private func performFirstRunHardwareAccelerationCheck() {
+        // Only check if FFmpeg is available
+        guard getFFmpegExecutablePath() != nil else {
+            // FFmpeg not available, mark as checked and continue
+            settingsManager.hardwareAccelerationChecked = true
+            return
+        }
+        
+        // Check if hardware acceleration is available
+        let hardwareAccelSupported = checkHardwareAccelerationSupport()
+        
+        if hardwareAccelSupported {
+            // Show dialog to user
+            showHardwareAccelerationDialog()
+        } else {
+            // No hardware acceleration available, mark as checked
+            settingsManager.hardwareAccelerationChecked = true
+            appendToLog("Hardware acceleration not available on this system")
+        }
+    }
+    
+    private func showHardwareAccelerationDialog() {
+        let alert = NSAlert()
+        alert.messageText = "Hardware Acceleration Available"
+        alert.informativeText = "Your system supports hardware acceleration for video encoding, which can significantly improve performance. Would you like to enable it?"
+        alert.addButton(withTitle: "Enable")
+        alert.addButton(withTitle: "Keep Disabled")
+        alert.alertStyle = .informational
+        
+        let response = alert.runModal()
+        
+        if response == .alertFirstButtonReturn {
+            // User chose to enable hardware acceleration
+            settingsManager.hardwareAcceleration = true
+            appendToLog("Hardware acceleration enabled")
+        } else {
+            // User chose to keep it disabled
+            settingsManager.hardwareAcceleration = false
+            appendToLog("Hardware acceleration disabled by user choice")
+        }
+        
+        // Mark as checked so we don't ask again
+        settingsManager.hardwareAccelerationChecked = true
+    }
 }
