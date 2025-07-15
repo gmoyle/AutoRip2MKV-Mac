@@ -136,35 +136,58 @@ class DetailedSettingsWindowController: NSWindowController {
 
     private func setupUI() {
         guard let contentView = window?.contentView else { return }
-
-        // Set white background
+        
+        setupContentView(contentView)
+        let scrollView = createScrollView(in: contentView)
+        let mainStackView = createMainStackView(in: scrollView)
+        let titleLabel = createTitleLabel(in: mainStackView)
+        
+        setupAllSections(in: mainStackView)
+        configureWidthConstraints(for: mainStackView, excluding: titleLabel)
+        setupDialogButtons(in: contentView)
+        setupLayoutConstraints(
+            scrollView: scrollView,
+            mainStackView: mainStackView,
+            titleLabel: titleLabel,
+            contentView: contentView
+        )
+    }
+    
+    private func setupContentView(_ contentView: NSView) {
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-
-        // Create main scroll view for all settings sections
+    }
+    
+    private func createScrollView(in contentView: NSView) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(scrollView)
-
-        // Main content stack view
+        return scrollView
+    }
+    
+    private func createMainStackView(in scrollView: NSScrollView) -> NSStackView {
         let mainStackView = NSStackView()
         mainStackView.orientation = .vertical
         mainStackView.spacing = 20
         mainStackView.alignment = .leading
         mainStackView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = mainStackView
-
-        // Title
+        return mainStackView
+    }
+    
+    private func createTitleLabel(in mainStackView: NSStackView) -> NSTextField {
         let titleLabel = NSTextField(labelWithString: "AutoRip2MKV Detailed Settings")
         titleLabel.font = NSFont.boldSystemFont(ofSize: 18)
         titleLabel.alignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         mainStackView.addArrangedSubview(titleLabel)
-
-        // Setup all sections using the established pattern
+        return titleLabel
+    }
+    
+    private func setupAllSections(in mainStackView: NSStackView) {
         setupFileOrganizationSection(in: mainStackView)
         setupAdvancedEncodingSection(in: mainStackView)
         setupOutputDirectorySection(in: mainStackView)
@@ -174,8 +197,9 @@ class DetailedSettingsWindowController: NSWindowController {
         setupFileNamingSection(in: mainStackView)
         setupQualitySection(in: mainStackView)
         setupAdvancedSection(in: mainStackView)
-
-        // Set width constraints for all sections
+    }
+    
+    private func configureWidthConstraints(for mainStackView: NSStackView, excluding titleLabel: NSTextField) {
         for arrangedSubview in mainStackView.arrangedSubviews {
             if arrangedSubview != titleLabel {
                 arrangedSubview.widthAnchor.constraint(
@@ -184,11 +208,14 @@ class DetailedSettingsWindowController: NSWindowController {
                 ).isActive = true
             }
         }
-
-        // Setup dialog buttons
-        setupDialogButtons(in: contentView)
-
-        // Layout constraints
+    }
+    
+    private func setupLayoutConstraints(
+        scrollView: NSScrollView,
+        mainStackView: NSStackView,
+        titleLabel: NSTextField,
+        contentView: NSView
+    ) {
         NSLayoutConstraint.activate([
             // Title width constraint
             titleLabel.widthAnchor.constraint(equalTo: mainStackView.widthAnchor),
@@ -784,7 +811,11 @@ class DetailedSettingsWindowController: NSWindowController {
         return container
     }
 
-    private func createLabelControlButtonRow(label: NSTextField, control: NSControl, button: NSButton) -> NSView {
+    private func createLabelControlButtonRow(
+        label: NSTextField,
+        control: NSControl,
+        button: NSButton
+    ) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
