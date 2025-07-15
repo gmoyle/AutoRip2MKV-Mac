@@ -342,7 +342,11 @@ class DetailedSettingsWindowController: NSWindowController {
 
         // Encoding options
         twoPassEncodingCheckbox = NSButton(checkboxWithTitle: "Use two-pass encoding (slower, better quality)", target: self, action: nil)
-        hardwareAccelerationCheckbox = NSButton(checkboxWithTitle: "Enable hardware acceleration (when available)", target: self, action: nil)
+        hardwareAccelerationCheckbox = NSButton(
+            checkboxWithTitle: "Enable hardware acceleration (when available)",
+            target: self,
+            action: nil
+        )
         hardwareAccelerationCheckbox.state = .off
 
         sectionStackView.addArrangedSubview(twoPassEncodingCheckbox)
