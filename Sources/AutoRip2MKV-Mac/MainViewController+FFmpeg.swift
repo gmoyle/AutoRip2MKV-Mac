@@ -43,6 +43,16 @@ extension MainViewController {
             return
         }
 
+        // Check system PATH for FFmpeg
+        if isFFmpegAvailable() {
+            DispatchQueue.main.async {
+                self.appendToLog("Using system FFmpeg installation")
+                self.appendToLog("FFmpeg is ready for use!")
+                self.resetRipButton()
+            }
+            return
+        }
+
         // Fall back to downloading
         downloadAndInstallFFmpeg()
     }
@@ -210,6 +220,30 @@ extension MainViewController {
         let installedPath = getInstalledFFmpegPath()
         if FileManager.default.fileExists(atPath: installedPath) {
             return installedPath
+        }
+
+        // Check system PATH for FFmpeg
+        if isFFmpegAvailable() {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+            process.arguments = ["ffmpeg"]
+            
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            
+            do {
+                try process.run()
+                process.waitUntilExit()
+                
+                if process.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8) {
+                        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            } catch {
+                return nil
+            }
         }
 
         return nil
