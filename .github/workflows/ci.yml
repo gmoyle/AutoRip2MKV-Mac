@@ -47,13 +47,33 @@ jobs:
     
     - name: Generate Code Coverage Report
       run: |
-        # Check if the test binary exists first
+        # Find the correct test binary path
+        TEST_BINARY_PATH=""
+        
+        # Check various possible paths
         if [ -f ".build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests" ]; then
+          TEST_BINARY_PATH=".build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests"
+        elif [ -f ".build/debug/AutoRip2MKV-MacTests.xctest/Contents/MacOS/AutoRip2MKV-MacTests" ]; then
+          TEST_BINARY_PATH=".build/debug/AutoRip2MKV-MacTests.xctest/Contents/MacOS/AutoRip2MKV-MacTests"
+        else
+          # Try to find any test binary
+          TEST_BINARY_PATH=$(find .build/debug -name "*.xctest" -type d | head -1)
+          if [ -n "$TEST_BINARY_PATH" ]; then
+            # Extract the binary name from the .xctest bundle
+            BINARY_NAME=$(basename "$TEST_BINARY_PATH" .xctest)
+            TEST_BINARY_PATH="$TEST_BINARY_PATH/Contents/MacOS/$BINARY_NAME"
+          fi
+        fi
+        
+        if [ -n "$TEST_BINARY_PATH" ] && [ -f "$TEST_BINARY_PATH" ]; then
+          echo "Found test binary at: $TEST_BINARY_PATH"
           xcrun llvm-cov export -format="lcov" \
-            .build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests \
+            "$TEST_BINARY_PATH" \
             -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
         else
           echo "Test binary not found, skipping coverage report"
+          echo "Available .xctest bundles:"
+          find .build/debug -name "*.xctest" -type d || echo "None found"
           touch coverage.lcov
         fi
     
