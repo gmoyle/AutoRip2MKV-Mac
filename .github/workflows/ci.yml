@@ -28,6 +28,22 @@ jobs:
       with:
         xcode-version: ${{ matrix.xcode }}
     
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
+    
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
       with:
@@ -98,6 +114,22 @@ jobs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: '15.1'
+    
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
     
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
@@ -172,6 +204,22 @@ jobs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: '15.1'
+    
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
     
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
