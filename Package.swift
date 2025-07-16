@@ -2,6 +2,27 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
+import Foundation
+
+// Detect libdvdcss path
+func getLibdvdcssPath() -> String {
+    let possiblePaths = [
+        "/opt/homebrew/opt/libdvdcss",
+        "/usr/local/opt/libdvdcss"
+    ]
+    
+    for path in possiblePaths {
+        if FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+    }
+    
+    // Default fallback (will likely fail, but better than nothing)
+    return "/usr/local/opt/libdvdcss"
+}
+
+let libdvdcssPath = getLibdvdcssPath()
+print("Using libdvdcss path: \(libdvdcssPath)")
 
 let package = Package(
     name: "AutoRip2MKV-Mac",
@@ -20,11 +41,16 @@ let package = Package(
             dependencies: [],
             cSettings: [
                 .headerSearchPath("include"),
-                .unsafeFlags(["-I/usr/local/opt/libdvdcss/include"])
+                .unsafeFlags([
+                    "-I\(libdvdcssPath)/include"
+                ])
             ],
             linkerSettings: [
                 .linkedLibrary("dvdcss"),
-                .unsafeFlags(["-L/usr/local/opt/libdvdcss/lib"])
+                .unsafeFlags([
+                    "-L\(libdvdcssPath)/lib",
+                    "-Xlinker", "-rpath", "-Xlinker", "\(libdvdcssPath)/lib"
+                ])
             ]
         ),
         .testTarget(
