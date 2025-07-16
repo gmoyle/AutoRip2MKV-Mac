@@ -49,6 +49,9 @@ class MainViewController: NSViewController {
         driveDetector.delegate = self
         driveDetector.startMonitoring()
         settingsManager.setDefaultsIfNeeded()
+        
+        // Check FFmpeg and hardware acceleration on startup
+        checkFFmpegAndHardwareAcceleration()
     }
 
     deinit {

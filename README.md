@@ -44,7 +44,11 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - **Native DVD decryption** - Built-in CSS (Content Scramble System) decryption
 - **Blu-ray Support** - AACS decryption framework and BDMV parsing
 - **No dependencies on MakeMKV** - Completely self-contained solution
-- **FFmpeg Bundled** - No separate downloads or installations required
+- **Smart FFmpeg Detection** - Automatically detects system-installed FFmpeg or uses bundled version
+- **Homebrew Compatible** - Works seamlessly with Homebrew-installed FFmpeg
+- **No Installation Dialogs** - Eliminates unnecessary FFmpeg installation prompts
+- **Hardware Acceleration** - Optional VideoToolbox acceleration for improved performance
+- **Intelligent First-Run Setup** - Automatically detects and offers to enable hardware acceleration
 - **Automatic Drive Detection** - Smart optical drive detection and selection
 - Native macOS interface built with Swift and AppKit
 - Easy-to-use GUI with persistent settings
@@ -86,6 +90,17 @@ swift build && swift run
 
 ## Usage
 
+### First-Run Setup
+
+When you launch AutoRip2MKV for the first time, the application will:
+
+1. **Verify FFmpeg** - Automatically check that the bundled FFmpeg is available
+2. **Hardware Detection** - Test if your Mac supports VideoToolbox hardware acceleration
+3. **Acceleration Dialog** - If supported, offer to enable hardware acceleration for faster processing
+4. **Save Preferences** - Your choice is remembered for future sessions
+
+### Normal Operation
+
 1. **Insert DVD/Blu-ray** into your Mac's optical drive
 2. **Launch AutoRip2MKV** from Applications
 3. **Select your disc** from the automatically detected drives dropdown
@@ -98,6 +113,7 @@ swift build && swift run
 - ✅ Drive detection and selection
 - ✅ CSS/AACS decryption
 - ✅ Video conversion to MKV
+- ✅ Optional hardware acceleration (VideoToolbox)
 
 ### DVD Structure
 
@@ -153,6 +169,7 @@ swift build && swift test && swift run
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup instructions for macOS
 - **[User Guide](WIKI_USER_GUIDE.md)** - Comprehensive feature documentation
 - **[FFmpeg Bundling](FFMPEG_BUNDLING.md)** - Technical details on bundled FFmpeg integration
+- **[Changelog](CHANGELOG.md)** - Release history and version changes
 - **[Roadmap](ROADMAP.md)** - Project timeline and planned features
 
 ## 🗺️ Roadmap

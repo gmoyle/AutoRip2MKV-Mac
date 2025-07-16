@@ -19,6 +19,8 @@ class SettingsManager {
         static let quality = "quality"
         static let includeSubtitles = "includeSubtitles"
         static let includeChapters = "includeChapters"
+        static let hardwareAcceleration = "hardwareAcceleration"
+        static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
     }
 
     private init() {}
@@ -122,6 +124,26 @@ class SettingsManager {
             userDefaults.set(newValue, forKey: Keys.includeChapters)
         }
     }
+    
+    // MARK: - Hardware Acceleration Settings
+    
+    var hardwareAcceleration: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.hardwareAcceleration)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.hardwareAcceleration)
+        }
+    }
+    
+    var hardwareAccelerationChecked: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.hardwareAccelerationChecked)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.hardwareAccelerationChecked)
+        }
+    }
 
     // MARK: - Convenience Methods
 
@@ -144,6 +166,9 @@ class SettingsManager {
         }
         if userDefaults.object(forKey: Keys.includeChapters) == nil {
             includeChapters = true
+        }
+        if userDefaults.object(forKey: Keys.hardwareAcceleration) == nil {
+            hardwareAcceleration = false // Disabled by default
         }
 
         // Set extended defaults

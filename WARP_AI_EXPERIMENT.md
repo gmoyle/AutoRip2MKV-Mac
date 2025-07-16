@@ -86,6 +86,9 @@ This project represents an extraordinary experiment in AI-powered software devel
 - ✅ Real-time progress tracking
 - ✅ Professional macOS UI
 - ✅ Comprehensive error handling
+- ✅ Startup FFmpeg validation
+- ✅ Hardware acceleration support (VideoToolbox)
+- ✅ Intelligent first-run setup with auto-detection
 
 #### **Visual Design & Branding**
 - ✅ Professional macOS-style app icon
