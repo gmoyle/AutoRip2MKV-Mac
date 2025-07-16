@@ -65,7 +65,19 @@ extension MainViewController: DVDRipperDelegate {
 
 extension MainViewController: MediaRipperDelegate {
 
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+    func mediaRipperDidStart() {
+        DispatchQueue.main.async {
+            self.appendToLog("Media ripper started")
+        }
+    }
+    
+    func mediaRipperDidUpdateStatus(_ status: String) {
+        DispatchQueue.main.async {
+            self.appendToLog(status)
+        }
+    }
+
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         DispatchQueue.main.async {
             self.progressIndicator.doubleValue = progress * 100.0
 
@@ -79,6 +91,40 @@ extension MainViewController: MediaRipperDelegate {
                     )
                 }
             }
+        }
+    }
+    
+    func mediaRipperDidComplete() {
+        DispatchQueue.main.async {
+            self.appendToLog("Media ripping completed successfully!")
+            self.progressIndicator.isHidden = true
+            self.ripButton.isEnabled = true
+            self.ripButton.title = "Start Ripping"
+            
+            // Show completion notification
+            self.showCompletionNotification()
+            
+            // Automatically eject if enabled
+            if self.settingsManager.autoEjectEnabled {
+                self.appendToLog("Auto-ejecting disc...")
+                self.ejectCurrentDisk()
+            } else {
+                self.appendToLog("Ripping complete. Disc ready for manual ejection.")
+            }
+        }
+    }
+    
+    func mediaRipperDidFail(with error: Error) {
+        DispatchQueue.main.async {
+            self.appendToLog("Error: \(error.localizedDescription)")
+            self.progressIndicator.isHidden = true
+            self.ripButton.isEnabled = true
+            self.ripButton.title = "Start Ripping"
+            
+            // Show error notification
+            self.showErrorNotification("Ripping failed: \(error.localizedDescription)")
+            
+            self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
         }
     }
 }

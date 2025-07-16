@@ -17,7 +17,15 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AutoRip2MKV-Mac",
-            dependencies: []
+            dependencies: [],
+            cSettings: [
+                .headerSearchPath("include"),
+                .unsafeFlags(["-I/usr/local/opt/libdvdcss/include"])
+            ],
+            linkerSettings: [
+                .linkedLibrary("dvdcss"),
+                .unsafeFlags(["-L/usr/local/opt/libdvdcss/lib"])
+            ]
         ),
         .testTarget(
             name: "AutoRip2MKV-MacTests",

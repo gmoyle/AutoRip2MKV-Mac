@@ -140,6 +140,11 @@ extension MediaRipper {
         itemIndex: Int,
         totalItems: Int
     ) throws {
+        // Log the full FFmpeg command
+        let fullCommand = "\(ffmpegPath) \(arguments.joined(separator: " "))"
+        delegate?.mediaRipperDidUpdateStatus("Running FFmpeg command:")
+        delegate?.mediaRipperDidUpdateStatus(fullCommand)
+        
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = arguments
@@ -148,6 +153,7 @@ extension MediaRipper {
         process.standardError = pipe
 
         // Start the process
+        delegate?.mediaRipperDidUpdateStatus("Starting FFmpeg conversion process...")
         try process.run()
 
         // Monitor progress
@@ -159,7 +165,10 @@ extension MediaRipper {
         // Wait for completion
         process.waitUntilExit()
 
-        guard process.terminationStatus == 0 else {
+        if process.terminationStatus == 0 {
+            delegate?.mediaRipperDidUpdateStatus("FFmpeg conversion completed successfully")
+        } else {
+            delegate?.mediaRipperDidUpdateStatus("FFmpeg conversion failed with exit code: \(process.terminationStatus)")
             throw MediaRipperError.conversionFailed
         }
     }
@@ -244,7 +253,7 @@ extension MediaRipper {
         let overallProgress = 0.5 + (conversionProgress * 0.5)
 
         DispatchQueue.main.async {
-            self.delegate?.ripperDidUpdateProgress(overallProgress, currentItem: mediaItem, totalItems: totalItems)
+            self.delegate?.mediaRipperDidUpdateProgress(overallProgress, currentItem: mediaItem, totalItems: totalItems)
         }
     }
 

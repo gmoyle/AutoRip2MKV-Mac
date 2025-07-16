@@ -99,7 +99,7 @@ class MediaRipper {
     /// Start the media ripping process
     func startRipping(mediaPath: String, configuration: RippingConfiguration) {
         guard !isRipping else {
-            delegate?.ripperDidFail(with: MediaRipperError.alreadyRipping)
+            delegate?.mediaRipperDidFail(with: MediaRipperError.alreadyRipping)
             return
         }
 
@@ -111,7 +111,7 @@ class MediaRipper {
                 try self.performRipping(mediaPath: mediaPath, configuration: configuration)
             } catch {
                 DispatchQueue.main.async {
-                    self.delegate?.ripperDidFail(with: error)
+                    self.delegate?.mediaRipperDidFail(with: error)
                     self.isRipping = false
                 }
             }
@@ -131,12 +131,12 @@ class MediaRipper {
     // MARK: - Private Implementation
 
     private func performRipping(mediaPath: String, configuration: RippingConfiguration) throws {
-        delegate?.ripperDidStart()
+        delegate?.mediaRipperDidStart()
 
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
 
-        delegate?.ripperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
+        delegate?.mediaRipperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
 
         switch currentMediaType {
         case .dvd, .ultraHDDVD:
@@ -149,7 +149,7 @@ class MediaRipper {
 
         // Complete
         DispatchQueue.main.async {
-            self.delegate?.ripperDidComplete()
+            self.delegate?.mediaRipperDidComplete()
             self.isRipping = false
         }
     }
@@ -158,11 +158,11 @@ class MediaRipper {
 // MARK: - Delegate Protocol
 
 protocol MediaRipperDelegate: AnyObject {
-    func ripperDidStart()
-    func ripperDidUpdateStatus(_ status: String)
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int)
-    func ripperDidComplete()
-    func ripperDidFail(with error: Error)
+    func mediaRipperDidStart()
+    func mediaRipperDidUpdateStatus(_ status: String)
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int)
+    func mediaRipperDidComplete()
+    func mediaRipperDidFail(with error: Error)
 }
 
 // MARK: - Error Types

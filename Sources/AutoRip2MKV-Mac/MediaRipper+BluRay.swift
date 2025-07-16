@@ -6,7 +6,7 @@ extension MediaRipper {
 
     func performBluRayRipping(blurayPath: String, configuration: RippingConfiguration) throws {
         // Step 1: Parse Blu-ray structure
-        delegate?.ripperDidUpdateStatus("Analyzing Blu-ray structure...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing Blu-ray structure...")
         blurayParser = BluRayStructureParser(blurayPath: blurayPath)
         let playlists = try blurayParser!.parseBluRayStructure()
 
@@ -15,7 +15,7 @@ extension MediaRipper {
         }
 
         // Step 2: Extract movie name and create organized directory
-        delegate?.ripperDidUpdateStatus("Analyzing disc information...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
         let organizedOutputDirectory = createOrganizedOutputDirectory(
             baseDirectory: configuration.outputDirectory,
@@ -28,17 +28,17 @@ extension MediaRipper {
                       mediaType: currentMediaType, movieName: movieName)
 
         // Step 3: Extract cover art if available
-        delegate?.ripperDidUpdateStatus("Extracting cover art...")
+        delegate?.mediaRipperDidUpdateStatus("Extracting cover art...")
         extractCoverArt(from: blurayPath, to: organizedOutputDirectory)
 
         // Step 4: Initialize Blu-ray decryptor
-        delegate?.ripperDidUpdateStatus("Initializing Blu-ray AACS decryption...")
+        delegate?.mediaRipperDidUpdateStatus("Initializing Blu-ray AACS decryption...")
         blurayDecryptor = BluRayDecryptor(devicePath: blurayPath)
         try blurayDecryptor!.initializeDecryption()
 
         // Step 5: Determine which playlists to rip
         let playlistsToRip = filterPlaylistsToRip(playlists: playlists, selectedTitles: configuration.selectedTitles)
-        delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: playlistsToRip.count)
+        delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: playlistsToRip.count)
 
         // Step 6: Rip each playlist to organized directory
         for (index, playlist) in playlistsToRip.enumerated() {
@@ -46,7 +46,7 @@ extension MediaRipper {
                 throw MediaRipperError.cancelled
             }
 
-            delegate?.ripperDidUpdateStatus(
+            delegate?.mediaRipperDidUpdateStatus(
                 "Ripping Blu-ray playlist \(playlist.number) (\(playlist.formattedDuration))..."
             )
             try ripBluRayPlaylist(
@@ -109,7 +109,7 @@ extension MediaRipper {
                 throw MediaRipperError.cancelled
             }
 
-            delegate?.ripperDidUpdateStatus(
+            delegate?.mediaRipperDidUpdateStatus(
                 "Processing clip \(clipIndex + 1)/\(playlist.clips.count) in playlist \(playlist.number)..."
             )
 
@@ -121,7 +121,7 @@ extension MediaRipper {
 
             // Update progress
             let progress = Double(totalBytesRead) / Double(totalSize)
-            delegate?.ripperDidUpdateProgress(
+            delegate?.mediaRipperDidUpdateProgress(
                 progress * 0.5, currentItem: .blurayPlaylist(playlist), totalItems: 1
             ) // 50% for extraction
         }

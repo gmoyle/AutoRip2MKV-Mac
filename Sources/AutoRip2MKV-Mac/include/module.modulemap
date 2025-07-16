@@ -1,0 +1,6 @@
+module Clibdvdcss {
+    header "/usr/local/opt/libdvdcss/include/dvdcss/dvdcss.h"
+    header "/usr/local/opt/libdvdcss/include/dvdcss/version.h"
+    link "dvdcss"
+    export *
+}
