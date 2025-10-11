@@ -462,7 +462,12 @@ class ConversionQueue {
         let videoTSDestination = outputPath.appending("/VIDEO_TS")
 
         guard FileManager.default.fileExists(atPath: videoTSSource) else {
-            throw ConversionQueueError.sourceNotFound
+            // Check if the source path itself exists to provide better error message
+            if !FileManager.default.fileExists(atPath: sourcePath) {
+                throw ConversionQueueError.sourceDiscEjected(sourcePath)
+            } else {
+                throw ConversionQueueError.sourceNotFound
+            }
         }
 
         try FileManager.default.copyItem(atPath: videoTSSource, toPath: videoTSDestination)
@@ -474,7 +479,12 @@ class ConversionQueue {
         let bdmvDestination = outputPath.appending("/BDMV")
 
         guard FileManager.default.fileExists(atPath: bdmvSource) else {
-            throw ConversionQueueError.sourceNotFound
+            // Check if the source path itself exists to provide better error message
+            if !FileManager.default.fileExists(atPath: sourcePath) {
+                throw ConversionQueueError.sourceDiscEjected(sourcePath)
+            } else {
+                throw ConversionQueueError.sourceNotFound
+            }
         }
 
         try FileManager.default.copyItem(atPath: bdmvSource, toPath: bdmvDestination)
@@ -580,29 +590,29 @@ private class ConversionProgressDelegate: MediaRipperDelegate {
         self.completion = completion
     }
 
-    func ripperDidStart() {
+    func mediaRipperDidStart() {
         DispatchQueue.main.async {
             self.queueDelegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: "Starting conversion...")
         }
     }
 
-    func ripperDidUpdateStatus(_ status: String) {
+    func mediaRipperDidUpdateStatus(_ status: String) {
         DispatchQueue.main.async {
             self.queueDelegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: status)
         }
     }
 
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         DispatchQueue.main.async {
             self.queueDelegate?.queueDidUpdateConversionProgress(jobId: self.jobId, progress: progress)
         }
     }
 
-    func ripperDidComplete() {
+    func mediaRipperDidComplete() {
         completion(.success(outputFiles))
     }
 
-    func ripperDidFail(with error: Error) {
+    func mediaRipperDidFail(with error: Error) {
         completion(.failure(error))
     }
 }
@@ -613,6 +623,7 @@ private class ConversionProgressDelegate: MediaRipperDelegate {
 enum ConversionQueueError: Error {
     case unsupportedMediaType
     case sourceNotFound
+    case sourceDiscEjected(String)
     case noExtractedData
     case conversionFailed
     case conversionTimeout
@@ -625,6 +636,8 @@ enum ConversionQueueError: Error {
             return "Unsupported media type"
         case .sourceNotFound:
             return "Source media not found"
+        case .sourceDiscEjected(let path):
+            return "Source disc at '\(path)' was ejected before extraction could complete"
         case .noExtractedData:
             return "No extracted data available"
         case .conversionFailed:

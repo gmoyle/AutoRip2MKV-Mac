@@ -80,22 +80,21 @@ extension MainViewController {
     // MARK: - Disk Management
 
     func ejectCurrentDisk() {
-        guard let selectedDrive = driveManager.selectedDrive else {
+        guard let selectedDrive = getSelectedDrive() else {
             appendToLog("No drive selected for ejection")
             return
         }
 
         appendToLog("Ejecting disk from \(selectedDrive.name)...")
 
-        Task {
-            do {
-                try await driveManager.ejectCurrentDrive()
-                await MainActor.run {
-                    appendToLog("Disk ejected successfully")
-                }
-            } catch {
-                await MainActor.run {
-                    appendToLog("Failed to eject disk: \(error.localizedDescription)")
+        DispatchQueue.global(qos: .background).async {
+            let result = self.ejectDisk(at: selectedDrive.devicePath)
+
+            DispatchQueue.main.async {
+                if result {
+                    self.appendToLog("Disk ejected successfully")
+                } else {
+                    self.appendToLog("Failed to eject disk")
                 }
             }
         }
@@ -116,30 +115,44 @@ extension MainViewController {
     }
 
     private func getSelectedDrive() -> OpticalDrive? {
-        return driveManager.selectedDrive
+        let selectedIndex = sourceDropDown.indexOfSelectedItem
+
+        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
+            return detectedDrives[selectedIndex]
+        }
+
+        return nil
     }
 
     // MARK: - Settings Management
 
     func getSelectedSourcePath() -> String? {
-        // If no drives are detected, return nil
-        if driveManager.availableDrives.isEmpty {
-            return nil
-        }
-
-        // Get selected drive from DriveManager
-        if let selectedDrive = driveManager.selectedDrive {
-            return selectedDrive.mountPoint
-        }
-
-        // Check if it's a custom path
-        if let selectedTitle = sourceDropDown.titleOfSelectedItem,
-           selectedTitle.hasPrefix("Custom: ") {
-            // Extract path from custom entry - this is a simplified approach
-            // In a real implementation, you'd want to store the actual path
+        let selectedIndex = sourceDropDown.indexOfSelectedItem
+        let selectedTitle = sourceDropDown.titleOfSelectedItem
+        
+        // First check if it's a custom path
+        if let title = selectedTitle, title.hasPrefix("Custom: ") {
             return settingsManager.lastSourcePath
         }
-
+        
+        // If we have detected drives and a valid selection, use it
+        if !detectedDrives.isEmpty && selectedIndex >= 0 && selectedIndex < detectedDrives.count {
+            return detectedDrives[selectedIndex].mountPoint
+        }
+        
+        // If no drives are detected but we have a selection, check if it's a valid drive name
+        // This handles the case where drives disappear after being selected
+        if detectedDrives.isEmpty && selectedIndex >= 0, let title = selectedTitle {
+            // Check if this looks like a drive selection (not "No drives detected")
+            if !title.contains("No drives detected") {
+                // Try to get the path from saved settings as a fallback
+                if let lastSourcePath = settingsManager.lastSourcePath {
+                    appendToLog("Warning: Selected drive no longer detected, using last known path: \(lastSourcePath)")
+                    return lastSourcePath
+                }
+            }
+        }
+        
         return nil
     }
 

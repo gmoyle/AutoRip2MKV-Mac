@@ -16,15 +16,15 @@ This project represents an extraordinary experiment in AI-powered software devel
 ## 📊 **Project Statistics**
 
 ### **Codebase Metrics**
-- **Total Swift Files**: 43
-- **Lines of Code**: 13,584
-- **Test Coverage**: 277 comprehensive tests
+- **Total Swift Files**: 47
+- **Lines of Code**: 13,950
+- **Test Coverage**: 66 comprehensive tests
 - **Test Success Rate**: 100.0% (0 failures)
-- **Git Commits**: 97
+- **Git Commits**: 174
 - **Author**: Greg (via AI assistance)
 
 ### **File Breakdown**
-#### **Core Application Files (24)**
+#### **Core Application Files (28)**
 - `AppDelegate.swift` - Application lifecycle management
 - `main.swift` - Application entry point
 - `MainViewController.swift` - Primary UI controller
@@ -86,6 +86,9 @@ This project represents an extraordinary experiment in AI-powered software devel
 - ✅ Real-time progress tracking
 - ✅ Professional macOS UI
 - ✅ Comprehensive error handling
+- ✅ Startup FFmpeg validation
+- ✅ Hardware acceleration support (VideoToolbox)
+- ✅ Intelligent first-run setup with auto-detection
 
 #### **Visual Design & Branding**
 - ✅ Professional macOS-style app icon

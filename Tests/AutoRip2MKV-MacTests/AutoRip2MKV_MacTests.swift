@@ -57,8 +57,9 @@ final class MainViewControllerTests: XCTestCase {
     
     func testDVDRipperDelegateConformance() {
         XCTAssertNotNil(viewController)
-        // Test delegate conformance by checking if view controller can be cast to the protocol
+        // Test delegate conformance
         XCTAssertTrue(viewController is DVDRipperDelegate)
+        XCTAssertNotNil(viewController)
     }
     
     func testRipperDidStart() {
@@ -110,7 +111,8 @@ final class MainViewControllerTests: XCTestCase {
         
         autoreleasepool {
             let tempViewController = MainViewController()
-            // Don't call loadView() as it creates async tasks that may retain the view controller
+            // Don't call loadView() to avoid UI control retain cycles
+            // Just test that the basic controller can be deallocated
             weakViewController = tempViewController
             // tempViewController goes out of scope here
         }

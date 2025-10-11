@@ -40,14 +40,20 @@ class DriveDetector {
 
         // Get all mounted volumes
         let mountedVolumes = getMountedVolumes()
+        print("[DriveDetector] Found \(mountedVolumes.count) mounted volumes")
 
         for volume in mountedVolumes {
+            print("[DriveDetector] Checking volume: \(volume)")
             if isOpticalDrive(at: volume) {
                 let driveInfo = getOpticalDriveInfo(at: volume)
+                print("[DriveDetector] ✓ Movie disc detected: \(driveInfo.displayName) (\(driveInfo.type))")
                 drives.append(driveInfo)
+            } else {
+                print("[DriveDetector] ✗ Not a movie disc: \(volume)")
             }
         }
 
+        print("[DriveDetector] Total movie discs found: \(drives.count)")
         return drives
     }
 
@@ -81,7 +87,7 @@ class DriveDetector {
         return volumes
     }
 
-    /// Checks if a volume is an optical drive
+    /// Checks if a volume is an optical drive with movie content
     private func isOpticalDrive(at path: String) -> Bool {
         // Check for common optical drive characteristics
         let fileManager = FileManager.default
@@ -97,10 +103,11 @@ class DriveDetector {
             "CERTIFICATE"
         ]
 
-        // Check for DVD structure
+        // Check for DVD structure first (more specific)
         for indicator in dvdIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
             if fileManager.fileExists(atPath: indicatorPath) {
+                print("[DriveDetector]   Found DVD structure: \(indicator) at \(path)")
                 return true
             }
         }
@@ -109,12 +116,14 @@ class DriveDetector {
         for indicator in blurayIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
             if fileManager.fileExists(atPath: indicatorPath) {
+                print("[DriveDetector]   Found Blu-ray structure: \(indicator) at \(path)")
                 return true
             }
         }
 
-        // Additional check: see if it's a disc by checking device properties
-        return isRemovableMedia(at: path)
+        // If no movie disc structure found, it's not a movie disc
+        print("[DriveDetector]   No movie disc structure found at \(path)")
+        return false
     }
 
     /// Gets optical drive information

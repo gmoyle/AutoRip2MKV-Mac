@@ -48,6 +48,7 @@ AutoRip2MKV-Mac comes with sensible defaults that work well for most users:
 - **Preferred Language**: English
 
 ### Advanced Options (Default)
+- **Hardware Acceleration**: Disabled (VideoToolbox on supported systems)
 - **Preserve Original Timestamps**: Disabled
 - **Create Backups**: Disabled
 - **Auto-retry on Failure**: Enabled
@@ -173,6 +174,40 @@ Example: `{series} - S{season:02d}E{episode:02d} - {title}.mkv`
 Example with options: `Movie Title (2023) [1080p] [x264].mkv`
 
 ## Advanced Features
+
+### Hardware Acceleration
+
+AutoRip2MKV-Mac supports hardware acceleration through Apple's VideoToolbox framework for improved encoding performance.
+
+#### How It Works
+- **VideoToolbox**: Uses your Mac's dedicated hardware encoders (when available)
+- **Performance**: Significantly faster encoding, especially on newer Macs
+- **Quality**: Maintains high quality while reducing processing time
+- **Compatibility**: Works on Macs with hardware encoders (most modern systems)
+
+#### First-Run Detection
+On first launch, AutoRip2MKV will:
+1. **Test Hardware Support**: Check if your Mac supports VideoToolbox acceleration
+2. **Offer Setup**: If supported, display a dialog asking if you want to enable it
+3. **Save Preference**: Your choice is remembered for future sessions
+
+#### Manual Configuration
+You can also enable/disable hardware acceleration in the detailed settings:
+1. Open the Settings dialog
+2. Look for the "Hardware Acceleration" checkbox in the Advanced section
+3. Check to enable, uncheck to disable
+4. Click "OK" to save changes
+
+#### When to Use
+- **Enable**: For faster processing on supported systems
+- **Disable**: If experiencing quality issues or on older hardware
+- **Default**: Disabled for maximum compatibility
+
+#### Troubleshooting
+If you experience issues with hardware acceleration:
+1. Try disabling it in Settings
+2. Restart the application
+3. Process a test disc to verify the issue is resolved
 
 ### Post-processing Scripts
 You can specify a script to run after each rip completes. The script receives:

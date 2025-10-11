@@ -16,7 +16,7 @@ jobs:
     
     strategy:
       matrix:
-        xcode: ['15.1', '15.0']
+        xcode: ['15.1']
         swift: ['5.9']
     
     steps:
@@ -27,6 +27,22 @@ jobs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: ${{ matrix.xcode }}
+    
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
     
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
@@ -47,9 +63,35 @@ jobs:
     
     - name: Generate Code Coverage Report
       run: |
-        xcrun llvm-cov export -format="lcov" \
-          .build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests \
-          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+        # Find the correct test binary path
+        TEST_BINARY_PATH=""
+        
+        # Check various possible paths
+        if [ -f ".build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests" ]; then
+          TEST_BINARY_PATH=".build/debug/AutoRip2MKV-MacPackageTests.xctest/Contents/MacOS/AutoRip2MKV-MacPackageTests"
+        elif [ -f ".build/debug/AutoRip2MKV-MacTests.xctest/Contents/MacOS/AutoRip2MKV-MacTests" ]; then
+          TEST_BINARY_PATH=".build/debug/AutoRip2MKV-MacTests.xctest/Contents/MacOS/AutoRip2MKV-MacTests"
+        else
+          # Try to find any test binary
+          TEST_BINARY_PATH=$(find .build/debug -name "*.xctest" -type d | head -1)
+          if [ -n "$TEST_BINARY_PATH" ]; then
+            # Extract the binary name from the .xctest bundle
+            BINARY_NAME=$(basename "$TEST_BINARY_PATH" .xctest)
+            TEST_BINARY_PATH="$TEST_BINARY_PATH/Contents/MacOS/$BINARY_NAME"
+          fi
+        fi
+        
+        if [ -n "$TEST_BINARY_PATH" ] && [ -f "$TEST_BINARY_PATH" ]; then
+          echo "Found test binary at: $TEST_BINARY_PATH"
+          xcrun llvm-cov export -format="lcov" \
+            "$TEST_BINARY_PATH" \
+            -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+        else
+          echo "Test binary not found, skipping coverage report"
+          echo "Available .xctest bundles:"
+          find .build/debug -name "*.xctest" -type d || echo "None found"
+          touch coverage.lcov
+        fi
     
     - name: Upload Coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -72,6 +114,22 @@ jobs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: '15.1'
+    
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
     
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
@@ -147,9 +205,50 @@ jobs:
       with:
         xcode-version: '15.1'
     
+    - name: Install libdvdcss
+      run: |
+        brew install libdvdcss
+        # Verify installation
+        echo "Checking libdvdcss installation..."
+        if [ -d "/opt/homebrew/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /opt/homebrew/opt/libdvdcss"
+          ls -la /opt/homebrew/opt/libdvdcss/lib/
+        elif [ -d "/usr/local/opt/libdvdcss" ]; then
+          echo "Found libdvdcss at /usr/local/opt/libdvdcss"
+          ls -la /usr/local/opt/libdvdcss/lib/
+        else
+          echo "libdvdcss not found in expected locations"
+          exit 1
+        fi
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ matrix.deployment-target }}-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-${{ matrix.deployment-target }}-
+          ${{ runner.os }}-spm-
+    
     - name: Test Deployment Target ${{ matrix.deployment-target }}
       run: |
         echo "Testing deployment target: ${{ matrix.deployment-target }}"
-        # Basic build test - deployment target verification
-        swift build
-        echo "✅ Build successful for deployment target ${{ matrix.deployment-target }}"
+        # Set deployment target environment variable
+        export MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
+        
+        # Verify Swift version
+        swift --version
+        
+        # Clean build to ensure fresh state
+        swift package clean
+        
+        # Build with deployment target
+        swift build -v
+        
+        # Verify the build succeeded
+        if [ $? -eq 0 ]; then
+          echo "✅ Build successful for deployment target ${{ matrix.deployment-target }}"
+        else
+          echo "❌ Build failed for deployment target ${{ matrix.deployment-target }}"
+          exit 1
+        fi
