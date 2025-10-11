@@ -1,6 +1,19 @@
 import Cocoa
 
 class MainViewController: NSViewController {
+    
+    // MARK: - Initialization
+    
+    /// Initialize with dependency injection for better testability
+    init(driveManager: DriveManaging = DriveManager()) {
+        self.driveManager = driveManager
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        self.driveManager = DriveManager()
+        super.init(coder: coder)
+    }
 
     // UI Elements
     // UI Components - internal for extension access
@@ -23,9 +36,8 @@ class MainViewController: NSViewController {
     internal var settingsButton: NSButton!
     internal var queueButton: NSButton!
 
-    // Drive Detection - internal for extension access
-    internal var detectedDrives: [OpticalDrive] = []
-    internal var driveDetector = DriveDetector.shared
+    // Drive Management - internal for extension access
+    internal var driveManager: DriveManaging
     internal var settingsManager = SettingsManager.shared
 
     // DVD Ripper
@@ -45,16 +57,16 @@ class MainViewController: NSViewController {
         setupDVDRipper()
         setupConversionQueue()
         loadSettings()
-        refreshDrives()
-        driveDetector.delegate = self
-        driveDetector.startMonitoring()
+        Task {
+            await refreshDrives()
+        }
+        driveManager.delegate = self
         settingsManager.setDefaultsIfNeeded()
     }
 
     deinit {
-        // Clean up delegate references and monitoring to prevent retain cycles
-        driveDetector.delegate = nil
-        driveDetector.stopMonitoring()
+        // Clean up delegate references to prevent retain cycles
+        driveManager.delegate = nil
         dvdRipper?.delegate = nil
         conversionQueue.delegate = nil
         conversionQueue.ejectionDelegate = nil
@@ -277,15 +289,13 @@ class MainViewController: NSViewController {
 
     func generateDiscTitle(from sourcePath: String) -> String {
         // If no drives are detected, extract from source path
-        if detectedDrives.isEmpty {
+        if driveManager.availableDrives.isEmpty {
             let pathComponent = URL(fileURLWithPath: sourcePath).lastPathComponent
             return pathComponent.isEmpty ? "Unknown Disc" : pathComponent
         }
 
-        // Try to get disc title from selected drive using the utility method
-        let selectedIndex = sourceDropDown.indexOfSelectedItem
-        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
-            let selectedDrive = detectedDrives[selectedIndex]
+        // Try to get disc title from selected drive
+        if let selectedDrive = driveManager.selectedDrive {
             return selectedDrive.displayName
         }
 
@@ -297,44 +307,52 @@ class MainViewController: NSViewController {
     // MARK: - Drive Detection and Settings
 
     @objc private func refreshDrives() {
-        detectedDrives = driveDetector.detectOpticalDrives()
-        updateDriveDropdown()
-
-        appendToLog("Detected \(detectedDrives.count) optical drive(s)")
-        for drive in detectedDrives {
-            appendToLog("  - \(drive.displayName) (\(drive.type))")
+        Task {
+            await refreshDrives()
+        }
+    }
+    
+    private func refreshDrives() async {
+        let detectedDrives = await driveManager.detectOpticalDrives()
+        
+        await MainActor.run {
+            updateDriveDropdown()
+            appendToLog("Detected \(detectedDrives.count) optical drive(s)")
+            for drive in detectedDrives {
+                appendToLog("  - \(driveManager.displayName(for: drive))")
+            }
         }
     }
 
     private func updateDriveDropdown() {
         sourceDropDown.removeAllItems()
-
-        if detectedDrives.isEmpty {
+        
+        let availableDrives = driveManager.availableDrives
+        
+        if availableDrives.isEmpty {
             sourceDropDown.addItem(withTitle: "No drives detected")
             sourceDropDown.isEnabled = false
         } else {
             sourceDropDown.isEnabled = true
 
-            for drive in detectedDrives {
-                let driveTypeString = drive.type == .dvd ? "DVD" :
-                                     drive.type == .bluray ? "Blu-ray" : "Unknown"
-                let title = "\(drive.name) (\(driveTypeString))"
+            for drive in availableDrives {
+                let title = driveManager.displayName(for: drive)
                 sourceDropDown.addItem(withTitle: title)
             }
 
-            // Select the previously selected drive if available
-            let savedIndex = settingsManager.selectedDriveIndex
-            if savedIndex < detectedDrives.count {
-                sourceDropDown.selectItem(at: savedIndex)
-            } else if detectedDrives.count == 1 {
-                // Auto-select if only one drive
-                sourceDropDown.selectItem(at: 0)
-                settingsManager.selectedDriveIndex = 0
+            // Update selection to match DriveManager's selected drive
+            let selectedIndex = driveManager.selectedDriveIndex
+            if selectedIndex >= 0 && selectedIndex < availableDrives.count {
+                sourceDropDown.selectItem(at: selectedIndex)
             }
         }
     }
 
     @objc private func driveSelectionChanged() {
+        let selectedIndex = sourceDropDown.indexOfSelectedItem
+        if selectedIndex >= 0 && selectedIndex < driveManager.availableDrives.count {
+            driveManager.selectDrive(at: selectedIndex)
+        }
         saveCurrentSettings()
     }
 
@@ -454,7 +472,7 @@ extension MainViewController: ConversionQueueEjectionDelegate {
         }
 
         // Find the drive that matches the source path
-        if let drive = detectedDrives.first(where: { $0.mountPoint == sourcePath }) {
+        if let drive = driveManager.availableDrives.first(where: { $0.mountPoint == sourcePath }) {
             appendToLog("Auto-ejecting \(drive.displayName) after successful extraction...")
 
             DispatchQueue.global(qos: .background).async {

@@ -80,21 +80,22 @@ extension MainViewController {
     // MARK: - Disk Management
 
     func ejectCurrentDisk() {
-        guard let selectedDrive = getSelectedDrive() else {
+        guard let selectedDrive = driveManager.selectedDrive else {
             appendToLog("No drive selected for ejection")
             return
         }
 
         appendToLog("Ejecting disk from \(selectedDrive.name)...")
 
-        DispatchQueue.global(qos: .background).async {
-            let result = self.ejectDisk(at: selectedDrive.devicePath)
-
-            DispatchQueue.main.async {
-                if result {
-                    self.appendToLog("Disk ejected successfully")
-                } else {
-                    self.appendToLog("Failed to eject disk")
+        Task {
+            do {
+                try await driveManager.ejectCurrentDrive()
+                await MainActor.run {
+                    appendToLog("Disk ejected successfully")
+                }
+            } catch {
+                await MainActor.run {
+                    appendToLog("Failed to eject disk: \(error.localizedDescription)")
                 }
             }
         }
@@ -115,27 +116,20 @@ extension MainViewController {
     }
 
     private func getSelectedDrive() -> OpticalDrive? {
-        let selectedIndex = sourceDropDown.indexOfSelectedItem
-
-        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
-            return detectedDrives[selectedIndex]
-        }
-
-        return nil
+        return driveManager.selectedDrive
     }
 
     // MARK: - Settings Management
 
     func getSelectedSourcePath() -> String? {
-        let selectedIndex = sourceDropDown.indexOfSelectedItem
-
         // If no drives are detected, return nil
-        if detectedDrives.isEmpty {
+        if driveManager.availableDrives.isEmpty {
             return nil
         }
 
-        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
-            return detectedDrives[selectedIndex].mountPoint
+        // Get selected drive from DriveManager
+        if let selectedDrive = driveManager.selectedDrive {
+            return selectedDrive.mountPoint
         }
 
         // Check if it's a custom path

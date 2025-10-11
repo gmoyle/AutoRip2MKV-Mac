@@ -493,7 +493,6 @@ internal extension MainViewController {
         }
         
         // Ensure clean test state
-        detectedDrives = []
         sourceDropDown.removeAllItems()
         sourceDropDown.addItem(withTitle: "No drives detected")
         sourceDropDown.isEnabled = false
