@@ -257,7 +257,7 @@ jobs:
         cat stats_summary.md
     
     - name: Upload Statistics Summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: project-statistics
         path: stats_summary.md
