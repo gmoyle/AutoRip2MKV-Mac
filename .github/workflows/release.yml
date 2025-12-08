@@ -232,7 +232,7 @@ jobs:
     
     - name: Update Homebrew Formula
       if: steps.check_tap.outputs.tap_exists == 'true'
-      uses: dawidd6/action-homebrew-bump-formula@v5
+      uses: dawidd6/action-homebrew-bump-formula@v7
       with:
         token: ${{ secrets.HOMEBREW_TOKEN }}
         formula: autorip2mkv-mac
