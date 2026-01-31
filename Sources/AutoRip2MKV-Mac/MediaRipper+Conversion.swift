@@ -117,6 +117,8 @@ extension MediaRipper {
             return "libx265"
         case .av1:
             return "libaom-av1"
+        case .vp9:
+            return "libvpx-vp9"
         }
     }
 

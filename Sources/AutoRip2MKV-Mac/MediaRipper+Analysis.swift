@@ -296,10 +296,11 @@ extension MediaRipper {
             let resolution = streamCodingByte & 0x0F
 
             switch resolution {
+            case 0: return .sd480p // SD/Unknown
             case 1: return .hd720p
             case 2: return .fullHD1080p
             case 4: return .uhd2160p
-            default: return .fullHD1080p
+            default: return .unknown
             }
         }
 
@@ -481,13 +482,25 @@ extension MediaRipper {
         var recommendedCRF: Int = 23
         var recommendedBitrate: Int = estimatedBitrate
 
+        // Hardware acceleration detection (simulated)
+        let hasAV1HWAccel = ProcessInfo.processInfo.environment["AV1_HWACCEL"] == "1"
+        let hasVP9HWAccel = ProcessInfo.processInfo.environment["VP9_HWACCEL"] == "1"
+
         // Codec recommendation based on resolution and complexity
         if resolution.isUHD {
-            // UHD content benefits from H.265 or AV1
-            if complexityScore > 7.0 {
-                recommendedCodec = .av1 // AV1 for complex high-res content
+            // UHD content benefits from H.265, AV1, or VP9
+            if complexityScore > 8.0 && hasAV1HWAccel {
+                recommendedCodec = .av1 // AV1 hardware-accelerated
+                recommendedCRF = 26 // Quality preset for AV1 HW
+                recommendedBitrate = Int(Double(estimatedBitrate) * 0.55)
+            } else if complexityScore > 7.0 {
+                recommendedCodec = .av1 // AV1 software
                 recommendedCRF = 28
                 recommendedBitrate = Int(Double(estimatedBitrate) * 0.6)
+            } else if hasVP9HWAccel {
+                recommendedCodec = .vp9 // VP9 hardware-accelerated
+                recommendedCRF = 27
+                recommendedBitrate = Int(Double(estimatedBitrate) * 0.65)
             } else {
                 recommendedCodec = .h265 // H.265 for standard UHD
                 recommendedCRF = 25
@@ -498,6 +511,10 @@ extension MediaRipper {
             if contentType == .animation {
                 recommendedCodec = .h264 // Animation works well with H.264
                 recommendedCRF = 20
+            } else if complexityScore > 8.0 && hasVP9HWAccel {
+                recommendedCodec = .vp9 // VP9 hardware-accelerated
+                recommendedCRF = 24
+                recommendedBitrate = Int(Double(estimatedBitrate) * 0.7)
             } else if complexityScore > 7.0 {
                 recommendedCodec = .h265 // H.265 for complex live action
                 recommendedCRF = 24

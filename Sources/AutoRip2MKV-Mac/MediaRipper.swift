@@ -65,7 +65,7 @@ class MediaRipper {
         let mediaType: MediaType? // Optional override for media type detection
 
         enum VideoCodec {
-            case h264, h265, av1
+            case h264, h265, av1, vp9
         }
 
         enum AudioCodec {
