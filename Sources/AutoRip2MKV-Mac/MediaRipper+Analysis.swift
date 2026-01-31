@@ -84,7 +84,7 @@ extension MediaRipper {
 
     /// Analyzes a disc and provides quality assessment and recommendations
     /// - Parameters:
-    ///   - mediaPath: Path to mounted media (BDMV folder for Blu-ray, VIDEO_TS for DVD)
+    ///   - mediaPath: Path to mounted media (BDMV folder for Blu-ray, VIDEO_TS for DVD, HD_DVD for HD DVD)
     ///   - mediaType: Type of media being analyzed
     /// - Returns: QualityAssessment containing analysis results and recommendations
     func analyzeMedia(mediaPath: String, mediaType: MediaType = .unknown) throws -> QualityAssessment {
@@ -95,9 +95,100 @@ extension MediaRipper {
             return try analyzeBluRayMedia(mediaPath)
         case .dvd, .ultraHDDVD:
             return try analyzeDVDMedia(mediaPath, isUHD: detectedType == .ultraHDDVD)
+        case .hddvd:
+            return try analyzeHDDVDMedia(mediaPath)
         case .unknown:
             throw AnalysisError.unsupportedMediaType
         }
+    }
+
+    /// Analyzes HD DVD media structure and content
+    private func analyzeHDDVDMedia(_ mediaPath: String) throws -> QualityAssessment {
+        let parser = HDDVDStructureParser()
+        let structure = try parser.parseStructure(at: mediaPath)
+
+        guard !structure.titles.isEmpty else {
+            throw AnalysisError.noTitlesFound
+        }
+        // Select main title by longest duration
+        let mainTitle = structure.titles.max(by: { $0.durationSeconds < $1.durationSeconds })!
+
+        // Map HDDVDResolution to QualityAssessment.Resolution
+        let resolution: QualityAssessment.Resolution
+        switch mainTitle.resolution {
+        case .sd480p: resolution = .sd480p
+        case .hd720p: resolution = .hd720p
+        case .fullHD1080p: resolution = .fullHD1080p
+        case .unknown: resolution = .unknown
+        }
+
+        // Map HDDVDAudioTrack to AudioTrackInfo
+        let audioTracks: [AudioTrackInfo] = mainTitle.audioTracks.map {
+            AudioTrackInfo(
+                index: $0.index,
+                language: $0.language,
+                codec: $0.codec,
+                channels: $0.channels,
+                sampleRate: $0.sampleRate
+            )
+        }
+
+        // Log subtitle tracks and menu set
+        let subtitleInfo = mainTitle.subtitleTracks.map { "\($0.language) [\($0.format)]" }.joined(separator: ", ")
+        Logger.shared.log("Subtitle Tracks: \(subtitleInfo)", level: .info, category: .general)
+        if let menuSet = mainTitle.menuSet {
+            Logger.shared.log("Menu Set: \(menuSet)", level: .info, category: .general)
+        }
+        Logger.shared.log("Estimated Bitrate: \(mainTitle.estimatedBitrate) kbps", level: .info, category: .general)
+        Logger.shared.log("Audio Tracks: \(mainTitle.audioTracks.count)", level: .info, category: .general)
+
+        // HD DVD content type: infer from title name and codec
+        let contentType: QualityAssessment.ContentType
+        if mainTitle.name.lowercased().contains("documentary") {
+            contentType = .mixed
+        } else if mainTitle.videoCodec == "MPEG-2" {
+            contentType = .animation
+        } else {
+            contentType = .liveAction
+        }
+
+        // Complexity score (adjust for HD DVD)
+        let complexityScore = calculateComplexityScore(
+            resolution: resolution,
+            contentType: contentType,
+            audioTrackCount: audioTracks.count,
+            hdrPresent: false
+        )
+
+        // Bitrate estimation (use Blu-ray logic for HD DVD)
+        var estimatedBitrate = estimateBluRayBitrate(mediaPath: mediaPath, resolution: resolution)
+        // Adjust bitrate for dual layer
+        if structure.isDualLayer {
+            estimatedBitrate += 2000
+        }
+
+        // Recommendations
+        let (recommendedCodec, recommendedCRF, recommendedBitrate) = generateRecommendations(
+            resolution: resolution,
+            complexityScore: complexityScore,
+            contentType: contentType,
+            estimatedBitrate: estimatedBitrate
+        )
+
+        // Optionally log volume label for reporting
+        Logger.shared.log("HD DVD Volume: \(structure.volumeLabel), Main Title: \(mainTitle.name)", level: .info, category: .general)
+
+        return QualityAssessment(
+            resolution: resolution,
+            estimatedBitrate: estimatedBitrate,
+            contentType: contentType,
+            complexityScore: complexityScore,
+            hdrPresent: false,
+            audioTracks: audioTracks,
+            recommendedCodec: recommendedCodec,
+            recommendedCRF: recommendedCRF,
+            recommendedBitrate: recommendedBitrate
+        )
     }
 
     // MARK: - Blu-ray Analysis

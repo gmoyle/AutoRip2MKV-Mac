@@ -254,6 +254,8 @@ extension MediaRipper {
             return "DVD"
         case .ultraHDDVD:
             return "Ultra HD DVD"
+        case .hddvd:
+            return "HD DVD"
         case .bluray:
             return "Blu-ray"
         case .bluray4K:

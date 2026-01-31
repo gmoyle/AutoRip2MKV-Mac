@@ -102,6 +102,7 @@ class ConversionQueue {
 
     init(testMode: Bool = false) {
         self.testMode = testMode
+        Logger.shared.logQueue("ConversionQueue initialized", level: .info)
     }
 
     // MARK: - Public Interface
@@ -118,6 +119,7 @@ class ConversionQueue {
 
         jobsQueue.async(flags: .barrier) {
             self.jobs.append(job)
+            Logger.shared.logQueue("Added new job \(job.id) for disc title: \(job.discTitle)", level: .info)
             DispatchQueue.main.async {
                 self.delegate?.queueDidUpdateJobs(self.jobs)
             }
@@ -134,6 +136,7 @@ class ConversionQueue {
         jobsQueue.async(flags: .barrier) {
             if let index = self.jobs.firstIndex(where: { $0.id == id }) {
                 self.jobs[index].status = .cancelled
+                Logger.shared.logQueue("Cancelled job \(id)", level: .info)
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
                 }
@@ -276,7 +279,8 @@ class ConversionQueue {
             self.jobs[jobIndex].status = .extracting
             self.jobs[jobIndex].startTime = Date()
             self.isExtracting = true
-
+            
+            Logger.shared.logQueue("Starting extraction for job \(jobId)", level: .info)
             DispatchQueue.main.async {
                 self.delegate?.queueDidUpdateJobs(self.jobs)
                 self.delegate?.queueDidStartExtraction(jobId: jobId)
@@ -322,6 +326,7 @@ class ConversionQueue {
                 self.isExtracting = false
 
                 let jobSourcePath = self.jobs[jobIndex].sourcePath
+                Logger.shared.logQueue("Extraction completed for job \(jobId)", level: .info)
 
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
@@ -349,6 +354,7 @@ class ConversionQueue {
                 }
                 self.isExtracting = false
 
+                Logger.shared.logError(error, context: "Extraction failed for job \(jobId)")
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
                     self.delegate?.queueDidFailExtraction(jobId: jobId, error: error)
@@ -367,6 +373,7 @@ class ConversionQueue {
             self.jobs[jobIndex].progress = 0.0
             self.activeConversions += 1
 
+            Logger.shared.logQueue("Starting conversion for job \(jobId)", level: .info)
             DispatchQueue.main.async {
                 self.delegate?.queueDidUpdateJobs(self.jobs)
                 self.delegate?.queueDidStartConversion(jobId: jobId)
@@ -395,6 +402,7 @@ class ConversionQueue {
                     self.jobs[jobIndex].outputFiles = outputFiles
                     self.jobs[jobIndex].endTime = Date()
                     self.jobs[jobIndex].progress = 1.0
+                    Logger.shared.logQueue("Conversion completed for job \(jobId) with \(outputFiles.count) output files", level: .info)
                 }
                 self.activeConversions -= 1
 
@@ -418,6 +426,7 @@ class ConversionQueue {
                 }
                 self.activeConversions -= 1
 
+                Logger.shared.logError(error, context: "Conversion failed for job \(jobId)")
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
                     self.delegate?.queueDidFailConversion(jobId: jobId, error: error)
@@ -447,7 +456,7 @@ class ConversionQueue {
         // Implementation depends on media type
 
         switch job.mediaType {
-        case .dvd, .ultraHDDVD:
+        case .dvd, .ultraHDDVD, .hddvd:
             try extractDVDData(sourcePath: job.sourcePath, outputPath: toDirectory)
         case .bluray, .bluray4K:
             try extractBluRayData(sourcePath: job.sourcePath, outputPath: toDirectory)
@@ -539,8 +548,8 @@ class ConversionQueue {
         // Estimate required space based on media type (conservative estimates)
         let requiredBytes: Int64
         switch job.mediaType {
-        case .dvd, .ultraHDDVD:
-            requiredBytes = 10_000_000_000 // 10GB for DVD
+        case .dvd, .ultraHDDVD, .hddvd:
+            requiredBytes = 15_000_000_000 // 15GB for HD DVD (more than DVD)
         case .bluray:
             requiredBytes = 50_000_000_000 // 50GB for Blu-ray
         case .bluray4K:
@@ -561,7 +570,7 @@ class ConversionQueue {
             }
         } catch {
             // Log error but don't fail - this is cleanup
-            print("Warning: Failed to cleanup temp directory \(path): \(error)")
+            Logger.shared.logError(error, context: "Failed to cleanup temp directory \(path)", category: .filesystem)
         }
     }
 }

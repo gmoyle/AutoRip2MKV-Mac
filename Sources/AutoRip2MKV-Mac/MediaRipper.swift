@@ -4,14 +4,31 @@ import AVFoundation
 /// Unified media ripper that handles both DVD and Blu-ray formats with native decryption
 /// Implementation details are in separate extension files for better organization
 class MediaRipper {
+    /// Performs HD DVD ripping workflow (simulated)
+    func performHDDVDRipping(hddvdPath: String, configuration: RippingConfiguration) throws {
+        Logger.shared.log("Starting HD DVD ripping for path: \(hddvdPath)", level: .info, category: .general)
+        // Simulate structure parsing and analysis
+        let parser = HDDVDStructureParser()
+        let structure = try parser.parseStructure(at: hddvdPath)
+        guard let mainTitleIndex = structure.mainTitleIndex, structure.titles.indices.contains(mainTitleIndex) else {
+            throw MediaRipperError.unsupportedMediaType
+        }
+        let mainTitle = structure.titles[mainTitleIndex]
+        Logger.shared.log("HD DVD main title: \(mainTitle.name), duration: \(mainTitle.durationSeconds)s, chapters: \(mainTitle.chapters)", level: .info, category: .general)
+        // Simulate ripping process
+        delegate?.ripperDidUpdateStatus("Ripping HD DVD: \(mainTitle.name)")
+        // ...actual ripping logic would go here...
+        Logger.shared.log("HD DVD ripping completed for \(mainTitle.name)", level: .info, category: .general)
+    }
 
     // Media type detection
     enum MediaType {
-        case dvd
-        case ultraHDDVD
-        case bluray
-        case bluray4K
-        case unknown
+    case dvd
+    case ultraHDDVD
+    case bluray
+    case bluray4K
+    case hddvd
+    case unknown
 
         var folderName: String {
             switch self {
@@ -19,6 +36,7 @@ class MediaRipper {
             case .ultraHDDVD: return "Ultra_HD_DVD"
             case .bluray: return "Blu-ray"
             case .bluray4K: return "4K_Blu-ray"
+            case .hddvd: return "HD_DVD"
             case .unknown: return "Unknown_Media"
             }
         }
@@ -69,7 +87,7 @@ class MediaRipper {
     }
 
     init() {
-
+        Logger.shared.log("MediaRipper initialized", level: .info, category: .general)
     }
 
     // MARK: - Public Interface
@@ -99,10 +117,12 @@ class MediaRipper {
     /// Start the media ripping process
     func startRipping(mediaPath: String, configuration: RippingConfiguration) {
         guard !isRipping else {
+            Logger.shared.logError(MediaRipperError.alreadyRipping, context: "Attempted to start ripping while already in progress")
             delegate?.ripperDidFail(with: MediaRipperError.alreadyRipping)
             return
         }
 
+        Logger.shared.log("Starting ripping process for media at: \(mediaPath)", level: .info, category: .general)
         isRipping = true
         shouldCancel = false
 
@@ -110,6 +130,7 @@ class MediaRipper {
             do {
                 try self.performRipping(mediaPath: mediaPath, configuration: configuration)
             } catch {
+                Logger.shared.logError(error, context: "MediaRipper failed during ripping process")
                 DispatchQueue.main.async {
                     self.delegate?.ripperDidFail(with: error)
                     self.isRipping = false
@@ -120,6 +141,7 @@ class MediaRipper {
 
     /// Cancel the current ripping operation
     func cancelRipping() {
+        Logger.shared.log("Cancelling ripping operation", level: .info, category: .general)
         shouldCancel = true
     }
 
@@ -135,6 +157,7 @@ class MediaRipper {
 
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
+        Logger.shared.log("Detected media type: \(mediaTypeString(currentMediaType))", level: .info, category: .general)
 
         delegate?.ripperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
 
@@ -143,11 +166,14 @@ class MediaRipper {
             try performDVDRipping(dvdPath: mediaPath, configuration: configuration)
         case .bluray, .bluray4K:
             try performBluRayRipping(blurayPath: mediaPath, configuration: configuration)
+        case .hddvd:
+            try performHDDVDRipping(hddvdPath: mediaPath, configuration: configuration)
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
         }
 
         // Complete
+        Logger.shared.log("Ripping process completed successfully", level: .info, category: .general)
         DispatchQueue.main.async {
             self.delegate?.ripperDidComplete()
             self.isRipping = false

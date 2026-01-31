@@ -106,7 +106,7 @@ extension MediaRipper {
     /// Extract disc title from disc metadata
     private func extractDiscTitle(from mediaPath: String, mediaType: MediaType) -> String? {
         switch mediaType {
-        case .dvd, .ultraHDDVD:
+        case .dvd, .ultraHDDVD, .hddvd:
             return extractDVDTitle(from: mediaPath)
         case .bluray, .bluray4K:
             return extractBluRayTitle(from: mediaPath)
