@@ -72,7 +72,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         let jobId = conversionQueue.addJob(
@@ -207,7 +208,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         let jobId = conversionQueue.addJob(
@@ -251,7 +253,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         var jobIds: [UUID] = []
@@ -309,7 +312,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         // Add and remove many jobs
@@ -346,7 +350,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         measure {
@@ -377,7 +382,8 @@ final class QueueIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         var job = ConversionQueue.ConversionJob(

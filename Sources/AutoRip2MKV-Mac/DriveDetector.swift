@@ -15,7 +15,29 @@ struct OpticalDrive {
     enum MediaType: Equatable {
         case dvd
         case bluray
+        case bluray4K
+        case hddvd
         case unknown
+        
+        var displayName: String {
+            switch self {
+            case .dvd: return "DVD"
+            case .bluray: return "Blu-ray"
+            case .bluray4K: return "4K Blu-ray"
+            case .hddvd: return "HD DVD"
+            case .unknown: return "Unknown"
+            }
+        }
+        
+        var defaultPriority: ConversionQueue.JobPriority {
+            switch self {
+            case .bluray4K: return .high     // 4K discs get high priority
+            case .bluray: return .normal     // Regular Blu-ray normal priority
+            case .hddvd: return .normal      // HD DVD normal priority
+            case .dvd: return .low           // DVDs get low priority
+            case .unknown: return .normal    // Unknown gets normal
+            }
+        }
     }
 
     var displayName: String {
@@ -97,6 +119,11 @@ class DriveDetector {
             "CERTIFICATE"
         ]
 
+        let hddvdIndicators = [
+            "HVDVD_TS",
+            "ADV_OBJ"
+        ]
+
         // Check for DVD structure
         for indicator in dvdIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
@@ -107,6 +134,14 @@ class DriveDetector {
 
         // Check for Blu-ray structure
         for indicator in blurayIndicators {
+            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
+            if fileManager.fileExists(atPath: indicatorPath) {
+                return true
+            }
+        }
+
+        // Check for HD DVD structure
+        for indicator in hddvdIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
             if fileManager.fileExists(atPath: indicatorPath) {
                 return true
@@ -141,7 +176,7 @@ class DriveDetector {
         return OpticalDrive(mountPoint: path, name: volumeName, type: mediaType, devicePath: devicePath)
     }
 
-    /// Determines the media type (DVD or Blu-ray)
+    /// Determines the media type (DVD, Blu-ray, 4K Blu-ray, or HD DVD)
     private func determineMediaType(at path: String) -> OpticalDrive.MediaType {
         let fileManager = FileManager.default
 
@@ -150,7 +185,20 @@ class DriveDetector {
         for indicator in blurayIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
             if fileManager.fileExists(atPath: indicatorPath) {
+                // Check if it's 4K UHD Blu-ray by examining resolution or playlist files
+                if is4KBluRay(at: path) {
+                    return .bluray4K
+                }
                 return .bluray
+            }
+        }
+
+        // Check for HD DVD indicators
+        let hddvdIndicators = ["HVDVD_TS", "ADV_OBJ"]
+        for indicator in hddvdIndicators {
+            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
+            if fileManager.fileExists(atPath: indicatorPath) {
+                return .hddvd
             }
         }
 
@@ -164,6 +212,76 @@ class DriveDetector {
         }
 
         return .unknown
+    }
+    
+    /// Determines if a Blu-ray disc is 4K UHD
+    private func is4KBluRay(at path: String) -> Bool {
+        let fileManager = FileManager.default
+        
+        // Check for UHD-specific indicators in BDMV structure
+        let bdmvPath = (path as NSString).appendingPathComponent("BDMV")
+        
+        // Check for UHD playlist directory
+        let playlistPath = (bdmvPath as NSString).appendingPathComponent("PLAYLIST")
+        if fileManager.fileExists(atPath: playlistPath) {
+            // Check for 4K resolution indicators in playlist files
+            do {
+                let playlists = try fileManager.contentsOfDirectory(atPath: playlistPath)
+                for playlist in playlists where playlist.hasSuffix(".mpls") {
+                    let playlistFilePath = (playlistPath as NSString).appendingPathComponent(playlist)
+                    if let data = try? Data(contentsOf: URL(fileURLWithPath: playlistFilePath)),
+                       data.count > 1000 {
+                        // Check for 4K indicators: 3840x2160 resolution markers
+                        // UHD Blu-ray playlists contain specific resolution markers
+                        let dataString = String(decoding: data.prefix(2000), as: UTF8.self)
+                        if dataString.contains("3840") || dataString.contains("2160") {
+                            return true
+                        }
+                        
+                        // Check for HEVC/H.265 codec indicators (common in 4K)
+                        if dataString.contains("hev1") || dataString.contains("hvc1") {
+                            return true
+                        }
+                    }
+                }
+            } catch {
+                // If we can't read playlists, fall back to stream analysis
+            }
+        }
+        
+        // Check for 4K stream files in STREAM directory
+        let streamPath = (bdmvPath as NSString).appendingPathComponent("STREAM")
+        if fileManager.fileExists(atPath: streamPath) {
+            do {
+                let streams = try fileManager.contentsOfDirectory(atPath: streamPath)
+                for stream in streams where stream.hasSuffix(".m2ts") {
+                    let streamFilePath = (streamPath as NSString).appendingPathComponent(stream)
+                    
+                    // Check file size - 4K streams are typically much larger
+                    let attributes = try fileManager.attributesOfItem(atPath: streamFilePath)
+                    if let fileSize = attributes[.size] as? Int64 {
+                        // 4K streams typically > 10GB for main feature
+                        // This is a heuristic - large files suggest 4K content
+                        if fileSize > 10_000_000_000 { // 10GB threshold
+                            // Further validate by checking stream headers
+                            if let data = try? Data(contentsOf: URL(fileURLWithPath: streamFilePath)),
+                               data.count > 2048 {
+                                // Check for HEVC NAL unit types (0x40-0x42) in first 2KB
+                                let header = data.prefix(2048)
+                                // HEVC slice segments indicate 4K content
+                                if header.contains(where: { $0 == 0x40 || $0 == 0x42 }) {
+                                    return true
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // If analysis fails, conservatively return false
+            }
+        }
+        
+        return false
     }
 
     /// Checks if the path represents removable media

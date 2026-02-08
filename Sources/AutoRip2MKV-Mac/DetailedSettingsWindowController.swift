@@ -80,8 +80,10 @@ class DetailedSettingsWindowController: NSWindowController {
     private var createBackupsCheckbox: NSButton!
     private var autoRetryOnFailureCheckbox: NSButton!
     private var maxRetryAttemptsField: NSTextField!
+    private var preProcessingScriptField: NSTextField!
+    private var browsePreScriptButton: NSButton!
     private var postProcessingScriptField: NSTextField!
-    private var browseScriptButton: NSButton!
+    private var browsePostScriptButton: NSButton!
 
     // Dialog buttons
     private var okButton: NSButton!
@@ -694,12 +696,20 @@ class DetailedSettingsWindowController: NSWindowController {
         let maxRetriesRow = createLabelControlRow(label: maxRetriesLabel, control: maxRetryAttemptsField)
         sectionStackView.addArrangedSubview(maxRetriesRow)
 
+        let preScriptLabel = NSTextField(labelWithString: "Pre-processing Script:")
+        preProcessingScriptField = NSTextField()
+        preProcessingScriptField.placeholderString = "Path to script to run before ripping..."
+        browsePreScriptButton = NSButton(title: "Browse...", target: self, action: #selector(browseForPreScript))
+
+        let preScriptRow = createLabelControlButtonRow(label: preScriptLabel, control: preProcessingScriptField, button: browsePreScriptButton)
+        sectionStackView.addArrangedSubview(preScriptRow)
+
         let scriptLabel = NSTextField(labelWithString: "Post-processing Script:")
         postProcessingScriptField = NSTextField()
         postProcessingScriptField.placeholderString = "Path to script to run after ripping..."
-        browseScriptButton = NSButton(title: "Browse...", target: self, action: #selector(browseForScript))
+        browsePostScriptButton = NSButton(title: "Browse...", target: self, action: #selector(browseForPostScript))
 
-        let scriptRow = createLabelControlButtonRow(label: scriptLabel, control: postProcessingScriptField, button: browseScriptButton)
+        let scriptRow = createLabelControlButtonRow(label: scriptLabel, control: postProcessingScriptField, button: browsePostScriptButton)
         sectionStackView.addArrangedSubview(scriptRow)
 
         NSLayoutConstraint.activate([
@@ -914,14 +924,29 @@ class DetailedSettingsWindowController: NSWindowController {
             maxRetryAttemptsField.stringValue = "3" // Default
         }
 
-        if let scriptPath = defaults.string(forKey: "postProcessingScript") {
-            postProcessingScriptField.stringValue = scriptPath
+        if let preScriptPath = defaults.string(forKey: "preProcessingScript") {
+            preProcessingScriptField.stringValue = preScriptPath
+        }
+        if let postScriptPath = defaults.string(forKey: "postProcessingScript") {
+            postProcessingScriptField.stringValue = postScriptPath
         }
     }
 
     // MARK: - Actions
 
-    @objc private func browseForScript() {
+    @objc private func browseForPreScript() {
+        if let url = openScriptPanel(title: "Select Pre-processing Script") {
+            preProcessingScriptField.stringValue = url.path
+        }
+    }
+
+    @objc private func browseForPostScript() {
+        if let url = openScriptPanel(title: "Select Post-processing Script") {
+            postProcessingScriptField.stringValue = url.path
+        }
+    }
+
+    private func openScriptPanel(title: String) -> URL? {
         let openPanel = NSOpenPanel()
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = false
@@ -931,13 +956,12 @@ class DetailedSettingsWindowController: NSWindowController {
         } else {
             openPanel.allowedFileTypes = ["sh", "py", "rb", "pl", "js"]
         }
-        openPanel.title = "Select Post-processing Script"
+        openPanel.title = title
 
         if openPanel.runModal() == .OK {
-            if let url = openPanel.url {
-                postProcessingScriptField.stringValue = url.path
-            }
+            return openPanel.url
         }
+        return nil
     }
 
     @objc private func browseForOutputDirectory() {
@@ -1090,6 +1114,7 @@ class DetailedSettingsWindowController: NSWindowController {
         createBackupsCheckbox.state = .off
         autoRetryOnFailureCheckbox.state = .on
         maxRetryAttemptsField.stringValue = "3"
+        preProcessingScriptField.stringValue = ""
         postProcessingScriptField.stringValue = ""
     }
 
@@ -1183,6 +1208,7 @@ class DetailedSettingsWindowController: NSWindowController {
         defaults.set(createBackupsCheckbox.state == .on, forKey: "createBackups")
         defaults.set(autoRetryOnFailureCheckbox.state == .on, forKey: "autoRetryOnFailure")
         defaults.set(Int(maxRetryAttemptsField.stringValue) ?? 3, forKey: "maxRetryAttempts")
+        defaults.set(preProcessingScriptField.stringValue, forKey: "preProcessingScript")
         defaults.set(postProcessingScriptField.stringValue, forKey: "postProcessingScript")
 
         defaults.synchronize()

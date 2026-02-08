@@ -3,18 +3,56 @@ import AVFoundation
 
 /// Extension to MediaRipper for advanced disc analysis and quality assessment
 extension MediaRipper {
+    /// Generates a human-readable summary report for QualityAssessment
+    static func generateQualityReport(_ qa: QualityAssessment) -> String {
+        var report: [String] = []
+        report.append("=== Disc Quality Assessment ===")
+        report.append("Resolution: \(qa.resolution.displayName)")
+        report.append("Estimated Bitrate: \(qa.estimatedBitrate) kbps")
+        report.append("Content Type: \(qa.contentType.description)")
+        report.append(String(format: "Complexity Score: %.2f / 10", qa.complexityScore))
+        report.append("HDR Present: \(qa.hdrPresent ? "Yes" : "No")")
+        if let hdrType = qa.hdrType { report.append("HDR Type: \(hdrType)") }
+        if let immersiveAudio = qa.immersiveAudio { report.append("Immersive Audio: \(immersiveAudio)") }
+        report.append("Audio Tracks: \(qa.audioTracks.count)")
+        for track in qa.audioTracks {
+            report.append("  - [\(track.index)] \(track.language ?? "Unknown") | \(track.codec ?? "Unknown") | \(track.channels ?? 0)ch | \(track.sampleRate ?? 0)Hz")
+        }
+        // Advanced metrics
+        if let scr = qa.sceneChangeRate { report.append(String(format: "Scene Change Rate: %.2f per min", scr)) }
+        if let mi = qa.motionIntensity { report.append(String(format: "Motion Intensity: %.2f", mi)) }
+        if let gl = qa.grainLevel { report.append(String(format: "Grain Level: %.2f", gl)) }
+        if let ascore = qa.animationScore { report.append(String(format: "Animation Score: %.2f", ascore)) }
+        if let sc = qa.subtitleComplexity { report.append(String(format: "Subtitle Complexity: %.2f", sc)) }
+        if let ac = qa.audioComplexity { report.append(String(format: "Audio Complexity: %.2f", ac)) }
+        report.append("Recommended Codec: \(qa.recommendedCodec)")
+        report.append("Recommended CRF: \(qa.recommendedCRF)")
+        report.append("Recommended Bitrate: \(qa.recommendedBitrate) kbps")
+        report.append("==============================")
+        return report.joined(separator: "\n")
+    }
 
     /// Represents the quality assessment of media content
     struct QualityAssessment {
-        let resolution: Resolution
-        let estimatedBitrate: Int // in kbps
-        let contentType: ContentType
-        let complexityScore: Double // 1.0-10.0
-        let hdrPresent: Bool
-        let audioTracks: [AudioTrackInfo]
-        let recommendedCodec: RippingConfiguration.VideoCodec
-        let recommendedCRF: Int
-        let recommendedBitrate: Int // in kbps
+           let resolution: Resolution
+           let estimatedBitrate: Int // in kbps
+           let contentType: ContentType
+           let complexityScore: Double // 1.0-10.0
+           let hdrPresent: Bool
+           let audioTracks: [AudioTrackInfo]
+           let recommendedCodec: RippingConfiguration.VideoCodec
+           let recommendedCRF: Int
+           let recommendedBitrate: Int // in kbps
+
+           // Advanced metrics
+           let sceneChangeRate: Double? // scene changes per minute
+           let motionIntensity: Double? // 0.0-1.0 normalized
+           let grainLevel: Double? // 0.0-1.0 normalized
+           let animationScore: Double? // 0.0-1.0 normalized
+           let subtitleComplexity: Double? // 0.0-1.0 normalized
+           let audioComplexity: Double? // 0.0-1.0 normalized
+           let hdrType: String? // e.g., "HDR10", "Dolby Vision"
+           let immersiveAudio: String? // e.g., "Dolby Atmos", "DTS:X"
 
         enum Resolution {
             case unknown
@@ -178,6 +216,18 @@ extension MediaRipper {
         // Optionally log volume label for reporting
         Logger.shared.log("HD DVD Volume: \(structure.volumeLabel), Main Title: \(mainTitle.name)", level: .info, category: .general)
 
+        // Simulated advanced metrics for HD DVD
+    // Heuristic/simulated advanced metrics for HD DVD
+    let sceneChangeRate = Double(mainTitle.chapters) * 2.0 // Assume 2 scene changes per chapter
+    let motionIntensity = mainTitle.videoCodec == "VC-1" ? 0.7 : (contentType == .animation ? 0.3 : 0.5)
+    let grainLevel = mainTitle.videoCodec == "VC-1" ? 0.5 : (contentType == .animation ? 0.1 : 0.3)
+    let animationScore = contentType == .animation ? 0.95 : (contentType == .mixed ? 0.5 : 0.1)
+    let subtitleComplexity = Double(mainTitle.subtitleTracks.count) > 0 ? min(1.0, Double(mainTitle.subtitleTracks.count) / 5.0) : 0.0
+    let audioComplexity = Double(audioTracks.count) > 0 ? min(1.0, Double(audioTracks.count) / 4.0) : 0.0
+    let hdrType: String? = nil // HD DVD does not support HDR
+    // Simulate immersive audio detection from audio track codec
+    let immersiveAudio: String? = mainTitle.audioTracks.contains(where: { $0.codec.contains("Atmos") }) ? "Dolby Atmos" : (mainTitle.audioTracks.contains(where: { $0.codec.contains("DTS") }) ? "DTS:X" : nil)
+
         return QualityAssessment(
             resolution: resolution,
             estimatedBitrate: estimatedBitrate,
@@ -187,7 +237,15 @@ extension MediaRipper {
             audioTracks: audioTracks,
             recommendedCodec: recommendedCodec,
             recommendedCRF: recommendedCRF,
-            recommendedBitrate: recommendedBitrate
+            recommendedBitrate: recommendedBitrate,
+            sceneChangeRate: sceneChangeRate,
+            motionIntensity: motionIntensity,
+            grainLevel: grainLevel,
+            animationScore: animationScore,
+            subtitleComplexity: subtitleComplexity,
+            audioComplexity: audioComplexity,
+            hdrType: hdrType,
+            immersiveAudio: immersiveAudio
         )
     }
 
@@ -234,6 +292,18 @@ extension MediaRipper {
             estimatedBitrate: estimatedBitrate
         )
 
+        // Simulated advanced metrics for Blu-ray
+    // Heuristic/simulated advanced metrics for Blu-ray
+    let sceneChangeRate = Double(mainPlaylist.playItems.count) * 3.0 // Assume 3 scene changes per play item
+    let motionIntensity = contentType == .sports ? 0.9 : (contentType == .animation ? 0.2 : 0.6)
+    let grainLevel = contentType == .animation ? 0.05 : 0.4
+    let animationScore = contentType == .animation ? 0.98 : (contentType == .mixed ? 0.5 : 0.08)
+    let subtitleComplexity = 0.2 // No subtitle track info, use default
+    let audioComplexity = Double(audioTracks.count) > 0 ? min(1.0, Double(audioTracks.count) / 5.0) : 0.0
+    let hdrType: String? = hdrPresent ? "HDR10" : nil // Could be expanded with real parsing
+    // Simulate immersive audio detection from audio track codec
+    let immersiveAudio: String? = audioTracks.contains(where: { ($0.codec ?? "").contains("Atmos") }) ? "Dolby Atmos" : (audioTracks.contains(where: { ($0.codec ?? "").contains("DTS") }) ? "DTS:X" : nil)
+
         return QualityAssessment(
             resolution: resolution,
             estimatedBitrate: estimatedBitrate,
@@ -243,7 +313,15 @@ extension MediaRipper {
             audioTracks: audioTracks,
             recommendedCodec: recommendedCodec,
             recommendedCRF: recommendedCRF,
-            recommendedBitrate: recommendedBitrate
+            recommendedBitrate: recommendedBitrate,
+            sceneChangeRate: sceneChangeRate,
+            motionIntensity: motionIntensity,
+            grainLevel: grainLevel,
+            animationScore: animationScore,
+            subtitleComplexity: subtitleComplexity,
+            audioComplexity: audioComplexity,
+            hdrType: hdrType,
+            immersiveAudio: immersiveAudio
         )
     }
 
@@ -403,6 +481,16 @@ extension MediaRipper {
             estimatedBitrate: estimatedBitrate
         )
 
+        // Simulated advanced metrics for DVD
+        let sceneChangeRate = 30.0 // DVDs typically have fewer scene changes
+        let motionIntensity = 0.5 // Average motion
+        let grainLevel = 0.3 // Some film grain
+        let animationScore = contentType == .animation ? 0.9 : 0.1
+        let subtitleComplexity = 0.2 // Usually 1-2 subtitle tracks
+        let audioComplexity = Double(audioTracks.count) > 0 ? min(1.0, Double(audioTracks.count) / 3.0) : 0.0
+        let hdrType: String? = nil // DVD does not support HDR
+        let immersiveAudio: String? = nil // DVD does not support Atmos/DTS:X
+
         return QualityAssessment(
             resolution: resolution,
             estimatedBitrate: estimatedBitrate,
@@ -412,7 +500,15 @@ extension MediaRipper {
             audioTracks: audioTracks,
             recommendedCodec: recommendedCodec,
             recommendedCRF: recommendedCRF,
-            recommendedBitrate: recommendedBitrate
+            recommendedBitrate: recommendedBitrate,
+            sceneChangeRate: sceneChangeRate,
+            motionIntensity: motionIntensity,
+            grainLevel: grainLevel,
+            animationScore: animationScore,
+            subtitleComplexity: subtitleComplexity,
+            audioComplexity: audioComplexity,
+            hdrType: hdrType,
+            immersiveAudio: immersiveAudio
         )
     }
 

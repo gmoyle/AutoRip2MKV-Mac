@@ -48,6 +48,18 @@ Pods/
 # Carthage
 Carthage/Build/
 
+# Apple Developer Credentials (NEVER commit these!)
+.env
+.env.local
+developer-credentials.sh
+
+# Distribution artifacts  
+*.app
+*.dmg
+*.zip
+temp_*.dmg
+*-notarization.zip
+
 # App packaging
 *.ipa
 *.dSYM.zip

@@ -1,0 +1,332 @@
+// CodecPerformanceTests.swift
+// AutoRip2MKV-Mac
+// Sprint 3: AV1 & VP9 Codec Enhancement Tests
+// Created: 2026-02-07
+
+import XCTest
+@testable import AutoRip2MKV_Mac
+
+final class CodecPerformanceTests: XCTestCase {
+    
+    var mediaRipper: MediaRipper!
+    
+    override func setUp() {
+        super.setUp()
+        mediaRipper = MediaRipper()
+    }
+    
+    override func tearDown() {
+        mediaRipper = nil
+        super.tearDown()
+    }
+    
+    // MARK: - Codec Argument Tests
+    
+    func testH264CodecArgument() {
+        let codec = MediaRipper.RippingConfiguration.VideoCodec.h264
+        let argument = mediaRipper.value(forKey: "videoCodecArgument", codec: codec) as? String
+        XCTAssertEqual(argument, "libx264", "H.264 codec should map to libx264")
+    }
+    
+    func testH265CodecArgument() {
+        let codec = MediaRipper.RippingConfiguration.VideoCodec.h265
+        let argument = mediaRipper.value(forKey: "videoCodecArgument", codec: codec) as? String
+        XCTAssertEqual(argument, "libx265", "H.265 codec should map to libx265")
+    }
+    
+    func testAV1CodecArgument() {
+        let codec = MediaRipper.RippingConfiguration.VideoCodec.av1
+        let argument = mediaRipper.value(forKey: "videoCodecArgument", codec: codec) as? String
+        XCTAssertEqual(argument, "libaom-av1", "AV1 codec should map to libaom-av1")
+    }
+    
+    func testVP9CodecArgument() {
+        let codec = MediaRipper.RippingConfiguration.VideoCodec.vp9
+        let argument = mediaRipper.value(forKey: "videoCodecArgument", codec: codec) as? String
+        XCTAssertEqual(argument, "libvpx-vp9", "VP9 codec should map to libvpx-vp9")
+    }
+    
+    // MARK: - Quality Setting Tests
+    
+    func testQualityCRFValues() {
+        XCTAssertEqual(MediaRipper.RippingConfiguration.RippingQuality.low.crf, 28)
+        XCTAssertEqual(MediaRipper.RippingConfiguration.RippingQuality.medium.crf, 23)
+        XCTAssertEqual(MediaRipper.RippingConfiguration.RippingQuality.high.crf, 18)
+        XCTAssertEqual(MediaRipper.RippingConfiguration.RippingQuality.lossless.crf, 0)
+    }
+    
+    // MARK: - H.264 Preset Tests
+    
+    func testH264LowQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.low
+        let args = mediaRipper.value(forKey: "h264Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-crf") ?? false)
+        XCTAssertTrue(args?.contains("-preset") ?? false)
+        XCTAssertTrue(args?.contains("veryfast") ?? false)
+    }
+    
+    func testH264MediumQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "h264Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("medium") ?? false)
+    }
+    
+    func testH264HighQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.high
+        let args = mediaRipper.value(forKey: "h264Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("slow") ?? false)
+    }
+    
+    func testH264LosslessArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.lossless
+        let args = mediaRipper.value(forKey: "h264Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("0") ?? false, "Lossless should have CRF 0")
+    }
+    
+    // MARK: - H.265 Preset Tests
+    
+    func testH265LowQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.low
+        let args = mediaRipper.value(forKey: "h265Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-preset") ?? false)
+        XCTAssertTrue(args?.contains("fast") ?? false)
+    }
+    
+    func testH265HighQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.high
+        let args = mediaRipper.value(forKey: "h265Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("slow") ?? false)
+    }
+    
+    func testH265LosslessArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.lossless
+        let args = mediaRipper.value(forKey: "h265Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-x265-params") ?? false)
+        XCTAssertTrue(args?.contains("lossless=1") ?? false)
+    }
+    
+    // MARK: - AV1 Optimization Tests
+    
+    func testAV1LowQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.low
+        let args = mediaRipper.value(forKey: "av1Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-cpu-used") ?? false, "AV1 should have cpu-used parameter")
+        XCTAssertTrue(args?.contains("8") ?? false, "Low quality should use cpu-used 8")
+        XCTAssertTrue(args?.contains("38") ?? false, "Low quality should use CRF 38")
+    }
+    
+    func testAV1MediumQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "av1Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("4") ?? false, "Medium quality should use cpu-used 4")
+        XCTAssertTrue(args?.contains("32") ?? false, "Medium quality should use CRF 32")
+    }
+    
+    func testAV1HighQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.high
+        let args = mediaRipper.value(forKey: "av1Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("2") ?? false, "High quality should use cpu-used 2")
+        XCTAssertTrue(args?.contains("25") ?? false, "High quality should use CRF 25")
+        XCTAssertTrue(args?.contains("-arnr-maxframes") ?? false, "High quality should have temporal filtering")
+    }
+    
+    func testAV1TileBasedEncoding() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "av1Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-tile-columns") ?? false, "AV1 should support tile columns")
+        XCTAssertTrue(args?.contains("-tile-rows") ?? false, "AV1 should support tile rows")
+        XCTAssertTrue(args?.contains("-row-mt") ?? false, "AV1 should support row-based multithreading")
+    }
+    
+    func testAV1LosslessEncoding() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.lossless
+        let args = mediaRipper.value(forKey: "av1Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("0") ?? false, "Lossless should have CRF 0")
+        XCTAssertTrue(args?.contains("1") ?? false, "Lossless should use cpu-used 1")
+    }
+    
+    // MARK: - VP9 Multi-threading Tests
+    
+    func testVP9LowQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.low
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-deadline") ?? false, "VP9 should have deadline parameter")
+        XCTAssertTrue(args?.contains("realtime") ?? false, "Low quality should use realtime deadline")
+        XCTAssertTrue(args?.contains("40") ?? false, "Low quality should use CRF 40")
+    }
+    
+    func testVP9MediumQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("good") ?? false, "Medium quality should use good deadline")
+        XCTAssertTrue(args?.contains("33") ?? false, "Medium quality should use CRF 33")
+    }
+    
+    func testVP9HighQualityArguments() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.high
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("25") ?? false, "High quality should use CRF 25")
+        XCTAssertTrue(args?.contains("-auto-alt-ref") ?? false, "High quality should have alternate reference frames")
+        XCTAssertTrue(args?.contains("-lag-in-frames") ?? false, "High quality should have lookahead")
+    }
+    
+    func testVP9MultiThreadingSupport() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-threads") ?? false, "VP9 should support multiple threads")
+        XCTAssertTrue(args?.contains("-row-mt") ?? false, "VP9 should support row-based multithreading")
+        XCTAssertTrue(args?.contains("1") ?? false, "Row-mt should be enabled")
+    }
+    
+    func testVP9TileEncoding() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.medium
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-tile-columns") ?? false, "VP9 should support tile columns")
+        XCTAssertTrue(args?.contains("-tile-rows") ?? false, "VP9 should support tile rows")
+    }
+    
+    func testVP9LosslessEncoding() {
+        let quality = MediaRipper.RippingConfiguration.RippingQuality.lossless
+        let args = mediaRipper.value(forKey: "vp9Arguments", quality: quality) as? [String]
+        XCTAssertNotNil(args)
+        XCTAssertTrue(args?.contains("-lossless") ?? false, "Lossless mode should be enabled")
+        XCTAssertTrue(args?.contains("1") ?? false, "Lossless parameter should be 1")
+        XCTAssertTrue(args?.contains("best") ?? false, "Lossless should use best deadline")
+    }
+    
+    // MARK: - Codec Preset Tests
+    
+    func testCodecPresetsExist() {
+        let presets = SettingsManager.codecPresets
+        XCTAssertGreaterThanOrEqual(presets.count, 12, "Should have at least 12 codec presets")
+    }
+    
+    func testH264PresetsExist() {
+        let h264Presets = SettingsManager.presets(for: "h264")
+        XCTAssertEqual(h264Presets.count, 3, "Should have 3 H.264 presets")
+    }
+    
+    func testH265PresetsExist() {
+        let h265Presets = SettingsManager.presets(for: "h265")
+        XCTAssertEqual(h265Presets.count, 3, "Should have 3 H.265 presets")
+    }
+    
+    func testAV1PresetsExist() {
+        let av1Presets = SettingsManager.presets(for: "av1")
+        XCTAssertEqual(av1Presets.count, 3, "Should have 3 AV1 presets")
+    }
+    
+    func testVP9PresetsExist() {
+        let vp9Presets = SettingsManager.presets(for: "vp9")
+        XCTAssertEqual(vp9Presets.count, 3, "Should have 3 VP9 presets")
+    }
+    
+    func testPresetByName() {
+        let preset = SettingsManager.preset(named: "AV1 Balanced")
+        XCTAssertNotNil(preset)
+        XCTAssertEqual(preset?.codec, "av1")
+        XCTAssertEqual(preset?.quality, "medium")
+    }
+    
+    func testH264BalancedPreset() {
+        let preset = SettingsManager.preset(named: "H.264 Balanced")
+        XCTAssertNotNil(preset)
+        XCTAssertEqual(preset?.codec, "h264")
+        XCTAssertFalse(preset?.recommendedUseCases.isEmpty ?? true)
+    }
+    
+    func testVP9HighQualityPreset() {
+        let preset = SettingsManager.preset(named: "VP9 High Quality")
+        XCTAssertNotNil(preset)
+        XCTAssertEqual(preset?.quality, "high")
+        XCTAssertTrue(preset?.description.contains("quality") ?? false)
+    }
+    
+    // MARK: - Codec Features Tests
+    
+    func testCodecFeaturesExist() {
+        let features = SettingsManager.codecFeatures
+        XCTAssertEqual(features.count, 4, "Should have 4 codec feature entries")
+    }
+    
+    func testH264Features() {
+        let features = SettingsManager.features(for: "h264")
+        XCTAssertNotNil(features)
+        XCTAssertEqual(features?.displayName, "H.264 (AVC)")
+        XCTAssertEqual(features?.compatibility, 10, "H.264 should have maximum compatibility")
+        XCTAssertTrue(features?.hardwareSupport ?? false)
+    }
+    
+    func testH265Features() {
+        let features = SettingsManager.features(for: "h265")
+        XCTAssertNotNil(features)
+        XCTAssertEqual(features?.displayName, "H.265 (HEVC)")
+        XCTAssertGreaterThan(features?.compressionEfficiency ?? 0, 7)
+        XCTAssertTrue(features?.hardwareSupport ?? false)
+    }
+    
+    func testAV1Features() {
+        let features = SettingsManager.features(for: "av1")
+        XCTAssertNotNil(features)
+        XCTAssertEqual(features?.displayName, "AV1")
+        XCTAssertEqual(features?.compressionEfficiency, 10, "AV1 should have highest compression")
+        XCTAssertLessThan(features?.encodingSpeed ?? 10, 5, "AV1 should be slower to encode")
+    }
+    
+    func testVP9Features() {
+        let features = SettingsManager.features(for: "vp9")
+        XCTAssertNotNil(features)
+        XCTAssertEqual(features?.displayName, "VP9")
+        XCTAssertGreaterThan(features?.compressionEfficiency ?? 0, 7)
+        XCTAssertTrue(features?.recommendedFor.contains("Web streaming") ?? false)
+    }
+    
+    // MARK: - Audio Codec Tests
+    
+    func testAudioCodecArguments() {
+        let aac = mediaRipper.value(forKey: "audioCodecArgument", codec: MediaRipper.RippingConfiguration.AudioCodec.aac) as? String
+        XCTAssertEqual(aac, "aac")
+        
+        let ac3 = mediaRipper.value(forKey: "audioCodecArgument", codec: MediaRipper.RippingConfiguration.AudioCodec.ac3) as? String
+        XCTAssertEqual(ac3, "ac3")
+        
+        let dts = mediaRipper.value(forKey: "audioCodecArgument", codec: MediaRipper.RippingConfiguration.AudioCodec.dts) as? String
+        XCTAssertEqual(dts, "dca")
+        
+        let flac = mediaRipper.value(forKey: "audioCodecArgument", codec: MediaRipper.RippingConfiguration.AudioCodec.flac) as? String
+        XCTAssertEqual(flac, "flac")
+    }
+}
+
+// MARK: - Test Helpers
+
+extension MediaRipper {
+    func value<T, U>(forKey key: String, codec: T) -> U? {
+        // Reflection-based helper for testing private methods
+        let mirror = Mirror(reflecting: self)
+        return nil  // Placeholder - actual implementation would use Mirror or method swizzling
+    }
+    
+    func value<T, U>(forKey key: String, quality: T) -> U? {
+        // Reflection-based helper for testing private methods
+        let mirror = Mirror(reflecting: self)
+        return nil  // Placeholder - actual implementation would use Mirror or method swizzling
+    }
+}

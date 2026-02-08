@@ -10,11 +10,7 @@ extension MainViewController: DVDRipperDelegate {
         }
     }
 
-    func ripperDidUpdateStatus(_ status: String) {
-        DispatchQueue.main.async {
-            self.appendToLog(status)
-        }
-    }
+    // Implementation merged below
 
     func ripperDidUpdateProgress(_ progress: Double, currentTitle: DVDTitle?, totalTitles: Int) {
         DispatchQueue.main.async {
@@ -78,6 +74,18 @@ extension MainViewController: MediaRipperDelegate {
                         "Processing Blu-ray playlist \(playlist.number) - \(Int(progress * 100))% complete"
                     )
                 }
+            }
+        }
+    }
+
+    func ripperDidUpdateStatus(_ status: String) {
+        DispatchQueue.main.async {
+            self.appendToLog(status)
+            if status.contains("Skipping failed title") || status.contains("Skipping failed playlist") {
+                self.showErrorNotification(status)
+            }
+            if status.contains("Retrying") {
+                self.appendToLog("[Recovery] " + status)
             }
         }
     }

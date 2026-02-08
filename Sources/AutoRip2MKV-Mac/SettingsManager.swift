@@ -14,6 +14,8 @@ class SettingsManager {
         static let selectedDriveIndex = "selectedDriveIndex"
         static let autoRipEnabled = "autoRipEnabled"
         static let autoEjectEnabled = "autoEjectEnabled"
+        static let autoQueueEnabled = "autoQueueEnabled"
+        static let autoQueuePriorityByMediaType = "autoQueuePriorityByMediaType"
         static let videoCodec = "videoCodec"
         static let audioCodec = "audioCodec"
         static let quality = "quality"
@@ -21,6 +23,19 @@ class SettingsManager {
         static let includeChapters = "includeChapters"
         static let hardwareAcceleration = "hardwareAcceleration"
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
+        
+        // Intelligent Title Selection (Phase 2 Task 3)
+        static let intelligentTitleSelection = "intelligentTitleSelection"
+        static let skipMenus = "skipMenus"
+        static let skipTrailers = "skipTrailers"
+        static let skipDuplicates = "skipDuplicates"
+        static let autoSelectMainFeature = "autoSelectMainFeature"
+        static let preferLongestTitle = "preferLongestTitle"
+        static let minMainFeatureDuration = "minMainFeatureDuration"
+        static let minBonusFeatureDuration = "minBonusFeatureDuration"
+
+        static let preProcessingScript = "preProcessingScript"
+        static let postProcessingScript = "postProcessingScript"
     }
 
     private init() {}
@@ -75,6 +90,24 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.autoEjectEnabled)
+        }
+    }
+    
+    var autoQueueEnabled: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.autoQueueEnabled)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.autoQueueEnabled)
+        }
+    }
+    
+    var autoQueuePriorityByMediaType: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.autoQueuePriorityByMediaType)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.autoQueuePriorityByMediaType)
         }
     }
 
@@ -145,6 +178,125 @@ class SettingsManager {
         }
     }
 
+    // MARK: - Script Hook Settings
+
+    var preProcessingScript: String? {
+        get {
+            return userDefaults.string(forKey: Keys.preProcessingScript)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.preProcessingScript)
+        }
+    }
+
+    var postProcessingScript: String? {
+        get {
+            return userDefaults.string(forKey: Keys.postProcessingScript)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.postProcessingScript)
+        }
+    }
+    
+    // MARK: - Intelligent Title Selection Settings (Phase 2 Task 3)
+    
+    var intelligentTitleSelection: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.intelligentTitleSelection)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.intelligentTitleSelection)
+        }
+    }
+    
+    var skipMenus: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.skipMenus)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.skipMenus)
+        }
+    }
+    
+    var skipTrailers: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.skipTrailers)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.skipTrailers)
+        }
+    }
+    
+    var skipDuplicates: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.skipDuplicates)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.skipDuplicates)
+        }
+    }
+    
+    var autoSelectMainFeature: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.autoSelectMainFeature)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.autoSelectMainFeature)
+        }
+    }
+    
+    var preferLongestTitle: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.preferLongestTitle)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.preferLongestTitle)
+        }
+    }
+    
+    var minMainFeatureDuration: TimeInterval {
+        get {
+            let value = userDefaults.double(forKey: Keys.minMainFeatureDuration)
+            return value > 0 ? value : 3600 // Default 60 minutes
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.minMainFeatureDuration)
+        }
+    }
+    
+    var minBonusFeatureDuration: TimeInterval {
+        get {
+            let value = userDefaults.double(forKey: Keys.minBonusFeatureDuration)
+            return value > 0 ? value : 300 // Default 5 minutes
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.minBonusFeatureDuration)
+        }
+    }
+    
+    /// Get TitleAnalyzer.FilteringRules from current settings
+    func getTitleFilteringRules() -> TitleAnalyzer.FilteringRules {
+        var rules = TitleAnalyzer.FilteringRules()
+        
+        if intelligentTitleSelection {
+            rules.skipMenus = skipMenus
+            rules.skipTrailers = skipTrailers
+            rules.skipDuplicates = skipDuplicates
+            rules.autoSelectMainFeature = autoSelectMainFeature
+            rules.preferLongestTitle = preferLongestTitle
+            rules.minMainFeatureDuration = minMainFeatureDuration
+            rules.minBonusFeatureDuration = minBonusFeatureDuration
+        } else {
+            // Intelligent filtering disabled - only apply basic duration filter
+            rules.skipMenus = false
+            rules.skipTrailers = false
+            rules.skipDuplicates = false
+            rules.autoSelectMainFeature = false
+        }
+        
+        return rules
+    }
+
     // MARK: - Convenience Methods
 
     func saveSettings(sourcePath: String?, outputPath: String?, driveIndex: Int) {
@@ -161,6 +313,12 @@ class SettingsManager {
         if userDefaults.object(forKey: Keys.autoEjectEnabled) == nil {
             autoEjectEnabled = true
         }
+        if userDefaults.object(forKey: Keys.autoQueueEnabled) == nil {
+            autoQueueEnabled = true  // Auto-queue enabled by default
+        }
+        if userDefaults.object(forKey: Keys.autoQueuePriorityByMediaType) == nil {
+            autoQueuePriorityByMediaType = true  // Use media-type priority by default
+        }
         if userDefaults.object(forKey: Keys.includeSubtitles) == nil {
             includeSubtitles = true
         }
@@ -169,6 +327,32 @@ class SettingsManager {
         }
         if userDefaults.object(forKey: Keys.hardwareAcceleration) == nil {
             hardwareAcceleration = false // Disabled by default
+        }
+        
+        // Intelligent Title Selection defaults (Phase 2 Task 3)
+        if userDefaults.object(forKey: Keys.intelligentTitleSelection) == nil {
+            intelligentTitleSelection = true  // Enabled by default
+        }
+        if userDefaults.object(forKey: Keys.skipMenus) == nil {
+            skipMenus = true  // Skip menus by default
+        }
+        if userDefaults.object(forKey: Keys.skipTrailers) == nil {
+            skipTrailers = true  // Skip trailers by default
+        }
+        if userDefaults.object(forKey: Keys.skipDuplicates) == nil {
+            skipDuplicates = true  // Skip duplicates by default
+        }
+        if userDefaults.object(forKey: Keys.autoSelectMainFeature) == nil {
+            autoSelectMainFeature = false  // Don't auto-select by default (let user choose)
+        }
+        if userDefaults.object(forKey: Keys.preferLongestTitle) == nil {
+            preferLongestTitle = true  // Prefer longest when multiple main features
+        }
+        if userDefaults.object(forKey: Keys.minMainFeatureDuration) == nil {
+            minMainFeatureDuration = 3600  // 60 minutes
+        }
+        if userDefaults.object(forKey: Keys.minBonusFeatureDuration) == nil {
+            minBonusFeatureDuration = 300  // 5 minutes
         }
 
         // Set extended defaults
@@ -218,6 +402,7 @@ class SettingsManager {
         setDefaultIfNeeded("createBackups", value: false)
         setDefaultIfNeeded("autoRetryOnFailure", value: true)
         setDefaultIfNeeded("maxRetryAttempts", value: 3)
+        setDefaultIfNeeded("preProcessingScript", value: "")
         setDefaultIfNeeded("postProcessingScript", value: "")
     }
 

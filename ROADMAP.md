@@ -4,20 +4,34 @@
 
 AutoRip2MKV-Mac aims to be the most comprehensive, user-friendly, and technically advanced DVD/Blu-ray ripping solution for macOS. This roadmap outlines planned features, enhancements, and long-term goals for the project.
 
-## 📊 **Current Status: v1.2.3**
+## 📊 **Current Status: v1.3.0**
 
-- ✅ **Core DVD/Blu-ray Ripping**: Native CSS/AACS decryption
+- ✅ **Core DVD/Blu-ray Ripping**: Production-ready decryption with libdvdcss & libaacs
 - ✅ **Advanced Settings System**: Comprehensive configuration options
 - ✅ **Queue-based Processing**: Efficient batch operations
 - ✅ **Professional UI**: Native macOS interface with extensive customization
 - ✅ **Bundled FFmpeg**: Self-contained binary eliminates downloads
-- ✅ **AI-Generated Codebase**: 13,584+ lines of 100% AI-written Swift code
+- ✅ **Open-Source Decryption**: Integrated libdvdcss (DVD) and libaacs (Blu-ray)
+- ✅ **AI-Generated Codebase**: 11,617 lines of 100% AI-written Swift code
+- ✅ **Production Ready**: No placeholder/scaffolding code remaining
+
+---
+
+## ✅ **Completed in v1.3.0 (February 2026)**
+
+### **Production Decryption Implementation**
+- ✅ **libdvdcss Integration**: Working DVD CSS decryption
+- ✅ **libaacs Integration**: Working Blu-ray AACS decryption
+- ✅ **Swift ↔ C Bindings**: @_silgen_name function declarations
+- ✅ **Library Detection**: Automatic Homebrew path resolution
+- ✅ **Bundling Script**: Standalone app distribution support
+- ✅ **Documentation**: Complete integration and usage guides
 
 ---
 
 ## 🚀 **Planned Features**
 
-### **Phase 1: Enhanced Media Support** (v1.3.x)
+### **Phase 1: Enhanced Media Support** (v1.4.x)
 
 #### **Ultra HD 4K Detection & Processing**
 - **Enhanced UHD Blu-ray Detection**

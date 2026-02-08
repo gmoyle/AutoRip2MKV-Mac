@@ -260,7 +260,8 @@ final class QueueWindowControllerTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         var job = ConversionQueue.ConversionJob(
@@ -288,7 +289,7 @@ class MockConversionQueue: ConversionQueue {
     var cancelAllJobsCalled = false
     var clearCompletedJobsCalled = false
     
-    override func addJob(sourcePath: String, outputDirectory: String, configuration: MediaRipper.RippingConfiguration, mediaType: MediaRipper.MediaType, discTitle: String) -> UUID {
+    override func addJob(sourcePath: String, outputDirectory: String, configuration: MediaRipper.RippingConfiguration, mediaType: MediaRipper.MediaType, discTitle: String, priority: JobPriority = .normal) -> UUID {
         addJobCalled = true
         
         let job = ConversionJob(
@@ -296,7 +297,8 @@ class MockConversionQueue: ConversionQueue {
             outputDirectory: outputDirectory,
             configuration: configuration,
             mediaType: mediaType,
-            discTitle: discTitle
+            discTitle: discTitle,
+            priority: priority
         )
         
         mockJobs.append(job)

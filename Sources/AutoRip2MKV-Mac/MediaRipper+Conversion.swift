@@ -18,10 +18,14 @@ extension MediaRipper {
 
         var arguments = [
             "-i", inputFile,
-            "-c:v", videoCodecArgument(for: configuration.videoCodec),
-            "-crf", "\(configuration.quality.crf)",
-            "-c:a", audioCodecArgument(for: configuration.audioCodec)
+            "-c:v", videoCodecArgument(for: configuration.videoCodec)
         ]
+
+        // Add codec-specific encoding parameters
+        arguments.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
+
+        // Add audio codec
+        arguments.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
 
         // Add subtitle handling if requested
         if configuration.includeSubtitles {
@@ -120,6 +124,176 @@ extension MediaRipper {
         case .vp9:
             return "libvpx-vp9"
         }
+    }
+
+    /// Generates codec-specific FFmpeg arguments for optimal encoding
+    private func codecSpecificArguments(for codec: RippingConfiguration.VideoCodec, quality: RippingConfiguration.RippingQuality) -> [String] {
+        switch codec {
+        case .h264:
+            return h264Arguments(quality: quality)
+        case .h265:
+            return h265Arguments(quality: quality)
+        case .av1:
+            return av1Arguments(quality: quality)
+        case .vp9:
+            return vp9Arguments(quality: quality)
+        }
+    }
+
+    /// H.264 encoding arguments with preset optimization
+    private func h264Arguments(quality: RippingConfiguration.RippingQuality) -> [String] {
+        var args = ["-crf", "\(quality.crf)"]
+        
+        // Add preset for speed vs compression tradeoff
+        switch quality {
+        case .low:
+            args.append(contentsOf: ["-preset", "veryfast"])
+        case .medium:
+            args.append(contentsOf: ["-preset", "medium"])
+        case .high:
+            args.append(contentsOf: ["-preset", "slow"])
+        case .lossless:
+            args.append(contentsOf: ["-preset", "medium", "-crf", "0"])
+        }
+        
+        return args
+    }
+
+    /// H.265 encoding arguments with preset optimization
+    private func h265Arguments(quality: RippingConfiguration.RippingQuality) -> [String] {
+        var args = ["-crf", "\(quality.crf)"]
+        
+        // Add preset for speed vs compression tradeoff
+        switch quality {
+        case .low:
+            args.append(contentsOf: ["-preset", "fast"])
+        case .medium:
+            args.append(contentsOf: ["-preset", "medium"])
+        case .high:
+            args.append(contentsOf: ["-preset", "slow"])
+        case .lossless:
+            args.append(contentsOf: ["-preset", "medium", "-x265-params", "lossless=1"])
+        }
+        
+        return args
+    }
+
+    /// AV1 encoding arguments with tile-based encoding and cpu-used optimization
+    private func av1Arguments(quality: RippingConfiguration.RippingQuality) -> [String] {
+        var args: [String] = []
+        
+        // AV1 uses different CRF values (0-63 scale, higher = lower quality)
+        let av1Crf: Int
+        switch quality {
+        case .low:
+            av1Crf = 38  // Fast, lower quality
+        case .medium:
+            av1Crf = 32  // Balanced
+        case .high:
+            av1Crf = 25  // High quality, slower
+        case .lossless:
+            av1Crf = 0   // Lossless
+        }
+        
+        args.append(contentsOf: ["-crf", "\(av1Crf)"])
+        
+        // cpu-used: 0-8 (0=slowest/best, 8=fastest/worst)
+        let cpuUsed: Int
+        switch quality {
+        case .low:
+            cpuUsed = 8  // Fastest
+        case .medium:
+            cpuUsed = 4  // Balanced
+        case .high:
+            cpuUsed = 2  // High quality
+        case .lossless:
+            cpuUsed = 1  // Best quality
+        }
+        
+        args.append(contentsOf: ["-cpu-used", "\(cpuUsed)"])
+        
+        // Tile-based encoding for parallel processing
+        // Use 2 tile columns and 2 tile rows for better performance
+        args.append(contentsOf: [
+            "-tile-columns", "2",
+            "-tile-rows", "1",
+            "-row-mt", "1"  // Enable row-based multithreading
+        ])
+        
+        // Additional AV1-specific optimizations
+        if quality == .high || quality == .lossless {
+            args.append(contentsOf: [
+                "-arnr-maxframes", "7",    // Temporal filtering
+                "-arnr-strength", "4"       // Filtering strength
+            ])
+        }
+        
+        return args
+    }
+
+    /// VP9 encoding arguments with multi-threading and quality optimization
+    private func vp9Arguments(quality: RippingConfiguration.RippingQuality) -> [String] {
+        var args: [String] = []
+        
+        // VP9 CRF scale (0-63, higher = lower quality)
+        let vp9Crf: Int
+        switch quality {
+        case .low:
+            vp9Crf = 40  // Fast, lower quality
+        case .medium:
+            vp9Crf = 33  // Balanced
+        case .high:
+            vp9Crf = 25  // High quality
+        case .lossless:
+            vp9Crf = 0   // Lossless
+        }
+        
+        args.append(contentsOf: ["-crf", "\(vp9Crf)", "-b:v", "0"])  // VBR mode
+        
+        // Quality/Speed tradeoff (deadline: good, best, realtime)
+        let deadline: String
+        let cpuUsed: Int
+        switch quality {
+        case .low:
+            deadline = "realtime"
+            cpuUsed = 8  // Fastest
+        case .medium:
+            deadline = "good"
+            cpuUsed = 2  // Balanced
+        case .high:
+            deadline = "good"
+            cpuUsed = 0  // Best quality
+        case .lossless:
+            deadline = "best"
+            cpuUsed = 0  // Best quality with lossless
+        }
+        
+        args.append(contentsOf: ["-deadline", deadline, "-cpu-used", "\(cpuUsed)"])
+        
+        // Multi-threading support
+        let threads = ProcessInfo.processInfo.activeProcessorCount
+        args.append(contentsOf: [
+            "-threads", "\(threads)",
+            "-row-mt", "1",              // Enable row-based multithreading
+            "-tile-columns", "2",        // Parallel tile encoding
+            "-tile-rows", "1"
+        ])
+        
+        // Quality tuning for high/lossless
+        if quality == .high || quality == .lossless {
+            args.append(contentsOf: [
+                "-auto-alt-ref", "1",     // Enable alternate reference frames
+                "-lag-in-frames", "25",   // Lookahead frames for better encoding
+                "-arnr-maxframes", "7",   // Temporal filtering
+                "-arnr-strength", "4"     // Filtering strength
+            ])
+        }
+        
+        if quality == .lossless {
+            args.append(contentsOf: ["-lossless", "1"])
+        }
+        
+        return args
     }
 
     private func audioCodecArgument(for codec: RippingConfiguration.AudioCodec) -> String {

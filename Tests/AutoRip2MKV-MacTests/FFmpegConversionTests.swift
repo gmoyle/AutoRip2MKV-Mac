@@ -134,7 +134,8 @@ final class FFmpegConversionTests: XCTestCase {
                 quality: quality,
                 includeSubtitles: false,
                 includeChapters: false,
-                mediaType: .dvd
+                mediaType: .dvd,
+            batchMode: false
             )
             
             // Test that configuration is valid
@@ -160,7 +161,8 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         // Test conversion setup (without actually running FFmpeg in tests)
@@ -182,7 +184,8 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         XCTAssertTrue(configuration.includeChapters)
@@ -245,7 +248,8 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         // This should eventually fail due to invalid output path
@@ -267,7 +271,8 @@ final class FFmpegConversionTests: XCTestCase {
                     quality: .medium,
                     includeSubtitles: false,
                     includeChapters: false,
-                    mediaType: .dvd
+                    mediaType: .dvd,
+            batchMode: false
                 )
                 
                 // All combinations should be valid
@@ -288,7 +293,8 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         measure {

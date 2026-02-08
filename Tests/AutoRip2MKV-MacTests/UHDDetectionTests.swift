@@ -157,7 +157,15 @@ class UHDDetectionTests: XCTestCase {
             audioTracks: [],
             recommendedCodec: .h265,
             recommendedCRF: 23,
-            recommendedBitrate: 6000
+            recommendedBitrate: 6000,
+            sceneChangeRate: nil,
+            motionIntensity: nil,
+            grainLevel: nil,
+            animationScore: nil,
+            subtitleComplexity: nil,
+            audioComplexity: nil,
+            hdrType: nil,
+            immersiveAudio: nil
         )
 
         XCTAssertEqual(assessment.resolution, .fullHD1080p)
@@ -458,7 +466,15 @@ class UHDDetectionTests: XCTestCase {
             ],
             recommendedCodec: .av1,
             recommendedCRF: 28,
-            recommendedBitrate: 12000
+            recommendedBitrate: 12000,
+            sceneChangeRate: nil,
+            motionIntensity: nil,
+            grainLevel: nil,
+            animationScore: nil,
+            subtitleComplexity: nil,
+            audioComplexity: nil,
+            hdrType: nil,
+            immersiveAudio: nil
         )
 
         XCTAssertEqual(assessment.resolution, .uhd2160p)

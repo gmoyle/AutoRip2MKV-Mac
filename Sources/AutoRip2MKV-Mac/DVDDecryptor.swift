@@ -1,31 +1,27 @@
 import Foundation
-import IOKit
-import IOKit.storage
 
-/// Native DVD decryption handler for CSS (Content Scramble System)
+#if canImport(Darwin)
+import Darwin
+#endif
+
+/// DVD decryption handler using libdvdcss for CSS (Content Scramble System)
+/// 
+/// This implementation uses the open-source libdvdcss library to handle CSS decryption,
+/// eliminating the need for a custom CSS implementation and ensuring legal compliance.
 class DVDDecryptor {
 
-    // CSS key tables and constants
-    private static let CSS_KEY_SIZE = 5
+    // CSS constants
     private static let SECTOR_SIZE = 2048
     private static let DVD_BLOCK_LEN = 2048
 
-    // CSS authentication and key structures
-    struct CSSKey {
-        var key: [UInt8] = Array(repeating: 0, count: 5)
-    }
-
-    private struct DVDAuthInfo {
-        var type: UInt8 = 0
-        var agid: UInt8 = 0
-        var data: [UInt8] = Array(repeating: 0, count: 256)
-    }
+    // libdvdcss constants (from dvdcss.h)
+    private static let DVDCSS_NOFLAGS: Int32 = 0
+    private static let DVDCSS_READ_DECRYPT: Int32 = 1 << 0
+    private static let DVDCSS_SEEK_KEY: Int32 = 1 << 1
 
     // Device reference for DVD drive
     private var devicePath: String
-    private var fileHandle: FileHandle?
-    private var discKey: CSSKey?
-    private var titleKeys: [Int: CSSKey] = [:]
+    private var dvdcss: OpaquePointer?
 
     init(devicePath: String) {
         self.devicePath = devicePath
@@ -37,244 +33,97 @@ class DVDDecryptor {
 
     // MARK: - Public Interface
 
-    /// Initialize DVD device and perform CSS authentication
+    /// Initialize DVD device and perform CSS authentication using libdvdcss
     func initializeDevice() throws {
-        guard let handle = FileHandle(forReadingAtPath: devicePath) else {
+        // Open device with libdvdcss
+        let handle = dvdcss_open(devicePath)
+        if handle == nil {
             throw DVDError.deviceNotFound
         }
-        self.fileHandle = handle
-
-        try performCSSAuthentication()
-        try obtainDiscKey()
+        self.dvdcss = handle
+        Logger.shared.log("libdvdcss: Successfully initialized device \(devicePath)")
     }
 
-    /// Decrypt a DVD sector
-    func decryptSector(data: Data, sector: UInt32, titleNumber: Int) throws -> Data {
-        guard let titleKey = titleKeys[titleNumber] else {
-            throw DVDError.titleKeyNotFound
+    /// Read and decrypt DVD sectors using libdvdcss
+    func readSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
+        guard let handle = dvdcss else {
+            throw DVDError.deviceNotOpen
         }
 
-        return try applyCSSDecryption(data: data, key: titleKey, sector: sector)
-    }
-
-    /// Get title key for a specific title
-    func getTitleKey(titleNumber: Int, startSector: UInt32) throws -> CSSKey {
-        if let existingKey = titleKeys[titleNumber] {
-            return existingKey
+        // Seek to start sector with key retrieval
+        let seekResult = dvdcss_seek(handle, Int32(startSector), Self.DVDCSS_SEEK_KEY)
+        if seekResult < 0 {
+            throw DVDError.invalidSector
         }
 
-        let titleKey = try extractTitleKey(titleNumber: titleNumber, startSector: startSector)
-        titleKeys[titleNumber] = titleKey
-        return titleKey
+        // Allocate buffer
+        var buffer = [UInt8](repeating: 0, count: sectorCount * Self.SECTOR_SIZE)
+        
+        // Read and decrypt sectors
+        let readResult = buffer.withUnsafeMutableBytes { bufferPtr in
+            dvdcss_read(handle, bufferPtr.baseAddress, Int32(sectorCount), Self.DVDCSS_READ_DECRYPT)
+        }
+
+        if readResult < 0 {
+            throw DVDError.decryptionFailed
+        }
+
+        let bytesRead = Int(readResult) * Self.SECTOR_SIZE
+        return Data(buffer[0..<bytesRead])
     }
 
     /// Close the DVD device
     func closeDevice() {
-        fileHandle?.closeFile()
-        fileHandle = nil
-    }
-
-    /// Read multiple sectors from DVD
-    func readSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
-        guard let handle = fileHandle else {
-            throw DVDError.deviceNotOpen
+        if let handle = dvdcss {
+            let _ = dvdcss_close(handle)
+            self.dvdcss = nil
+            Logger.shared.log("libdvdcss: Device closed")
         }
-
-        let offset = Int64(startSector) * Int64(Self.SECTOR_SIZE)
-        handle.seek(toFileOffset: UInt64(offset))
-        let dataSize = sectorCount * Self.SECTOR_SIZE
-        return handle.readData(ofLength: dataSize)
     }
 
-    /// Decrypt multiple sectors
+    /// Decrypt a single sector (legacy interface for compatibility)
+    func decryptSector(data: Data, sector: UInt32, titleNumber: Int) throws -> Data {
+        // For libdvdcss, decryption happens during read
+        // This method is for compatibility with existing code
+        return data
+    }
+
+    /// Get title key (not needed with libdvdcss, but kept for compatibility)
+    func getTitleKey(titleNumber: Int, startSector: UInt32) throws -> CSSKey {
+        // libdvdcss handles keys internally
+        return CSSKey()
+    }
+
+    /// Decrypt multiple sectors (compatibility wrapper)
     func decryptSectors(data: Data, titleKey: CSSKey, startSector: UInt32) throws -> Data {
-        var decryptedData = Data()
-        let sectorCount = data.count / Self.SECTOR_SIZE
-
-        for i in 0..<sectorCount {
-            let sectorOffset = i * Self.SECTOR_SIZE
-            let sectorData = data.subdata(in: sectorOffset..<(sectorOffset + Self.SECTOR_SIZE))
-            let decryptedSector = try applyCSSDecryption(
-                data: sectorData,
-                key: titleKey,
-                sector: startSector + UInt32(i)
-            )
-            decryptedData.append(decryptedSector)
-        }
-
-        return decryptedData
+        // libdvdcss handles decryption during read, so this just returns data
+        return data
     }
 
-    // MARK: - CSS Authentication
+    // MARK: - Helper Types
 
-    private func performCSSAuthentication() throws {
-        // Step 1: Report AGID (Authentication Grant ID)
-        let agid = try reportAGID()
-
-        // Step 2: Report Challenge
-        let hostChallenge = generateHostChallenge()
-        _ = try reportChallenge(agid: agid, challenge: hostChallenge)
-
-        // Step 3: Report Key1
-        let hostKey = generateHostKey()
-        try reportKey1(agid: agid, key: hostKey)
-
-        // Step 4: Report Challenge (get drive challenge)
-        let driveChallenge = try reportChallenge(agid: agid)
-
-        // Step 5: Calculate and verify response
-        let response = calculateCSSResponse(driveChallenge: driveChallenge, hostKey: hostKey)
-        try reportKey2(agid: agid, response: response)
-    }
-
-    private func reportAGID() throws -> UInt8 {
-        // Implementation for CSS AGID reporting
-        // This would interface with IOKit to communicate with the DVD drive
-        return 0 // Placeholder
-    }
-
-    private func generateHostChallenge() -> [UInt8] {
-        // Generate 10-byte host challenge
-        var challenge = [UInt8](repeating: 0, count: 10)
-        for i in 0..<10 {
-            challenge[i] = UInt8.random(in: 0...255)
-        }
-        return challenge
-    }
-
-    private func reportChallenge(agid: UInt8, challenge: [UInt8]? = nil) throws -> [UInt8] {
-        // Report challenge to drive or get drive challenge
-        if let hostChallenge = challenge {
-            // Send host challenge to drive
-            return hostChallenge
-        } else {
-            // Get drive challenge
-            return Array(repeating: 0, count: 10) // Placeholder
-        }
-    }
-
-    private func generateHostKey() -> [UInt8] {
-        // Generate 5-byte host key
-        return Array(repeating: 0, count: 5) // Placeholder
-    }
-
-    private func reportKey1(agid: UInt8, key: [UInt8]) throws {
-        // Report key1 to drive
-    }
-
-    private func calculateCSSResponse(driveChallenge: [UInt8], hostKey: [UInt8]) -> [UInt8] {
-        // Implement CSS response calculation algorithm
-        return Array(repeating: 0, count: 5) // Placeholder
-    }
-
-    private func reportKey2(agid: UInt8, response: [UInt8]) throws {
-        // Report key2 (response) to drive
-    }
-
-    // MARK: - Key Extraction
-
-    private func obtainDiscKey() throws {
-        // Read disc key from lead-in area
-        let discKeyData = try readDiscKeyFromLeadIn()
-        self.discKey = try decryptDiscKey(encryptedKey: discKeyData)
-    }
-
-    private func readDiscKeyFromLeadIn() throws -> [UInt8] {
-        // Read encrypted disc key from DVD lead-in area
-        return Array(repeating: 0, count: 2048) // Placeholder
-    }
-
-    private func decryptDiscKey(encryptedKey: [UInt8]) throws -> CSSKey {
-        // Decrypt the disc key using player keys
-        let key = CSSKey()
-        // Implementation would go here
-        return key
-    }
-
-    private func extractTitleKey(titleNumber: Int, startSector: UInt32) throws -> CSSKey {
-        // Read title key from specified sector
-        let sectorData = try readSector(sector: startSector)
-        return try decryptTitleKey(encryptedData: sectorData, titleNumber: titleNumber)
-    }
-
-    private func decryptTitleKey(encryptedData: Data, titleNumber: Int) throws -> CSSKey {
-        guard self.discKey != nil else {
-            throw DVDError.discKeyNotFound
-        }
-
-        let titleKey = CSSKey()
-        // Implement title key decryption algorithm
-        return titleKey
-    }
-
-    // MARK: - Sector Operations
-
-    private func readSector(sector: UInt32) throws -> Data {
-        guard let handle = fileHandle else {
-            throw DVDError.deviceNotOpen
-        }
-
-        let offset = Int64(sector) * Int64(Self.SECTOR_SIZE)
-        handle.seek(toFileOffset: UInt64(offset))
-        return handle.readData(ofLength: Self.SECTOR_SIZE)
-    }
-
-    private func applyCSSDecryption(data: Data, key: CSSKey, sector: UInt32) throws -> Data {
-        var decryptedData = Data(data)
-
-        // Check if sector is encrypted (scrambling bits)
-        let scramblingBits = data[0x14] & 0x30
-        if scramblingBits == 0 {
-            return data // Not encrypted
-        }
-
-        // Apply CSS decryption algorithm
-        decryptedData = cssDecryptSector(data: data, key: key.key, sector: sector)
-
-        return decryptedData
-    }
-
-    private func cssDecryptSector(data: Data, key: [UInt8], sector: UInt32) -> Data {
-        var result = Data(data)
-
-        // CSS decryption implementation
-        // This involves the CSS stream cipher algorithm
-        let streamCipher = generateCSSStreamCipher(key: key, sector: sector)
-
-        // XOR with stream cipher (simplified)
-        for i in 0x80..<data.count {
-            if i < streamCipher.count {
-                result[i] = data[i] ^ streamCipher[i - 0x80]
-            }
-        }
-
-        return result
-    }
-
-    private func generateCSSStreamCipher(key: [UInt8], sector: UInt32) -> [UInt8] {
-        // Generate CSS stream cipher based on key and sector
-        // This is a simplified placeholder - real implementation would use CSS LFSR
-        let cipher = [UInt8](repeating: 0, count: Self.SECTOR_SIZE - 0x80)
-
-        // CSS LFSR implementation would go here
-        // Using key and sector number to generate cipher stream
-
-        return cipher
-    }
-
-    // MARK: - Player Keys
-
-    /// DVD player keys for CSS authentication
-    private func getPlayerKeys() -> [[UInt8]] {
-        // These would be the actual DVD player keys
-        // Note: In a real implementation, these would need to be obtained legally
-        return [
-            [0x01, 0x02, 0x03, 0x04, 0x05],
-            [0x06, 0x07, 0x08, 0x09, 0x0A],
-            // ... more player keys
-        ]
+    /// CSS key structure (kept for compatibility)
+    struct CSSKey {
+        var key: [UInt8] = Array(repeating: 0, count: 5)
     }
 }
+
+// MARK: - libdvdcss C Function Declarations
+
+/// C function declarations for libdvdcss
+/// These map to the functions in dvdcss.h
+
+@_silgen_name("dvdcss_open")
+private func dvdcss_open(_ psz_target: UnsafePointer<CChar>?) -> OpaquePointer?
+
+@_silgen_name("dvdcss_close")
+private func dvdcss_close(_ dvdcss: OpaquePointer?) -> Int32
+
+@_silgen_name("dvdcss_seek")
+private func dvdcss_seek(_ dvdcss: OpaquePointer?, _ i_blocks: Int32, _ i_flags: Int32) -> Int32
+
+@_silgen_name("dvdcss_read")
+private func dvdcss_read(_ dvdcss: OpaquePointer?, _ p_buffer: UnsafeMutableRawPointer?, _ i_blocks: Int32, _ i_flags: Int32) -> Int32
 
 // MARK: - Error Types
 
@@ -291,7 +140,7 @@ enum DVDError: Error {
     var localizedDescription: String {
         switch self {
         case .deviceNotFound:
-            return "DVD device not found"
+            return "DVD device not found or libdvdcss failed to open device"
         case .deviceNotOpen:
             return "DVD device not opened"
         case .authenticationFailed:
@@ -303,9 +152,9 @@ enum DVDError: Error {
         case .decryptionFailed:
             return "Decryption failed"
         case .invalidSector:
-            return "Invalid sector"
+            return "Invalid sector or seek failed"
         case .cssNotSupported:
-            return "CSS encryption not supported"
+            return "CSS encryption not supported (libdvdcss not available)"
         }
     }
 }

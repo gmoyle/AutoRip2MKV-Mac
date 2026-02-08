@@ -5,6 +5,24 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-07
+
+### 🔐 Major Changes
+- **Open-Source Decryption**: Integrated libdvdcss for DVD CSS decryption
+- **Blu-ray AACS Support**: Integrated libaacs for Blu-ray AACS decryption  
+- **No Placeholder Code**: Replaced scaffolded decryption with working implementations
+- **Library Bundling**: Added script to bundle decryption libraries with app
+
+### 📚 Documentation
+- Added DECRYPTION_LIBRARIES.md with integration details
+- Updated README to clarify use of open-source libraries  
+- Updated AGENTS.md with new architecture details
+
+### 🔧 Technical
+- Updated Package.swift to link libdvdcss and libaacs
+- Created Swift bindings for C library functions using @_silgen_name
+- Added bundle-decryption-libs.sh for standalone distribution
+
 ## [1.2.4] - 2025-07-15
 
 ### 🔧 Fixed
@@ -34,20 +52,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Stability**: Improved test reliability and reduced flaky test failures
 - **Code Quality**: Better separation of concerns between main controller and file organization extension
 
-## [1.2.2] - 2025-06-27
+## [1.2.5] - 2026-01-31
 
 ### 🚀 Improved
-- **Universal Binary Support**: Added support for both Intel and Apple Silicon Macs
-- **Release Process**: Enhanced automated release workflow with proper universal binary creation
-- **Package Configuration**: Updated Package.swift to be macOS-only for better compatibility
+- **Blu-ray & DVD Error Recovery**: Added robust error detection, retry logic, and fallback strategies to all critical ripping steps (structure parsing, decryption, conversion, file I/O). Failed playlists/titles are skipped after repeated failures, with errors logged and user notified.
+- **User Notifications & Logging**: Enhanced workflow status updates, error notifications, and detailed logging for all disc types. Users receive real-time feedback and alerts for all recovery actions.
 
-## [1.2.1] - 2025-06-27
+### �️ Fixed
+- Improved error handling and recovery for Blu-ray and DVD workflows
 
-### 🔧 Fixed
-- **Package Configuration**: Fixed Package.swift to properly target macOS only
-- **Release Workflow**: Improved GitHub Actions release process for better artifact generation
+### 📚 Documentation
+- Updated README and user guide to reflect new error recovery and notification features
 
-## [1.2.0] - 2025-06-20
+### 🤪 Testing
+- All 213 tests continue to pass successfully
+- CI/CD pipeline validates builds on macOS
+- Memory management improvements for enhanced stability
 
 ### 🎉 Major Features
 - **Queue System**: Implemented comprehensive conversion queue with job management

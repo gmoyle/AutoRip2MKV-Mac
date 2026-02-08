@@ -58,7 +58,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         let expectation = XCTestExpectation(description: "DVD ripping workflow")
@@ -87,7 +88,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         // Start and immediately cancel
@@ -115,7 +117,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .high,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .bluray
+            mediaType: .bluray,
+            batchMode: false
         )
         
         let expectation = XCTestExpectation(description: "Blu-ray ripping workflow")
@@ -143,7 +146,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: nil
+            mediaType: nil,
+            batchMode: false
         )
         
         mediaRipper.startRipping(mediaPath: "/invalid/path", configuration: configuration)
@@ -168,7 +172,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         mediaRipper.startRipping(mediaPath: testDVDPath, configuration: configuration)
@@ -197,7 +202,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
                 quality: .medium,
                 includeSubtitles: false,
                 includeChapters: false,
-                mediaType: .dvd
+                mediaType: .dvd,
+            batchMode: false
             )
             
             XCTAssertEqual(configuration.videoCodec, codec)
@@ -216,7 +222,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
                 quality: .medium,
                 includeSubtitles: false,
                 includeChapters: false,
-                mediaType: .dvd
+                mediaType: .dvd,
+            batchMode: false
             )
             
             XCTAssertEqual(configuration.audioCodec, codec)
@@ -243,7 +250,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         // Start first operation
@@ -279,7 +287,8 @@ final class MediaRipperIntegrationTests: XCTestCase {
             quality: .low, // Use low quality for faster testing
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd
+            mediaType: .dvd,
+            batchMode: false
         )
         
         measure {

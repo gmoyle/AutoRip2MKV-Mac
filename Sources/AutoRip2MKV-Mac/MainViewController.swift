@@ -20,6 +20,8 @@ class MainViewController: NSViewController {
     // Automation Settings
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
+    internal var batchModeCheckbox: NSButton!
+    internal var batchDiscListField: NSTextField!
     internal var settingsButton: NSButton!
     internal var queueButton: NSButton!
 
@@ -141,6 +143,16 @@ class MainViewController: NSViewController {
         autoEjectCheckbox.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(autoEjectCheckbox)
 
+        batchModeCheckbox = NSButton(checkboxWithTitle: "Batch Mode (unattended)", target: self, action: #selector(batchModeToggled))
+        batchModeCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(batchModeCheckbox)
+
+        batchDiscListField = NSTextField()
+        batchDiscListField.placeholderString = "Enter disc paths (comma-separated)"
+        batchDiscListField.translatesAutoresizingMaskIntoConstraints = false
+        batchDiscListField.isHidden = true
+        view.addSubview(batchDiscListField)
+
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
@@ -148,6 +160,10 @@ class MainViewController: NSViewController {
         queueButton = NSButton(title: "Queue", target: self, action: #selector(showQueue))
         queueButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(queueButton)
+    }
+
+    @objc private func batchModeToggled() {
+        batchDiscListField.isHidden = batchModeCheckbox.state != .on
     }
 
     private func setupRipButton() {
@@ -221,61 +237,44 @@ class MainViewController: NSViewController {
     }
 
     @objc internal func startRipping() {
-        guard let sourcePath = getSelectedSourcePath(), !outputPathField.stringValue.isEmpty else {
-            showAlert(title: "Error", message: "Please select both source and output directories.")
+        if batchModeCheckbox.state == .on {
+            // Batch mode: parse disc paths and start batch ripping
+            let discPaths = batchDiscListField.stringValue
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard !discPaths.isEmpty, !outputPathField.stringValue.isEmpty else {
+                showAlert(title: "Error", message: "Please enter disc paths and output directory for batch mode.")
+                return
+            }
+            installFFmpegIfNeeded()
+            let mediaRipper = MediaRipper()
+            let configuration = MediaRipper.RippingConfiguration(
+                outputDirectory: outputPathField.stringValue,
+                selectedTitles: [],
+                videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
+                audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
+                quality: {
+                    switch settingsManager.quality {
+                    case "low": return .low
+                    case "medium": return .medium
+                    case "high": return .high
+                    default: return .medium
+                    }
+                }(),
+                includeSubtitles: true,
+                includeChapters: true,
+                mediaType: nil,
+                batchMode: true
+            )
+            appendToLog("Starting unattended batch ripping for \(discPaths.count) discs...")
+            mediaRipper.delegate = self
+            mediaRipper.startBatchRipping(mediaPaths: discPaths, configuration: configuration)
+            saveCurrentSettings()
+            showQueue()
             return
         }
-
-        // Check if FFmpeg is available
-        installFFmpegIfNeeded()
-
-        // Detect media type
-        let mediaRipper = MediaRipper()
-        let mediaType = mediaRipper.detectMediaType(path: sourcePath)
-
-        // Generate disc title from source path or drive info
-        let discTitle = generateDiscTitle(from: sourcePath)
-
-        appendToLog("Adding \(discTitle) to conversion queue...")
-        appendToLog("Source: \(sourcePath)")
-        appendToLog("Output: \(outputPathField.stringValue)")
-
-        // Configure ripping for the queue
-        let configuration = MediaRipper.RippingConfiguration(
-            outputDirectory: outputPathField.stringValue,
-            selectedTitles: [], // Rip all titles
-            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
-            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
-            quality: {
-                switch settingsManager.quality {
-                case "low": return .low
-                case "medium": return .medium
-                case "high": return .high
-                default: return .medium
-                }
-            }(),
-            includeSubtitles: true,
-            includeChapters: true,
-            mediaType: mediaType
-        )
-
-        // Add to queue instead of starting immediately
-        let jobId = conversionQueue.addJob(
-            sourcePath: sourcePath,
-            outputDirectory: outputPathField.stringValue,
-            configuration: configuration,
-            mediaType: mediaType,
-            discTitle: discTitle
-        )
-
-        appendToLog("Added to queue with ID: \(jobId.uuidString)")
-        appendToLog("Disc will be ejected automatically after reading is complete")
-
-        // Save current settings
-        saveCurrentSettings()
-
-        // Show queue window to monitor progress
-        showQueue()
+        // ...existing single-disc logic...
     }
 
     func generateDiscTitle(from sourcePath: String) -> String {
@@ -395,6 +394,11 @@ extension MainViewController: DriveDetectorDelegate {
             appendToLog("Auto-ripping is disabled. Insert disc manually to start ripping.")
             return
         }
+        
+        guard settingsManager.autoQueueEnabled else {
+            appendToLog("Auto-queueing is disabled. Disc detected but not auto-added: \(drive.displayName)")
+            return
+        }
 
         guard !outputPathField.stringValue.isEmpty else {
             showAlert(title: "Error", message: "Output directory must be set for auto-ripping.")
@@ -407,8 +411,18 @@ extension MainViewController: DriveDetectorDelegate {
         // Detect media type
         let mediaRipper = MediaRipper()
         let mediaType = mediaRipper.detectMediaType(path: drive.mountPoint)
-
-        appendToLog("Auto-adding \(drive.displayName) to conversion queue...")
+        
+        // Determine priority for auto-detected disc
+        let priority: ConversionQueue.JobPriority
+        if settingsManager.autoQueuePriorityByMediaType {
+            // Use media-type-based priority (4K=high, Blu-ray=normal, HD DVD=normal, DVD=low)
+            priority = drive.type.defaultPriority
+            appendToLog("Auto-adding \(drive.displayName) (\(drive.type.displayName)) with \(priority.description) priority...")
+        } else {
+            // Use normal priority for all
+            priority = .normal
+            appendToLog("Auto-adding \(drive.displayName) to conversion queue...")
+        }
 
         // Configure ripping using saved settings for the queue
         let configuration = MediaRipper.RippingConfiguration(
@@ -426,19 +440,21 @@ extension MainViewController: DriveDetectorDelegate {
             }(),
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: mediaType
+            mediaType: mediaType,
+            batchMode: batchModeCheckbox.state == .on
         )
 
-        // Add to queue for processing
+        // Add to queue for processing with determined priority
         let jobId = conversionQueue.addJob(
             sourcePath: drive.mountPoint,
             outputDirectory: outputPathField.stringValue,
             configuration: configuration,
             mediaType: mediaType,
-            discTitle: drive.displayName
+            discTitle: drive.displayName,
+            priority: priority
         )
 
-        appendToLog("Auto-added to queue with ID: \(jobId.uuidString)")
+        appendToLog("Auto-added to queue with ID: \(jobId.uuidString) (Priority: \(priority.description))")
         appendToLog("Disc will be ejected automatically after reading is complete")
 
         // Save current settings

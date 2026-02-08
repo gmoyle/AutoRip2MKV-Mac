@@ -1,7 +1,8 @@
 <div align="center">
   <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
   <h1>AutoRip2MKV for Mac</h1>
-  <p><em>Native DVD & Blu-ray Ripping with Built-in CSS Decryption</em></p>
+  <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
+  <p><sub>v1.3.0 - Production-ready libdvdcss & libaacs integration</sub></p>
   
   [![Build Status](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
   [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
@@ -11,7 +12,7 @@
 
 > 🤖 **AI Development Experiment**: This entire application was created using Warp 2.0 AI assistance by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
-A native macOS application for automatically ripping DVDs and Blu-rays to MKV format with **native CSS decryption** - no third-party applications required!
+A native macOS application for automatically ripping DVDs and Blu-rays to MKV format using **open-source decryption libraries** (libdvdcss & libaacs) - no third-party applications like MakeMKV required!
 
 ## 🎨 App Icon
 
@@ -41,9 +42,9 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 
 ## Features
 
-- **Native DVD decryption** - Built-in CSS (Content Scramble System) decryption
-- **Blu-ray Support** - AACS decryption framework and BDMV parsing
-- **No dependencies on MakeMKV** - Completely self-contained solution
+- **DVD CSS Decryption** - Uses open-source libdvdcss for Content Scramble System decryption
+- **Blu-ray AACS Support** - Uses open-source libaacs for AACS decryption and BDMV parsing
+- **No Third-Party Applications** - No need for MakeMKV or other separate ripping tools
 - **Smart FFmpeg Detection** - Automatically detects system-installed FFmpeg or uses bundled version
 - **Homebrew Compatible** - Works seamlessly with Homebrew-installed FFmpeg
 - **No Installation Dialogs** - Eliminates unnecessary FFmpeg installation prompts
@@ -52,12 +53,14 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - **Automatic Drive Detection** - Smart optical drive detection and selection
 - Native macOS interface built with Swift and AppKit
 - Easy-to-use GUI with persistent settings
-- Progress tracking and logging with real-time updates
-- Automatic DVD/Blu-ray structure analysis and title detection
-- Chapter preservation and metadata inclusion
-- Multiple video/audio codec support (H.264, H.265, AV1, AAC, AC3, DTS, FLAC)
-- Configurable quality settings
-- **🤖 100% AI-Generated**: 13,715 lines of Swift code created entirely by AI
+ Progress tracking and logging with real-time updates
+ Robust error detection and recovery: automatic retry logic and fallback strategies for all critical ripping steps (parsing, decryption, conversion, file I/O)
+ Automatic DVD/Blu-ray structure analysis and title detection
+ Chapter preservation and metadata inclusion
+ Multiple video/audio codec support (H.264, H.265, AV1, AAC, AC3, DTS, FLAC)
+ Configurable quality settings
+ Enhanced user notifications: workflow status, error alerts, and detailed logs during ripping
+ **🤖 100% AI-Generated**: 13,715 lines of Swift code created entirely by AI
 
 ## Installation
 
@@ -168,7 +171,7 @@ swift build && swift test && swift run
 
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup instructions for macOS
 - **[User Guide](WIKI_USER_GUIDE.md)** - Comprehensive feature documentation
-- **[FFmpeg Bundling](FFMPEG_BUNDLING.md)** - Technical details on bundled FFmpeg integration
+- **[Decryption Libraries](DECRYPTION_LIBRARIES.md)** - Integration details for libdvdcss and libaacs
 - **[Changelog](CHANGELOG.md)** - Release history and version changes
 - **[Roadmap](ROADMAP.md)** - Project timeline and planned features
 
@@ -196,14 +199,21 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Technical Details
 
-### Native CSS Decryption
+### CSS/AACS Decryption
 
-This application implements native CSS (Content Scramble System) decryption without relying on external libraries like libdvdcss or applications like MakeMKV. The decryption process includes:
+This application uses open-source decryption libraries (libdvdcss and libaacs) from VideoLAN for production-ready DVD and Blu-ray decryption:
 
-- CSS authentication with the DVD drive
-- Disc key extraction from the lead-in area
-- Title key extraction and decryption
-- Sector-by-sector decryption using CSS stream cipher
+**DVD Decryption (libdvdcss)**:
+- CSS authentication and key management
+- Automatic title key retrieval
+- Sector-by-sector decryption during read operations
+- Battle-tested implementation from VLC Media Player
+
+**Blu-ray Decryption (libaacs)**:
+- AACS authentication and processing
+- 6144-byte unit decryption
+- KEYDB.cfg integration for key management
+- Production-ready Blu-ray support
 
 ### DVD Structure Analysis
 
@@ -238,10 +248,13 @@ This project represents a groundbreaking experiment in AI-powered software devel
 - **Developer**: Art degree, zero Swift experience
 - **Code Written by Human**: 0 lines
 - **Git Commands by Human**: 0
-- **Total Swift Code**: 13,715 lines (100% AI-generated)
-- **Tests**: 277 comprehensive tests (100.0% pass rate)
+- **Total Swift Code**: 11,617 lines (100% AI-generated)
+- **Source Files**: 35 Swift files
+- **Tests**: 277+ comprehensive tests (100.0% pass rate)
+- **Git Commits**: 137+
 - **Development Method**: 100% AI-assisted via Warp 2.0
-- **Features Implemented**: DVD/Blu-ray ripping, CSS/AACS decryption, auto drive detection, persistent settings
+- **Latest Release**: v1.3.0 - Open-source decryption libraries (Feb 2026)
+- **Features**: DVD/Blu-ray ripping, libdvdcss/libaacs integration, auto drive detection, queue system
 
 **[📖 Read the full experiment documentation](./WARP_AI_EXPERIMENT.md)** to see how AI democratizes software development.
 
