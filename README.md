@@ -53,14 +53,12 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 - **Automatic Drive Detection** - Smart optical drive detection and selection
 - Native macOS interface built with Swift and AppKit
 - Easy-to-use GUI with persistent settings
- Progress tracking and logging with real-time updates
- Robust error detection and recovery: automatic retry logic and fallback strategies for all critical ripping steps (parsing, decryption, conversion, file I/O)
- Automatic DVD/Blu-ray structure analysis and title detection
- Chapter preservation and metadata inclusion
- Multiple video/audio codec support (H.264, H.265, AV1, AAC, AC3, DTS, FLAC)
- Configurable quality settings
- Enhanced user notifications: workflow status, error alerts, and detailed logs during ripping
- **🤖 100% AI-Generated**: 13,715 lines of Swift code created entirely by AI
+- Progress tracking and logging with real-time updates
+- Automatic DVD/Blu-ray structure analysis and title detection
+- Chapter preservation and metadata inclusion
+- Multiple video/audio codec support (H.264, H.265, AV1, AAC, AC3, DTS, FLAC)
+- Configurable quality settings
+- **🤖 100% AI-Generated**: 13,715 lines of Swift code created entirely by AI
 
 ## Installation
 
@@ -248,10 +246,8 @@ This project represents a groundbreaking experiment in AI-powered software devel
 - **Developer**: Art degree, zero Swift experience
 - **Code Written by Human**: 0 lines
 - **Git Commands by Human**: 0
-- **Total Swift Code**: 11,617 lines (100% AI-generated)
-- **Source Files**: 35 Swift files
-- **Tests**: 277+ comprehensive tests (100.0% pass rate)
-- **Git Commits**: 137+
+- **Total Swift Code**: 13,715 lines (100% AI-generated)
+- **Tests**: 277 comprehensive tests (100.0% pass rate)
 - **Development Method**: 100% AI-assisted via Warp 2.0
 - **Latest Release**: v1.3.0 - Open-source decryption libraries (Feb 2026)
 - **Features**: DVD/Blu-ray ripping, libdvdcss/libaacs integration, auto drive detection, queue system

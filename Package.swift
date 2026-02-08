@@ -4,11 +4,11 @@
 import PackageDescription
 import Foundation
 
-// Detect library paths (Homebrew standard locations)
-func getLibraryPath(name: String) -> String {
+// Detect libdvdcss path
+func getLibdvdcssPath() -> String {
     let possiblePaths = [
-        "/opt/homebrew/opt/\(name)",  // Apple Silicon
-        "/usr/local/opt/\(name)"      // Intel
+        "/opt/homebrew/opt/libdvdcss",
+        "/usr/local/opt/libdvdcss"
     ]
     
     for path in possiblePaths {
@@ -17,12 +17,12 @@ func getLibraryPath(name: String) -> String {
         }
     }
     
-    // Default fallback
-    return "/opt/homebrew/opt/\(name)"
+    // Default fallback (will likely fail, but better than nothing)
+    return "/usr/local/opt/libdvdcss"
 }
 
-let libdvdcssPath = getLibraryPath(name: "libdvdcss")
-let libaacspath = getLibraryPath(name: "libaacs")
+let libdvdcssPath = getLibdvdcssPath()
+print("Using libdvdcss path: \(libdvdcssPath)")
 
 let package = Package(
     name: "AutoRip2MKV-Mac",
@@ -42,18 +42,14 @@ let package = Package(
             cSettings: [
                 .headerSearchPath("include"),
                 .unsafeFlags([
-                    "-I\(libdvdcssPath)/include",
-                    "-I\(libaacspath)/include"
+                    "-I\(libdvdcssPath)/include"
                 ])
             ],
             linkerSettings: [
                 .linkedLibrary("dvdcss"),
-                .linkedLibrary("aacs"),
                 .unsafeFlags([
                     "-L\(libdvdcssPath)/lib",
-                    "-L\(libaacspath)/lib",
-                    "-Xlinker", "-rpath", "-Xlinker", "\(libdvdcssPath)/lib",
-                    "-Xlinker", "-rpath", "-Xlinker", "\(libaacspath)/lib"
+                    "-Xlinker", "-rpath", "-Xlinker", "\(libdvdcssPath)/lib"
                 ])
             ]
         ),

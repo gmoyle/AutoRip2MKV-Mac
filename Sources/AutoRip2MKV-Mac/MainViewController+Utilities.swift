@@ -128,24 +128,31 @@ extension MainViewController {
 
     func getSelectedSourcePath() -> String? {
         let selectedIndex = sourceDropDown.indexOfSelectedItem
-
-        // If no drives are detected, return nil
-        if detectedDrives.isEmpty {
-            return nil
-        }
-
-        if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
-            return detectedDrives[selectedIndex].mountPoint
-        }
-
-        // Check if it's a custom path
-        if let selectedTitle = sourceDropDown.titleOfSelectedItem,
-           selectedTitle.hasPrefix("Custom: ") {
-            // Extract path from custom entry - this is a simplified approach
-            // In a real implementation, you'd want to store the actual path
+        let selectedTitle = sourceDropDown.titleOfSelectedItem
+        
+        // First check if it's a custom path
+        if let title = selectedTitle, title.hasPrefix("Custom: ") {
             return settingsManager.lastSourcePath
         }
-
+        
+        // If we have detected drives and a valid selection, use it
+        if !detectedDrives.isEmpty && selectedIndex >= 0 && selectedIndex < detectedDrives.count {
+            return detectedDrives[selectedIndex].mountPoint
+        }
+        
+        // If no drives are detected but we have a selection, check if it's a valid drive name
+        // This handles the case where drives disappear after being selected
+        if detectedDrives.isEmpty && selectedIndex >= 0, let title = selectedTitle {
+            // Check if this looks like a drive selection (not "No drives detected")
+            if !title.contains("No drives detected") {
+                // Try to get the path from saved settings as a fallback
+                if let lastSourcePath = settingsManager.lastSourcePath {
+                    appendToLog("Warning: Selected drive no longer detected, using last known path: \(lastSourcePath)")
+                    return lastSourcePath
+                }
+            }
+        }
+        
         return nil
     }
 

@@ -198,8 +198,7 @@ class MediaRipper {
     /// Start the media ripping process
     func startRipping(mediaPath: String, configuration: RippingConfiguration) {
         guard !isRipping else {
-            Logger.shared.logError(MediaRipperError.alreadyRipping, context: "Attempted to start ripping while already in progress")
-            delegate?.ripperDidFail(with: MediaRipperError.alreadyRipping)
+            delegate?.mediaRipperDidFail(with: MediaRipperError.alreadyRipping)
             return
         }
 
@@ -213,7 +212,7 @@ class MediaRipper {
             } catch {
                 Logger.shared.logError(error, context: "MediaRipper failed during ripping process")
                 DispatchQueue.main.async {
-                    self.delegate?.ripperDidFail(with: error)
+                    self.delegate?.mediaRipperDidFail(with: error)
                     self.isRipping = false
                 }
             }
@@ -234,15 +233,12 @@ class MediaRipper {
     // MARK: - Private Implementation
 
     private func performRipping(mediaPath: String, configuration: RippingConfiguration) throws {
-        delegate?.ripperDidStart()
+        delegate?.mediaRipperDidStart()
 
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
-        Logger.shared.log("Detected media type: \(mediaTypeString(currentMediaType))", level: .info, category: .general)
-        delegate?.ripperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
 
-        let maxRetries = 3
-        var lastError: Error? = nil
+        delegate?.mediaRipperDidUpdateStatus("Detected \(mediaTypeString(currentMediaType)) media")
 
         switch currentMediaType {
         case .dvd, .ultraHDDVD:
@@ -312,7 +308,7 @@ class MediaRipper {
         // Complete
         Logger.shared.log("Ripping process completed successfully", level: .info, category: .general)
         DispatchQueue.main.async {
-            self.delegate?.ripperDidComplete()
+            self.delegate?.mediaRipperDidComplete()
             self.isRipping = false
         }
     }
@@ -321,11 +317,11 @@ class MediaRipper {
 // MARK: - Delegate Protocol
 
 protocol MediaRipperDelegate: AnyObject {
-    func ripperDidStart()
-    func ripperDidUpdateStatus(_ status: String)
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int)
-    func ripperDidComplete()
-    func ripperDidFail(with error: Error)
+    func mediaRipperDidStart()
+    func mediaRipperDidUpdateStatus(_ status: String)
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int)
+    func mediaRipperDidComplete()
+    func mediaRipperDidFail(with error: Error)
 }
 
 // MARK: - Error Types

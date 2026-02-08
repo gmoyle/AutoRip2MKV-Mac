@@ -5,57 +5,10 @@ import Foundation
 extension MediaRipper {
 
     func performDVDRipping(dvdPath: String, configuration: RippingConfiguration) throws {
-
-        let maxRetries = 3
-        var titles: [DVDTitle] = []
-        var lastError: Error? = nil
-
-        // Step 0: Analyze disc for quality optimization
-        delegate?.ripperDidUpdateStatus("Analyzing disc quality...")
-        let qualityAssessment: QualityAssessment
-        do {
-            qualityAssessment = try analyzeMedia(mediaPath: dvdPath, mediaType: .dvd)
-        } catch {
-            Logger.shared.logError(error, context: "Quality analysis failed; using default settings.")
-            // Fallback: use default configuration
-            qualityAssessment = QualityAssessment(
-                resolution: .fullHD1080p,
-                estimatedBitrate: 6000,
-                contentType: .liveAction,
-                complexityScore: 6.0,
-                hdrPresent: false,
-                audioTracks: [],
-                recommendedCodec: configuration.videoCodec,
-                recommendedCRF: configuration.quality.crf,
-                recommendedBitrate: 6000,
-                sceneChangeRate: nil,
-                motionIntensity: nil,
-                grainLevel: nil,
-                animationScore: nil,
-                subtitleComplexity: nil,
-                audioComplexity: nil,
-                hdrType: nil,
-                immersiveAudio: nil
-            )
-        }
-
-        // Step 1: Parse DVD structure with retry
-        delegate?.ripperDidUpdateStatus("Analyzing DVD structure...")
-        for attempt in 1...maxRetries {
-            do {
-                dvdParser = DVDStructureParser(dvdPath: dvdPath)
-                titles = try dvdParser!.parseDVDStructure()
-                break
-            } catch {
-                lastError = error
-                Logger.shared.logError(error, context: "DVD structure parse failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
-                    throw error
-                }
-            }
-        }
+        // Step 1: Parse DVD structure
+        delegate?.mediaRipperDidUpdateStatus("Analyzing DVD structure...")
+        dvdParser = DVDStructureParser(dvdPath: dvdPath)
+        let titles = try dvdParser!.parseDVDStructure()
 
         guard !titles.isEmpty else {
             let error = MediaRipperError.noTitlesFound
@@ -65,7 +18,7 @@ extension MediaRipper {
         }
 
         // Step 2: Extract movie name and create organized directory
-        delegate?.ripperDidUpdateStatus("Analyzing disc information...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
         let organizedOutputDirectory = createOrganizedOutputDirectory(
             baseDirectory: configuration.outputDirectory,
@@ -76,56 +29,20 @@ extension MediaRipper {
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: dvdPath,
                       mediaType: currentMediaType, movieName: movieName)
-        // Log quality report
-        Logger.shared.log(MediaRipper.generateQualityReport(qualityAssessment), level: .info, category: .general)
 
-        // Update configuration with recommended settings
-        let optimizedConfig = RippingConfiguration(
-            outputDirectory: configuration.outputDirectory,
-            selectedTitles: configuration.selectedTitles,
-            videoCodec: qualityAssessment.recommendedCodec,
-            audioCodec: configuration.audioCodec,
-            quality: .high, // Use high for best CRF mapping
-            includeSubtitles: configuration.includeSubtitles,
-            includeChapters: configuration.includeChapters,
-            mediaType: configuration.mediaType,
-            batchMode: configuration.batchMode
-        )
-
-        // Use optimizedConfig for subsequent ripping steps
-        // Step 3: Initialize DVD decryptor with retry
-        delegate?.ripperDidUpdateStatus("Initializing DVD CSS decryption...")
-        var devicePath: String? = nil
-        for attempt in 1...maxRetries {
-            devicePath = findDVDDevice(dvdPath: dvdPath)
-            if let path = devicePath {
-                do {
-                    dvdDecryptor = DVDDecryptor(devicePath: path)
-                    try dvdDecryptor!.initializeDevice()
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "DVD decryptor init failed (attempt \(attempt))")
-                    delegate?.ripperDidUpdateStatus("Decryptor init failed (attempt \(attempt)). Retrying...")
-                    if attempt == maxRetries {
-                        delegate?.ripperDidFail(with: error)
-                        throw error
-                    }
-                }
-            } else {
-                lastError = MediaRipperError.deviceNotFound
-                Logger.shared.logError(lastError!, context: "DVD device not found (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Device not found (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: lastError!)
-                    throw lastError!
-                }
-            }
+        // Step 3: Initialize DVD decryptor
+        delegate?.mediaRipperDidUpdateStatus("Initializing DVD CSS decryption...")
+        let devicePath = findDVDDevice(dvdPath: dvdPath)
+        guard let devicePath = devicePath else {
+            throw MediaRipperError.deviceNotFound
         }
+        dvdDecryptor = DVDDecryptor(devicePath: devicePath)
+        try dvdDecryptor!.initializeDevice()
 
         // Step 4: Determine which titles to rip
-        let titlesToRip = filterTitlesToRip(titles: titles, selectedTitles: optimizedConfig.selectedTitles)
-        delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
+        let titlesToRip = filterTitlesToRip(titles: titles, selectedTitles: configuration.selectedTitles)
+        delegate?.mediaRipperDidUpdateStatus("Titles to rip: \(titlesToRip.map({ $0.number }))")
+        delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
         // Step 5: Rip each title to organized directory with error recovery
         for (index, title) in titlesToRip.enumerated() {
@@ -136,67 +53,10 @@ extension MediaRipper {
                 throw error
             }
 
-            delegate?.ripperDidUpdateStatus("Ripping DVD title \(title.number) (\(title.formattedDuration))...")
-            var titleSuccess = false
-            for attempt in 1...maxRetries {
-                do {
-                    try ripDVDTitle(title, configuration: optimizedConfig, outputDirectory: organizedOutputDirectory,
-                                   titleIndex: index, totalTitles: titlesToRip.count)
-                    titleSuccess = true
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "Failed to rip title \(title.number) (attempt \(attempt))")
-                    delegate?.ripperDidUpdateStatus("Ripping failed for title \(title.number) (attempt \(attempt)). Retrying...")
-                    if attempt == maxRetries {
-                        delegate?.ripperDidUpdateStatus("Skipping failed title \(title.number).")
-                        // Optionally, continue with next title instead of failing all
-                    }
-                }
-            }
-            if !titleSuccess {
-                // Log and notify about skipped title
-                Logger.shared.log("Skipped title \(title.number) after repeated failures.", level: .warning, category: .general)
-            }
+            delegate?.mediaRipperDidUpdateStatus("Ripping DVD title \(title.number) (\(title.formattedDuration))...")
+            try ripDVDTitle(title, configuration: configuration, outputDirectory: organizedOutputDirectory,
+                           titleIndex: index, totalTitles: titlesToRip.count)
         }
-        // All titles processed
-        delegate?.ripperDidUpdateStatus("DVD ripping completed.")
-        delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
-
-        // Step 5: Rip each title to organized directory with error recovery
-        for (index, title) in titlesToRip.enumerated() {
-            if shouldCancel {
-                let error = MediaRipperError.cancelled
-                Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.ripperDidFail(with: error)
-                throw error
-            }
-
-            delegate?.ripperDidUpdateStatus("Ripping DVD title \(title.number) (\(title.formattedDuration))...")
-            var titleSuccess = false
-            for attempt in 1...maxRetries {
-                do {
-                    try ripDVDTitle(title, configuration: configuration, outputDirectory: organizedOutputDirectory,
-                                   titleIndex: index, totalTitles: titlesToRip.count)
-                    titleSuccess = true
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "Failed to rip title \(title.number) (attempt \(attempt))")
-                    delegate?.ripperDidUpdateStatus("Ripping failed for title \(title.number) (attempt \(attempt)). Retrying...")
-                    if attempt == maxRetries {
-                        delegate?.ripperDidUpdateStatus("Skipping failed title \(title.number).")
-                        // Optionally, continue with next title instead of failing all
-                    }
-                }
-            }
-            if !titleSuccess {
-                // Log and notify about skipped title
-                Logger.shared.log("Skipped title \(title.number) after repeated failures.", level: .warning, category: .general)
-            }
-        }
-        // All titles processed
-        delegate?.ripperDidUpdateStatus("DVD ripping completed.")
     }
 
     private func ripDVDTitle(_ title: DVDTitle, configuration: RippingConfiguration, outputDirectory: String, titleIndex: Int, totalTitles: Int) throws {
@@ -209,9 +69,12 @@ extension MediaRipper {
         let outputPath = outputDirectory.appending("/\(outputFileName)")
 
         // Extract and decrypt video data
+        delegate?.mediaRipperDidUpdateStatus("Extracting video data for title \(title.number)...")
         let tempVideoFile = try extractAndDecryptDVDTitle(title, titleKey: titleKey)
+        delegate?.mediaRipperDidUpdateStatus("Extracted video data to: \(tempVideoFile)")
 
         // Convert to MKV
+        delegate?.mediaRipperDidUpdateStatus("Converting to MKV format...")
         try convertToMKV(
             inputFile: tempVideoFile,
             outputFile: outputPath,
@@ -220,6 +83,7 @@ extension MediaRipper {
             itemIndex: titleIndex,
             totalItems: totalTitles
         )
+        delegate?.mediaRipperDidUpdateStatus("Conversion complete: \(outputPath)")
 
         // Cleanup temp file
         try? FileManager.default.removeItem(atPath: tempVideoFile)
@@ -229,6 +93,11 @@ extension MediaRipper {
         let tempDirectory = NSTemporaryDirectory()
         let tempFileName = "temp_dvd_title_\(title.number).vob"
         let tempFilePath = tempDirectory.appending(tempFileName)
+
+        // For now, try to read VOB files directly instead of sector-based decryption
+        if !title.vobFiles.isEmpty {
+            return try extractFromVOBFiles(title: title, outputPath: tempFilePath)
+        }
 
         guard let outputHandle = FileHandle(forWritingAtPath: tempFilePath) ??
               createFileAndGetHandle(at: tempFilePath) else {
@@ -264,12 +133,95 @@ extension MediaRipper {
 
             // Update progress
             let progress = Double(totalBytesRead) / Double(totalSize)
-            delegate?.ripperDidUpdateProgress(
+            delegate?.mediaRipperDidUpdateProgress(
                 progress * 0.5, currentItem: .dvdTitle(title), totalItems: 1
             ) // 50% for extraction
         }
 
         return tempFilePath
+    }
+    
+    /// Extract from VOB files directly (fallback method)
+    private func extractFromVOBFiles(title: DVDTitle, outputPath: String) throws -> String {
+        delegate?.mediaRipperDidUpdateStatus("Starting VOB file extraction for title \(title.number)...")
+        delegate?.mediaRipperDidUpdateStatus("Output path: \(outputPath)")
+        
+        guard let outputHandle = FileHandle(forWritingAtPath: outputPath) ??
+              createFileAndGetHandle(at: outputPath) else {
+            delegate?.mediaRipperDidUpdateStatus("ERROR: Failed to create output file at \(outputPath)")
+            throw MediaRipperError.fileCreationFailed
+        }
+
+        defer { outputHandle.closeFile() }
+
+        // Calculate total size
+        var totalSize: Int64 = 0
+        for vobFile in title.vobFiles {
+            if let fileSize = (try? FileManager.default.attributesOfItem(atPath: vobFile)[.size] as? Int64) {
+                totalSize += fileSize
+                delegate?.mediaRipperDidUpdateStatus("VOB file \(vobFile): \(fileSize) bytes")
+            } else {
+                delegate?.mediaRipperDidUpdateStatus("WARNING: Could not get size of VOB file \(vobFile)")
+            }
+        }
+        
+        delegate?.mediaRipperDidUpdateStatus("Total extraction size: \(totalSize) bytes (\(Double(totalSize) / 1024.0 / 1024.0 / 1024.0) GB)")
+
+        var totalBytesRead: Int64 = 0
+
+        // Read all VOB files for this title
+        for (index, vobFile) in title.vobFiles.enumerated() {
+            if shouldCancel {
+                throw MediaRipperError.cancelled
+            }
+
+            delegate?.mediaRipperDidUpdateStatus("Reading VOB file \(index + 1) of \(title.vobFiles.count): \(vobFile)")
+
+            guard FileManager.default.fileExists(atPath: vobFile) else {
+                delegate?.mediaRipperDidUpdateStatus("ERROR: VOB file does not exist: \(vobFile)")
+                continue
+            }
+            
+            guard let inputHandle = FileHandle(forReadingAtPath: vobFile) else {
+                delegate?.mediaRipperDidUpdateStatus("ERROR: Cannot open VOB file for reading: \(vobFile)")
+                continue // Skip if we can't read the file
+            }
+
+            defer { inputHandle.closeFile() }
+
+            // Read in chunks
+            let chunkSize = 1024 * 1024 // 1MB chunks
+            var filePosition: Int64 = 0
+            
+            while !shouldCancel {
+                let data = inputHandle.readData(ofLength: chunkSize)
+                if data.isEmpty {
+                    break // End of file
+                }
+
+                outputHandle.write(data)
+                totalBytesRead += Int64(data.count)
+                filePosition += Int64(data.count)
+                
+                // Update progress every 10MB
+                if totalBytesRead % (10 * 1024 * 1024) == 0 {
+                    let progress = Double(totalBytesRead) / Double(totalSize)
+                    delegate?.mediaRipperDidUpdateStatus("Extracted \(totalBytesRead / 1024 / 1024) MB of \(totalSize / 1024 / 1024) MB (\(Int(progress * 100))%)")
+                    delegate?.mediaRipperDidUpdateProgress(
+                        progress * 0.5, currentItem: .dvdTitle(title), totalItems: 1
+                    ) // 50% for extraction
+                }
+            }
+            
+            delegate?.mediaRipperDidUpdateStatus("Completed VOB file \(index + 1): \(filePosition) bytes read")
+        }
+        
+        delegate?.mediaRipperDidUpdateStatus("VOB extraction completed. Total bytes: \(totalBytesRead)")
+        
+        // Final progress update
+        delegate?.mediaRipperDidUpdateProgress(0.5, currentItem: .dvdTitle(title), totalItems: 1)
+
+        return outputPath
     }
 
     internal func createFileAndGetHandle(at path: String) -> FileHandle? {

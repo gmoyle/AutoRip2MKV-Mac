@@ -5,57 +5,10 @@ import Foundation
 extension MediaRipper {
 
     func performBluRayRipping(blurayPath: String, configuration: RippingConfiguration) throws {
-
-        let maxRetries = 3
-        var playlists: [BluRayPlaylist] = []
-        var lastError: Error? = nil
-
-        // Step 0: Analyze disc for quality optimization
-        delegate?.ripperDidUpdateStatus("Analyzing disc quality...")
-        let qualityAssessment: QualityAssessment
-        do {
-            qualityAssessment = try analyzeMedia(mediaPath: blurayPath, mediaType: .bluray)
-        } catch {
-            Logger.shared.logError(error, context: "Quality analysis failed; using default settings.")
-            // Fallback: use default configuration
-            qualityAssessment = QualityAssessment(
-                resolution: .fullHD1080p,
-                estimatedBitrate: 18000,
-                contentType: .liveAction,
-                complexityScore: 7.0,
-                hdrPresent: false,
-                audioTracks: [],
-                recommendedCodec: configuration.videoCodec,
-                recommendedCRF: configuration.quality.crf,
-                recommendedBitrate: 18000,
-                sceneChangeRate: nil,
-                motionIntensity: nil,
-                grainLevel: nil,
-                animationScore: nil,
-                subtitleComplexity: nil,
-                audioComplexity: nil,
-                hdrType: nil,
-                immersiveAudio: nil
-            )
-        }
-
-        // Step 1: Parse Blu-ray structure with retry
-        delegate?.ripperDidUpdateStatus("Analyzing Blu-ray structure...")
-        for attempt in 1...maxRetries {
-            do {
-                blurayParser = BluRayStructureParser(blurayPath: blurayPath)
-                playlists = try blurayParser!.parseBluRayStructure()
-                break
-            } catch {
-                lastError = error
-                Logger.shared.logError(error, context: "Blu-ray structure parse failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
-                    throw error
-                }
-            }
-        }
+        // Step 1: Parse Blu-ray structure
+        delegate?.mediaRipperDidUpdateStatus("Analyzing Blu-ray structure...")
+        blurayParser = BluRayStructureParser(blurayPath: blurayPath)
+        let playlists = try blurayParser!.parseBluRayStructure()
 
         guard !playlists.isEmpty else {
             let error = MediaRipperError.noTitlesFound
@@ -65,7 +18,7 @@ extension MediaRipper {
         }
 
         // Step 2: Extract movie name and create organized directory
-        delegate?.ripperDidUpdateStatus("Analyzing disc information...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
         let organizedOutputDirectory = createOrganizedOutputDirectory(
             baseDirectory: configuration.outputDirectory,
@@ -95,30 +48,17 @@ extension MediaRipper {
         // ...existing code...
 
         // Step 3: Extract cover art if available
-        delegate?.ripperDidUpdateStatus("Extracting cover art...")
+        delegate?.mediaRipperDidUpdateStatus("Extracting cover art...")
         extractCoverArt(from: blurayPath, to: organizedOutputDirectory)
 
-        // Step 4: Initialize Blu-ray decryptor with retry
-        delegate?.ripperDidUpdateStatus("Initializing Blu-ray AACS decryption...")
-        for attempt in 1...maxRetries {
-            do {
-                blurayDecryptor = BluRayDecryptor(devicePath: blurayPath)
-                try blurayDecryptor!.initializeDecryption()
-                break
-            } catch {
-                lastError = error
-                Logger.shared.logError(error, context: "Blu-ray decryption init failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Decryption init failed (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
-                    throw error
-                }
-            }
-        }
+        // Step 4: Initialize Blu-ray decryptor
+        delegate?.mediaRipperDidUpdateStatus("Initializing Blu-ray AACS decryption...")
+        blurayDecryptor = BluRayDecryptor(devicePath: blurayPath)
+        try blurayDecryptor!.initializeDecryption()
 
         // Step 5: Determine which playlists to rip
         let playlistsToRip = filterPlaylistsToRip(playlists: playlists, selectedTitles: configuration.selectedTitles)
-        delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: playlistsToRip.count)
+        delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: playlistsToRip.count)
 
         // Step 6: Rip each playlist to organized directory with error recovery
         for (index, playlist) in playlistsToRip.enumerated() {
@@ -129,7 +69,7 @@ extension MediaRipper {
                 throw error
             }
 
-            delegate?.ripperDidUpdateStatus(
+            delegate?.mediaRipperDidUpdateStatus(
                 "Ripping Blu-ray playlist \(playlist.number) (\(playlist.formattedDuration))..."
             )
             var playlistSuccess = false
@@ -213,7 +153,7 @@ extension MediaRipper {
                 throw MediaRipperError.cancelled
             }
 
-            delegate?.ripperDidUpdateStatus(
+            delegate?.mediaRipperDidUpdateStatus(
                 "Processing clip \(clipIndex + 1)/\(playlist.clips.count) in playlist \(playlist.number)..."
             )
 
@@ -225,7 +165,7 @@ extension MediaRipper {
 
             // Update progress
             let progress = Double(totalBytesRead) / Double(totalSize)
-            delegate?.ripperDidUpdateProgress(
+            delegate?.mediaRipperDidUpdateProgress(
                 progress * 0.5, currentItem: .blurayPlaylist(playlist), totalItems: 1
             ) // 50% for extraction
         }

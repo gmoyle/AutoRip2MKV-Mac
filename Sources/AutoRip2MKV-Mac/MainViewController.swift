@@ -92,7 +92,7 @@ class MainViewController: NSViewController {
     }
 
     private func setupSourceSection() {
-        sourceLabel = NSTextField(labelWithString: "Source DVD/Blu-ray Drive:")
+        sourceLabel = NSTextField(labelWithString: "Detected Disc:")
         sourceLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(sourceLabel)
 
@@ -100,14 +100,17 @@ class MainViewController: NSViewController {
         sourceDropDown.translatesAutoresizingMaskIntoConstraints = false
         sourceDropDown.target = self
         sourceDropDown.action = #selector(driveSelectionChanged)
+        sourceDropDown.isHidden = true  // Hide by default, show only when needed
         view.addSubview(sourceDropDown)
 
         refreshDrivesButton = NSButton(title: "Refresh", target: self, action: #selector(refreshDrives))
         refreshDrivesButton.translatesAutoresizingMaskIntoConstraints = false
+        refreshDrivesButton.isHidden = false  // Show refresh button for manual refresh
         view.addSubview(refreshDrivesButton)
 
         browseSourceButton = NSButton(title: "Browse", target: self, action: #selector(browseSourcePath))
         browseSourceButton.translatesAutoresizingMaskIntoConstraints = false
+        browseSourceButton.isHidden = true  // Hide by default
         view.addSubview(browseSourceButton)
     }
 
@@ -237,44 +240,68 @@ class MainViewController: NSViewController {
     }
 
     @objc internal func startRipping() {
-        if batchModeCheckbox.state == .on {
-            // Batch mode: parse disc paths and start batch ripping
-            let discPaths = batchDiscListField.stringValue
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            guard !discPaths.isEmpty, !outputPathField.stringValue.isEmpty else {
-                showAlert(title: "Error", message: "Please enter disc paths and output directory for batch mode.")
-                return
-            }
-            installFFmpegIfNeeded()
-            let mediaRipper = MediaRipper()
-            let configuration = MediaRipper.RippingConfiguration(
-                outputDirectory: outputPathField.stringValue,
-                selectedTitles: [],
-                videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
-                audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
-                quality: {
-                    switch settingsManager.quality {
-                    case "low": return .low
-                    case "medium": return .medium
-                    case "high": return .high
-                    default: return .medium
-                    }
-                }(),
-                includeSubtitles: true,
-                includeChapters: true,
-                mediaType: nil,
-                batchMode: true
-            )
-            appendToLog("Starting unattended batch ripping for \(discPaths.count) discs...")
-            mediaRipper.delegate = self
-            mediaRipper.startBatchRipping(mediaPaths: discPaths, configuration: configuration)
-            saveCurrentSettings()
-            showQueue()
+        appendToLog("startRipping method called")
+
+        // Check if we have a detected disc
+        guard let currentDrive = detectedDrives.first else {
+            showAlert(title: "No Disc Detected", message: "Please insert a DVD or BluRay disc to start ripping.")
             return
         }
-        // ...existing single-disc logic...
+
+        guard !outputPathField.stringValue.isEmpty else {
+            showAlert(title: "Error", message: "Please select an output directory.")
+            return
+        }
+
+        // Check if FFmpeg is available
+        installFFmpegIfNeeded()
+
+        // Detect media type
+        let mediaRipper = MediaRipper()
+        let mediaType = mediaRipper.detectMediaType(path: currentDrive.mountPoint)
+
+        appendToLog("Starting rip of \(currentDrive.displayName)...")
+        appendToLog("Source: \(currentDrive.mountPoint)")
+        appendToLog("Output: \(outputPathField.stringValue)")
+
+        // Validate source path exists
+        let videoTSSource = currentDrive.mountPoint.appending("/VIDEO_TS")
+        guard FileManager.default.fileExists(atPath: videoTSSource) else {
+            showAlert(title: "Error", message: "Source DVD not found. Please ensure the disc is properly inserted.")
+            return
+        }
+
+        // Configure ripping for direct MediaRipper
+        let configuration = MediaRipper.RippingConfiguration(
+            outputDirectory: outputPathField.stringValue,
+            selectedTitles: [], // Rip all titles
+            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
+            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
+            quality: {
+                switch settingsManager.quality {
+                case "low": return .low
+                case "medium": return .medium
+                case "high": return .high
+                default: return .medium
+                }
+            }(),
+            includeSubtitles: true,
+            includeChapters: true,
+            mediaType: mediaType
+        )
+
+        // Update UI for ripping state
+        ripButton.title = "Ripping..."
+        ripButton.isEnabled = false
+        progressIndicator.isHidden = false
+        progressIndicator.startAnimation(nil)
+
+        // Save current settings
+        saveCurrentSettings()
+
+        // Start direct ripping with MediaRipper (not queue)
+        mediaRipper.delegate = self
+        mediaRipper.startRipping(mediaPath: currentDrive.mountPoint, configuration: configuration)
     }
 
     func generateDiscTitle(from sourcePath: String) -> String {
@@ -299,16 +326,37 @@ class MainViewController: NSViewController {
     // MARK: - Drive Detection and Settings
 
     @objc private func refreshDrives() {
+        appendToLog("Scanning for optical drives with movie content...")
         detectedDrives = driveDetector.detectOpticalDrives()
         updateDriveDropdown()
 
-        appendToLog("Detected \(detectedDrives.count) optical drive(s)")
-        for drive in detectedDrives {
-            appendToLog("  - \(drive.displayName) (\(drive.type))")
+        if detectedDrives.isEmpty {
+            appendToLog("No movie discs detected. Please insert a DVD (with VIDEO_TS folder) or Blu-ray (with BDMV folder).")
+        } else {
+            appendToLog("Found \(detectedDrives.count) movie disc(s):")
+            for drive in detectedDrives {
+                let driveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+                appendToLog("  - \(drive.displayName) (\(driveTypeString))")
+            }
         }
     }
 
     private func updateDriveDropdown() {
+        // Update the source label to show current disc status
+        if detectedDrives.isEmpty {
+            sourceLabel.stringValue = "No disc detected - Please insert a DVD or BluRay"
+            ripButton.isEnabled = false
+        } else {
+            let drive = detectedDrives.first!
+            let driveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+            sourceLabel.stringValue = "\(drive.displayName) (\(driveTypeString)) - Ready to rip"
+            ripButton.isEnabled = true
+        }
+        
+        // The dropdown is now hidden, but we'll keep the logic for advanced users
+        let currentSelection = sourceDropDown.titleOfSelectedItem
+        let _ = sourceDropDown.indexOfSelectedItem
+        
         sourceDropDown.removeAllItems()
 
         if detectedDrives.isEmpty {
@@ -324,14 +372,31 @@ class MainViewController: NSViewController {
                 sourceDropDown.addItem(withTitle: title)
             }
 
-            // Select the previously selected drive if available
-            let savedIndex = settingsManager.selectedDriveIndex
-            if savedIndex < detectedDrives.count {
-                sourceDropDown.selectItem(at: savedIndex)
-            } else if detectedDrives.count == 1 {
-                // Auto-select if only one drive
-                sourceDropDown.selectItem(at: 0)
-                settingsManager.selectedDriveIndex = 0
+            // Try to restore the previous selection by matching drive names
+            var selectionRestored = false
+            if let previousSelection = currentSelection, !previousSelection.contains("No drives detected") {
+                for (index, drive) in detectedDrives.enumerated() {
+                    let driveTypeString = drive.type == .dvd ? "DVD" :
+                                         drive.type == .bluray ? "Blu-ray" : "Unknown"
+                    let title = "\(drive.name) (\(driveTypeString))"
+                    if title == previousSelection || previousSelection.contains(drive.name) {
+                        sourceDropDown.selectItem(at: index)
+                        selectionRestored = true
+                        break
+                    }
+                }
+            }
+            
+            // If selection wasn't restored, try using saved index
+            if !selectionRestored {
+                let savedIndex = settingsManager.selectedDriveIndex
+                if savedIndex < detectedDrives.count {
+                    sourceDropDown.selectItem(at: savedIndex)
+                } else if detectedDrives.count == 1 {
+                    // Auto-select if only one drive
+                    sourceDropDown.selectItem(at: 0)
+                    settingsManager.selectedDriveIndex = 0
+                }
             }
         }
     }
@@ -391,12 +456,7 @@ extension MainViewController: DriveDetectorDelegate {
 
     internal func autoStartRipping(for drive: OpticalDrive) {
         guard settingsManager.autoRipEnabled else {
-            appendToLog("Auto-ripping is disabled. Insert disc manually to start ripping.")
-            return
-        }
-        
-        guard settingsManager.autoQueueEnabled else {
-            appendToLog("Auto-queueing is disabled. Disc detected but not auto-added: \(drive.displayName)")
+            appendToLog("Auto-ripping is disabled. Click 'Start Ripping' to manually start ripping.")
             return
         }
 
@@ -411,20 +471,10 @@ extension MainViewController: DriveDetectorDelegate {
         // Detect media type
         let mediaRipper = MediaRipper()
         let mediaType = mediaRipper.detectMediaType(path: drive.mountPoint)
-        
-        // Determine priority for auto-detected disc
-        let priority: ConversionQueue.JobPriority
-        if settingsManager.autoQueuePriorityByMediaType {
-            // Use media-type-based priority (4K=high, Blu-ray=normal, HD DVD=normal, DVD=low)
-            priority = drive.type.defaultPriority
-            appendToLog("Auto-adding \(drive.displayName) (\(drive.type.displayName)) with \(priority.description) priority...")
-        } else {
-            // Use normal priority for all
-            priority = .normal
-            appendToLog("Auto-adding \(drive.displayName) to conversion queue...")
-        }
 
-        // Configure ripping using saved settings for the queue
+        appendToLog("Auto-starting rip of \(drive.displayName)...")
+
+        // Configure ripping using saved settings for direct MediaRipper
         let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: outputPathField.stringValue,
             selectedTitles: [], // Rip all titles
@@ -444,21 +494,18 @@ extension MainViewController: DriveDetectorDelegate {
             batchMode: batchModeCheckbox.state == .on
         )
 
-        // Add to queue for processing with determined priority
-        let jobId = conversionQueue.addJob(
-            sourcePath: drive.mountPoint,
-            outputDirectory: outputPathField.stringValue,
-            configuration: configuration,
-            mediaType: mediaType,
-            discTitle: drive.displayName,
-            priority: priority
-        )
-
-        appendToLog("Auto-added to queue with ID: \(jobId.uuidString) (Priority: \(priority.description))")
-        appendToLog("Disc will be ejected automatically after reading is complete")
+        // Update UI for auto-ripping state
+        ripButton.title = "Auto-Ripping..."
+        ripButton.isEnabled = false
+        progressIndicator.isHidden = false
+        progressIndicator.startAnimation(nil)
 
         // Save current settings
         saveCurrentSettings()
+
+        // Start direct ripping with MediaRipper (not queue)
+        mediaRipper.delegate = self
+        mediaRipper.startRipping(mediaPath: drive.mountPoint, configuration: configuration)
     }
 }
 

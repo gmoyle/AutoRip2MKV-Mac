@@ -16,11 +16,11 @@ This project represents an extraordinary experiment in AI-powered software devel
 ## 📊 **Project Statistics**
 
 ### **Codebase Metrics**
-- **Total Swift Files**: 60 (35 source + 25 test files)
-- **Lines of Code**: 11,617 source lines
-- **Test Coverage**: 277+ comprehensive tests
+- **Total Swift Files**: 47
+- **Lines of Code**: 13,950
+- **Test Coverage**: 66 comprehensive tests
 - **Test Success Rate**: 100.0% (0 failures)
-- **Git Commits**: 137+
+- **Git Commits**: 174
 - **Author**: Greg (via AI assistance)
 - **Latest Major Update**: v1.3.0 - Open-source decryption integration (Feb 2026)
 
