@@ -51,36 +51,37 @@ jobs:
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
         restore-keys: ${{ runner.os }}-spm-
 
-    - name: Build universal binary
+    - name: Build arm64 binary
       run: |
-        swift build -c release --arch arm64 --arch x86_64
+        swift build -c release --arch arm64
 
     - name: Assemble app bundle
       run: |
         APP=AutoRip2MKV.app
         mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
-        # Binary
-        cp .build/apple/Products/Release/AutoRip2MKV-Mac "$APP/Contents/MacOS/"
+        # Binary (arm64 only — runner is Apple Silicon, dylibs are arm64)
+        cp .build/release/AutoRip2MKV-Mac "$APP/Contents/MacOS/"
 
-        # Info.plist — update version from tag
-        sed "s/1\.4\.0/${{ steps.version.outputs.VERSION_NUMBER }}/g" Info.plist > "$APP/Contents/Info.plist"
+        # Info.plist — substitute version from tag
+        VERSION_NUMBER=${{ steps.version.outputs.VERSION_NUMBER }}
+        sed "s/1\.[0-9]\+\.[0-9]\+/$VERSION_NUMBER/g" Info.plist > "$APP/Contents/Info.plist"
 
         # Icon
         [ -f assets/AppIcon.icns ] && cp assets/AppIcon.icns "$APP/Contents/Resources/"
 
         # Bundle libdvdcss and libaacs so the app is self-contained
-        for LIB in \
-          "$(brew --prefix libdvdcss)/lib/libdvdcss.2.dylib" \
-          "$(brew --prefix libaacs)/lib/libaacs.0.dylib"; do
-          [ -f "$LIB" ] && cp "$LIB" "$APP/Contents/Frameworks/"
-        done
+        DVDCSS_LIB="$(brew --prefix libdvdcss)/lib/libdvdcss.2.dylib"
+        AACS_LIB="$(brew --prefix libaacs)/lib/libaacs.0.dylib"
+        [ -f "$DVDCSS_LIB" ] && cp "$DVDCSS_LIB" "$APP/Contents/Frameworks/"
+        [ -f "$AACS_LIB" ]   && cp "$AACS_LIB"   "$APP/Contents/Frameworks/"
 
-        # Fix dylib install names to @executable_path/../Frameworks/
+        # Fix dylib install names and binary references to use @executable_path
         for DYLIB in "$APP/Contents/Frameworks/"*.dylib; do
           NAME=$(basename "$DYLIB")
+          OLD_ID=$(otool -D "$DYLIB" | tail -1)
           install_name_tool -id "@executable_path/../Frameworks/$NAME" "$DYLIB"
-          install_name_tool -change "$(otool -D "$DYLIB" | tail -1)" \
+          install_name_tool -change "$OLD_ID" \
             "@executable_path/../Frameworks/$NAME" \
             "$APP/Contents/MacOS/AutoRip2MKV-Mac" 2>/dev/null || true
         done
