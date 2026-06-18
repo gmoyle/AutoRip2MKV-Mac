@@ -14,6 +14,7 @@ DMG_NAME="${APP_NAME}-v${VERSION}"
 TEMP_DMG="temp_${DMG_NAME}.dmg"
 FINAL_DMG="${DMG_NAME}.dmg"
 VOLUME_NAME="${APP_NAME} ${VERSION}"
+BACKGROUND_SRC="assets/dmg-background.png"
 
 # Colors for output
 RED='\033[0;31m'
@@ -67,13 +68,16 @@ hdiutil create -srcfolder "${TEMP_DIR}" -volname "${VOLUME_NAME}" -fs HFS+ \
 echo -e "${BLUE}Mounting DMG for customization...${NC}"
 DEVICE=$(hdiutil attach -readwrite -noverify "${TEMP_DMG}" | \
     egrep '^/dev/' | sed 1q | awk '{print $1}')
+trap 'hdiutil detach "${DEVICE}" >/dev/null 2>&1 || true' EXIT
 
 # Set DMG window properties
 echo -e "${BLUE}Customizing DMG appearance...${NC}"
 sleep 2
 
-# Use AppleScript to customize the DMG window
-osascript << EOF
+if [ -f "${BACKGROUND_SRC}" ]; then
+    mkdir -p "/Volumes/${VOLUME_NAME}/.background"
+    cp "${BACKGROUND_SRC}" "/Volumes/${VOLUME_NAME}/.background/background.png"
+    osascript << EOF
 tell application "Finder"
     tell disk "${VOLUME_NAME}"
         open
@@ -94,10 +98,33 @@ tell application "Finder"
     end tell
 end tell
 EOF
+else
+    osascript << EOF
+tell application "Finder"
+    tell disk "${VOLUME_NAME}"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {400, 100, 920, 420}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 72
+        set position of item "${APP_NAME}.app" of container window to {160, 205}
+        set position of item "Applications" of container window to {360, 205}
+        close
+        open
+        update without registering applications
+        delay 2
+    end tell
+end tell
+EOF
+fi
 
 # Unmount the DMG
 echo -e "${BLUE}Finalizing DMG...${NC}"
 hdiutil detach "${DEVICE}"
+trap - EXIT
 
 # Convert to final compressed format
 hdiutil convert "${TEMP_DMG}" -format UDZO -imagekey zlib-level=9 -o "${FINAL_DMG}"

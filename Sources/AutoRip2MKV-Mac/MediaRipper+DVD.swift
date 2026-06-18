@@ -13,7 +13,7 @@ extension MediaRipper {
         guard !titles.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No titles found in DVD")
-            delegate?.ripperDidFail(with: error)
+            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -30,13 +30,14 @@ extension MediaRipper {
         createDiscInfo(in: organizedOutputDirectory, mediaPath: dvdPath,
                       mediaType: currentMediaType, movieName: movieName)
 
-        // Step 3: Initialize DVD decryptor
+        // Step 3: Initialize DVD decryptor using raw device for hardware CSS auth
         delegate?.mediaRipperDidUpdateStatus("Initializing DVD CSS decryption...")
-        let devicePath = findDVDDevice(dvdPath: dvdPath)
-        guard let devicePath = devicePath else {
+        let rawDevice = findRawDVDDevice(dvdPath: dvdPath)
+        guard let rawDevice = rawDevice else {
             throw MediaRipperError.deviceNotFound
         }
-        dvdDecryptor = DVDDecryptor(devicePath: devicePath)
+        delegate?.mediaRipperDidUpdateStatus("Using device: \(rawDevice)")
+        dvdDecryptor = DVDDecryptor(devicePath: rawDevice)
         try dvdDecryptor!.initializeDevice()
 
         // Step 4: Determine which titles to rip
@@ -49,7 +50,7 @@ extension MediaRipper {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.ripperDidFail(with: error)
+                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 
@@ -94,11 +95,6 @@ extension MediaRipper {
         let tempFileName = "temp_dvd_title_\(title.number).vob"
         let tempFilePath = tempDirectory.appending(tempFileName)
 
-        // For now, try to read VOB files directly instead of sector-based decryption
-        if !title.vobFiles.isEmpty {
-            return try extractFromVOBFiles(title: title, outputPath: tempFilePath)
-        }
-
         guard let outputHandle = FileHandle(forWritingAtPath: tempFilePath) ??
               createFileAndGetHandle(at: tempFilePath) else {
             throw MediaRipperError.fileCreationFailed
@@ -107,126 +103,79 @@ extension MediaRipper {
         defer { outputHandle.closeFile() }
 
         var totalBytesRead: Int64 = 0
-        let totalSize = Int64(title.sectors) * 2048 // DVD sector size
+        let totalSectors = title.sectors > 0 ? title.sectors : UInt32(1)
+        let totalSize = Int64(totalSectors) * 2048
 
-        // Read and decrypt sectors
-        for sectorOffset in stride(from: 0, to: title.sectors, by: 1024) { // Read in chunks
+        delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
+
+        // Read and decrypt via libdvdcss in 1024-sector chunks
+        var sectorOffset: UInt32 = 0
+        while sectorOffset < totalSectors {
             if shouldCancel {
                 throw MediaRipperError.cancelled
             }
 
-            let sectorsToRead = min(1024, title.sectors - sectorOffset)
+            let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
             let startSector = title.startSector + sectorOffset
 
-            // Read encrypted data
-            let encryptedData = try dvdDecryptor!.readSectors(startSector: startSector, sectorCount: Int(sectorsToRead))
-
-            // Decrypt data
-            let decryptedData = try dvdDecryptor!.decryptSectors(
-                data: encryptedData, titleKey: titleKey, startSector: startSector
+            let decryptedData = try dvdDecryptor!.readAndDecryptSectors(
+                startSector: startSector, sectorCount: sectorsToRead
             )
 
-            // Write to temp file
+            if decryptedData.isEmpty {
+                delegate?.mediaRipperDidUpdateStatus("Warning: no data at sector \(startSector)")
+                sectorOffset += UInt32(sectorsToRead)
+                continue
+            }
+
             outputHandle.write(decryptedData)
-
             totalBytesRead += Int64(decryptedData.count)
+            sectorOffset += UInt32(sectorsToRead)
 
-            // Update progress
             let progress = Double(totalBytesRead) / Double(totalSize)
             delegate?.mediaRipperDidUpdateProgress(
                 progress * 0.5, currentItem: .dvdTitle(title), totalItems: 1
-            ) // 50% for extraction
+            )
         }
 
+        delegate?.mediaRipperDidUpdateStatus("Extraction complete: \(totalBytesRead) bytes")
         return tempFilePath
     }
     
-    /// Extract from VOB files directly (fallback method)
-    private func extractFromVOBFiles(title: DVDTitle, outputPath: String) throws -> String {
-        delegate?.mediaRipperDidUpdateStatus("Starting VOB file extraction for title \(title.number)...")
-        delegate?.mediaRipperDidUpdateStatus("Output path: \(outputPath)")
-        
-        guard let outputHandle = FileHandle(forWritingAtPath: outputPath) ??
-              createFileAndGetHandle(at: outputPath) else {
-            delegate?.mediaRipperDidUpdateStatus("ERROR: Failed to create output file at \(outputPath)")
-            throw MediaRipperError.fileCreationFailed
-        }
-
-        defer { outputHandle.closeFile() }
-
-        // Calculate total size
-        var totalSize: Int64 = 0
-        for vobFile in title.vobFiles {
-            if let fileSize = (try? FileManager.default.attributesOfItem(atPath: vobFile)[.size] as? Int64) {
-                totalSize += fileSize
-                delegate?.mediaRipperDidUpdateStatus("VOB file \(vobFile): \(fileSize) bytes")
-            } else {
-                delegate?.mediaRipperDidUpdateStatus("WARNING: Could not get size of VOB file \(vobFile)")
-            }
-        }
-        
-        delegate?.mediaRipperDidUpdateStatus("Total extraction size: \(totalSize) bytes (\(Double(totalSize) / 1024.0 / 1024.0 / 1024.0) GB)")
-
-        var totalBytesRead: Int64 = 0
-
-        // Read all VOB files for this title
-        for (index, vobFile) in title.vobFiles.enumerated() {
-            if shouldCancel {
-                throw MediaRipperError.cancelled
-            }
-
-            delegate?.mediaRipperDidUpdateStatus("Reading VOB file \(index + 1) of \(title.vobFiles.count): \(vobFile)")
-
-            guard FileManager.default.fileExists(atPath: vobFile) else {
-                delegate?.mediaRipperDidUpdateStatus("ERROR: VOB file does not exist: \(vobFile)")
-                continue
-            }
-            
-            guard let inputHandle = FileHandle(forReadingAtPath: vobFile) else {
-                delegate?.mediaRipperDidUpdateStatus("ERROR: Cannot open VOB file for reading: \(vobFile)")
-                continue // Skip if we can't read the file
-            }
-
-            defer { inputHandle.closeFile() }
-
-            // Read in chunks
-            let chunkSize = 1024 * 1024 // 1MB chunks
-            var filePosition: Int64 = 0
-            
-            while !shouldCancel {
-                let data = inputHandle.readData(ofLength: chunkSize)
-                if data.isEmpty {
-                    break // End of file
-                }
-
-                outputHandle.write(data)
-                totalBytesRead += Int64(data.count)
-                filePosition += Int64(data.count)
-                
-                // Update progress every 10MB
-                if totalBytesRead % (10 * 1024 * 1024) == 0 {
-                    let progress = Double(totalBytesRead) / Double(totalSize)
-                    delegate?.mediaRipperDidUpdateStatus("Extracted \(totalBytesRead / 1024 / 1024) MB of \(totalSize / 1024 / 1024) MB (\(Int(progress * 100))%)")
-                    delegate?.mediaRipperDidUpdateProgress(
-                        progress * 0.5, currentItem: .dvdTitle(title), totalItems: 1
-                    ) // 50% for extraction
-                }
-            }
-            
-            delegate?.mediaRipperDidUpdateStatus("Completed VOB file \(index + 1): \(filePosition) bytes read")
-        }
-        
-        delegate?.mediaRipperDidUpdateStatus("VOB extraction completed. Total bytes: \(totalBytesRead)")
-        
-        // Final progress update
-        delegate?.mediaRipperDidUpdateProgress(0.5, currentItem: .dvdTitle(title), totalItems: 1)
-
-        return outputPath
-    }
-
     internal func createFileAndGetHandle(at path: String) -> FileHandle? {
         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
         return FileHandle(forWritingAtPath: path)
+    }
+
+    /// Find the raw character device for the DVD (e.g. /dev/rdisk18).
+    /// libdvdcss requires the raw device for hardware CSS authentication.
+    private func findRawDVDDevice(dvdPath: String) -> String? {
+        // Already a raw device
+        if dvdPath.hasPrefix("/dev/r") { return dvdPath }
+        // Block device -> convert to raw
+        if dvdPath.hasPrefix("/dev/disk") {
+            return dvdPath.replacingOccurrences(of: "/dev/disk", with: "/dev/rdisk")
+        }
+
+        // Mount point -> get block device via diskutil, then convert to raw
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["info", "-plist", dvdPath]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+               let deviceNode = plist["DeviceNode"] as? String {
+                // deviceNode is like /dev/disk18 -> convert to /dev/rdisk18
+                return deviceNode.replacingOccurrences(of: "/dev/disk", with: "/dev/rdisk")
+            }
+        } catch {}
+
+        return nil
     }
 
     private func findDVDDevice(dvdPath: String) -> String? {
@@ -250,12 +199,12 @@ extension MediaRipper {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 let lines = output.components(separatedBy: .newlines)
-                for line in lines {
-                    if line.contains(dvdPath) {
-                        let components = line.components(separatedBy: .whitespaces)
-                        if let devicePath = components.first, devicePath.hasPrefix("/dev/") {
-                            return devicePath
-                        }
+                // Skip header line; last non-empty line is the filesystem entry
+                let dataLines = lines.filter { !$0.isEmpty && !$0.hasPrefix("Filesystem") }
+                if let line = dataLines.last {
+                    let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                    if let devicePath = components.first, devicePath.hasPrefix("/dev/") {
+                        return devicePath
                     }
                 }
             }
@@ -263,8 +212,17 @@ extension MediaRipper {
             // Fall back to guessing based on path
         }
 
-        // Default fallback - assume it's a disc image or try common device paths
-        return "/dev/disk1" // This should be determined more intelligently
+        // Try common macOS optical drive device paths
+        let candidates = ["/dev/disk2", "/dev/disk3", "/dev/disk4", "/dev/disk1"]
+        for candidate in candidates {
+            if FileManager.default.fileExists(atPath: candidate) {
+                // Check if it looks like an optical drive by seeing if dvd path is under /Volumes
+                if dvdPath.hasPrefix("/Volumes/") {
+                    return candidate
+                }
+            }
+        }
+        return nil
     }
 
     private func filterTitlesToRip(titles: [DVDTitle], selectedTitles: [Int]) -> [DVDTitle] {

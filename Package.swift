@@ -24,6 +24,26 @@ func getLibdvdcssPath() -> String {
 let libdvdcssPath = getLibdvdcssPath()
 print("Using libdvdcss path: \(libdvdcssPath)")
 
+// Detect libaacs path
+func getLibaacsPath() -> String {
+    let possiblePaths = [
+        "/opt/homebrew/opt/libaacs",
+        "/usr/local/opt/libaacs"
+    ]
+
+    for path in possiblePaths {
+        if FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+    }
+
+    // Default fallback (will likely fail, but better than nothing)
+    return "/usr/local/opt/libaacs"
+}
+
+let libaacsPath = getLibaacsPath()
+print("Using libaacs path: \(libaacsPath)")
+
 let package = Package(
     name: "AutoRip2MKV-Mac",
     platforms: [
@@ -42,14 +62,18 @@ let package = Package(
             cSettings: [
                 .headerSearchPath("include"),
                 .unsafeFlags([
-                    "-I\(libdvdcssPath)/include"
+                    "-I\(libdvdcssPath)/include",
+                    "-I\(libaacsPath)/include"
                 ])
             ],
             linkerSettings: [
                 .linkedLibrary("dvdcss"),
+                .linkedLibrary("aacs"),
                 .unsafeFlags([
                     "-L\(libdvdcssPath)/lib",
-                    "-Xlinker", "-rpath", "-Xlinker", "\(libdvdcssPath)/lib"
+                    "-L\(libaacsPath)/lib",
+                    "-Xlinker", "-rpath", "-Xlinker", "\(libdvdcssPath)/lib",
+                    "-Xlinker", "-rpath", "-Xlinker", "\(libaacsPath)/lib"
                 ])
             ]
         ),

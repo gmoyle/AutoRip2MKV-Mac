@@ -2,7 +2,7 @@
   <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
   <h1>AutoRip2MKV for Mac</h1>
   <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
-  <p><sub>v1.3.0 - Production-ready libdvdcss & libaacs integration</sub></p>
+  <p><sub>v1.4.0 - First real-world encrypted DVD rip confirmed working</sub></p>
   
   [![Build Status](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
   [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
@@ -10,7 +10,7 @@
   <!-- Badge refresh trigger: 2025-07-04-v2 -->
 </div>
 
-> 🤖 **AI Development Experiment**: This entire application was created using Warp 2.0 AI assistance by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
+> 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. v1.4.0 marks the first time a real encrypted DVD was successfully ripped end-to-end. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
 A native macOS application for automatically ripping DVDs and Blu-rays to MKV format using **open-source decryption libraries** (libdvdcss & libaacs) - no third-party applications like MakeMKV required!
 

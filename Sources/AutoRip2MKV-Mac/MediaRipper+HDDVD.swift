@@ -14,7 +14,7 @@ extension MediaRipper {
         var lastError: Error? = nil
 
         // Step 0: Analyze disc for quality optimization
-        delegate?.ripperDidUpdateStatus("Analyzing HD DVD quality...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing HD DVD quality...")
         let qualityAssessment: QualityAssessment
         do {
             qualityAssessment = try analyzeMedia(mediaPath: hddvdPath, mediaType: .hddvd)
@@ -43,7 +43,7 @@ extension MediaRipper {
         }
 
         // Step 1: Parse HD DVD structure with retry
-        delegate?.ripperDidUpdateStatus("Parsing HD DVD structure...")
+        delegate?.mediaRipperDidUpdateStatus("Parsing HD DVD structure...")
         for attempt in 1...maxRetries {
             do {
                 parser = HDDVDStructureParser()
@@ -52,9 +52,9 @@ extension MediaRipper {
             } catch {
                 lastError = error
                 Logger.shared.logError(error, context: "HD DVD structure parse failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
+                delegate?.mediaRipperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
                 if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
+                    delegate?.mediaRipperDidFail(with: error)
                     throw error
                 }
             }
@@ -63,12 +63,12 @@ extension MediaRipper {
         guard let structureUnwrapped = structure, !structureUnwrapped.titles.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No titles found in HD DVD")
-            delegate?.ripperDidFail(with: error)
+            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
         // Step 2: Extract movie name and create organized directory
-        delegate?.ripperDidUpdateStatus("Analyzing disc information...")
+        delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: hddvdPath, mediaType: .hddvd)
         let organizedOutputDirectory = createOrganizedOutputDirectory(
             baseDirectory: configuration.outputDirectory,
@@ -99,18 +99,18 @@ extension MediaRipper {
 
         // Step 3: Determine which titles to rip
         let titlesToRip = filterHDDVDTitlesToRip(titles: structureUnwrapped.titles, selectedTitles: optimizedConfig.selectedTitles)
-        delegate?.ripperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
+        delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
         // Step 4: Rip each title with error recovery
         for (index, title) in titlesToRip.enumerated() {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.ripperDidFail(with: error)
+                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 
-            delegate?.ripperDidUpdateStatus("Ripping HD DVD title \(title.index): \(title.name) (\(formatDuration(title.durationSeconds)))...")
+            delegate?.mediaRipperDidUpdateStatus("Ripping HD DVD title \(title.index): \(title.name) (\(formatDuration(title.durationSeconds)))...")
             var titleSuccess = false
             
             for attempt in 1...maxRetries {
@@ -122,9 +122,9 @@ extension MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "Failed to rip HD DVD title \(title.index) (attempt \(attempt))")
-                    delegate?.ripperDidUpdateStatus("Ripping failed for title \(title.index) (attempt \(attempt)). Retrying...")
+                    delegate?.mediaRipperDidUpdateStatus("Ripping failed for title \(title.index) (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
-                        delegate?.ripperDidUpdateStatus("Skipping failed title \(title.index).")
+                        delegate?.mediaRipperDidUpdateStatus("Skipping failed title \(title.index).")
                     }
                 }
             }
@@ -135,10 +135,10 @@ extension MediaRipper {
             
             // Update overall progress
             let overallProgress = Double(index + 1) / Double(titlesToRip.count)
-            delegate?.ripperDidUpdateProgress(overallProgress, currentItem: nil, totalItems: titlesToRip.count)
+            delegate?.mediaRipperDidUpdateProgress(overallProgress, currentItem: nil, totalItems: titlesToRip.count)
         }
 
-        delegate?.ripperDidUpdateStatus("HD DVD ripping completed.")
+        delegate?.mediaRipperDidUpdateStatus("HD DVD ripping completed.")
         Logger.shared.log("HD DVD ripping completed for \(movieName)", level: .info, category: .general)
     }
 
@@ -230,7 +230,7 @@ extension MediaRipper {
                 totalBytesWritten += Int64(data.count)
                 
                 // Update progress
-                delegate?.ripperDidUpdateStatus("Extracting: \((sourceFile as NSString).lastPathComponent)")
+                delegate?.mediaRipperDidUpdateStatus("Extracting: \((sourceFile as NSString).lastPathComponent)")
             }
         }
 
@@ -414,7 +414,7 @@ extension MediaRipper {
                         let overallProgress = 0.5 + (conversionProgress * 0.5) // 50-100% for conversion
 
                         DispatchQueue.main.async {
-                            self.delegate?.ripperDidUpdateProgress(overallProgress, currentItem: nil, totalItems: totalItems)
+                            self.delegate?.mediaRipperDidUpdateProgress(overallProgress, currentItem: nil, totalItems: totalItems)
                         }
                     }
                     break

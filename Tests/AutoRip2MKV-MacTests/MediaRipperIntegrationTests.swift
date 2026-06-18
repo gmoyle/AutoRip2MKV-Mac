@@ -387,26 +387,26 @@ class MockMediaRipperDelegate: MediaRipperDelegate {
     
     var progressUpdates: [ProgressUpdate] = []
     
-    func ripperDidStart() {
+    func mediaRipperDidStart() {
         didStartCalled = true
     }
     
-    func ripperDidUpdateStatus(_ status: String) {
+    func mediaRipperDidUpdateStatus(_ status: String) {
         didUpdateStatusCalled = true
         lastStatus = status
     }
     
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         didUpdateProgressCalled = true
         lastProgress = progress
         progressUpdates.append(ProgressUpdate(progress: progress, item: currentItem, total: totalItems))
     }
     
-    func ripperDidComplete() {
+    func mediaRipperDidComplete() {
         didCompleteCalled = true
     }
     
-    func ripperDidFail(with error: Error) {
+    func mediaRipperDidFail(with error: Error) {
         didFailCalled = true
         lastError = error
     }

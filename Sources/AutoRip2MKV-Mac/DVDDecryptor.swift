@@ -1,20 +1,35 @@
 import Foundation
-// import Clibdvdcss  // Temporarily commented out for testing
 
-/// DVD decryption handler (fallback implementation without libdvdcss)
+// libdvdcss C function declarations via @_silgen_name
+// These match the actual C signatures in <dvdcss/dvdcss.h>
+@_silgen_name("dvdcss_open")
+func dvdcss_open(_ psz_target: UnsafePointer<CChar>!) -> OpaquePointer?
+
+@_silgen_name("dvdcss_close")
+func dvdcss_close(_ dvdcss: OpaquePointer!) -> Int32
+
+@_silgen_name("dvdcss_seek")
+func dvdcss_seek(_ dvdcss: OpaquePointer!, _ i_blocks: Int32, _ i_flags: Int32) -> Int32
+
+@_silgen_name("dvdcss_read")
+func dvdcss_read(_ dvdcss: OpaquePointer!, _ p_buffer: UnsafeMutableRawPointer!, _ i_blocks: Int32, _ i_flags: Int32) -> Int32
+
+private let DVDCSS_NOFLAGS: Int32    = 0
+private let DVDCSS_READ_DECRYPT: Int32 = 1
+private let DVDCSS_SEEK_MPEG: Int32  = 1
+private let DVDCSS_SEEK_KEY: Int32   = 2
+private let DVDCSS_BLOCK_SIZE        = 2048
+
+/// DVD decryption handler using libdvdcss for real CSS decryption
 class DVDDecryptor {
-    private static let SECTOR_SIZE = 2048
-    private static let DVD_BLOCK_LEN = 2048
-    
+
     private var devicePath: String
-    private var isAuthenticated = false
-    
-    // Key structure for compatibility with existing code
+    private var dvdcss: OpaquePointer?
+
     struct CSSKey {
         var key: [UInt8] = Array(repeating: 0, count: 5)
     }
-    
-    // Keep these for compatibility
+
     private var titleKeys: [Int: CSSKey] = [:]
 
     init(devicePath: String) {
@@ -27,42 +42,66 @@ class DVDDecryptor {
 
     // MARK: - Public Interface
 
-    /// Initialize DVD device (fallback - just mark as authenticated)
     func initializeDevice() throws {
-        // For now, just mark as authenticated
-        // In a real implementation, this would initialize libdvdcss
-        isAuthenticated = true
-        print("[DVDDecryptor] Device initialized (fallback mode - no decryption)")
+        let handle = dvdcss_open(devicePath)
+        guard handle != nil else {
+            throw DVDError.deviceNotFound
+        }
+        self.dvdcss = handle
+        print("[DVDDecryptor] libdvdcss opened device: \(devicePath)")
     }
 
-    /// Decrypt a DVD sector (fallback - return data as-is)
-    func decryptSector(data: Data, sector: UInt32, titleNumber: Int) throws -> Data {
-        // For now, return the data as-is (no decryption)
-        // This will work for unencrypted DVDs
+    func getTitleKey(titleNumber: Int, startSector: UInt32) throws -> CSSKey {
+        guard let css = dvdcss else { throw DVDError.deviceNotOpen }
+        // Seek with DVDCSS_SEEK_KEY so libdvdcss negotiates the title key
+        let result = dvdcss_seek(css, Int32(startSector), DVDCSS_SEEK_KEY)
+        if result < 0 {
+            print("[DVDDecryptor] Warning: seek+key failed for title \(titleNumber) at sector \(startSector)")
+        }
+        let key = CSSKey()
+        titleKeys[titleNumber] = key
+        return key
+    }
+
+    func closeDevice() {
+        if let css = dvdcss {
+            _ = dvdcss_close(css)
+            self.dvdcss = nil
+        }
+    }
+
+    /// Read and decrypt sectors using libdvdcss (seek then read with DVDCSS_READ_DECRYPT).
+    func readAndDecryptSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
+        guard let css = dvdcss else { throw DVDError.deviceNotOpen }
+
+        let seekResult = dvdcss_seek(css, Int32(startSector), DVDCSS_SEEK_MPEG)
+        if seekResult < 0 {
+            throw DVDError.invalidSector
+        }
+
+        let bufferSize = sectorCount * DVDCSS_BLOCK_SIZE
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+
+        let blocksRead = dvdcss_read(css, &buffer, Int32(sectorCount), DVDCSS_READ_DECRYPT)
+        if blocksRead < 0 {
+            throw DVDError.decryptionFailed
+        }
+
+        let bytesRead = Int(blocksRead) * DVDCSS_BLOCK_SIZE
+        return Data(buffer.prefix(bytesRead))
+    }
+
+    // Legacy API kept for compatibility — delegate to readAndDecryptSectors
+
+    func readSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
+        return try readAndDecryptSectors(startSector: startSector, sectorCount: sectorCount)
+    }
+
+    func decryptSectors(data: Data, titleKey: CSSKey, startSector: UInt32) throws -> Data {
         return data
     }
 
-    /// Get title key for a specific title (fallback - return dummy key)
-    func getTitleKey(titleNumber: Int, startSector: UInt32) throws -> CSSKey {
-        // Return a dummy key for compatibility
-        return CSSKey()
-    }
-
-    /// Close the DVD device (fallback - just mark as not authenticated)
-    func closeDevice() {
-        isAuthenticated = false
-    }
-
-    /// Read multiple sectors from DVD (fallback - read from VOB files directly)
-    func readSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
-        // For now, return dummy data
-        // In a real implementation, this would read from the device
-        return Data(count: Int(sectorCount) * Self.SECTOR_SIZE)
-    }
-
-    /// Decrypt multiple sectors (fallback - return data as-is)
-    func decryptSectors(data: Data, titleKey: CSSKey, startSector: UInt32) throws -> Data {
-        // For now, return the data as-is (no decryption)
+    func decryptSector(data: Data, sector: UInt32, titleNumber: Int) throws -> Data {
         return data
     }
 }

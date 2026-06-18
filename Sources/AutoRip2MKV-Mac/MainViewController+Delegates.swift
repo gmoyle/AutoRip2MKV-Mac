@@ -10,7 +10,11 @@ extension MainViewController: DVDRipperDelegate {
         }
     }
 
-    // Implementation merged below
+    func ripperDidUpdateStatus(_ status: String) {
+        DispatchQueue.main.async {
+            self.appendToLog(status)
+        }
+    }
 
     func ripperDidUpdateProgress(_ progress: Double, currentTitle: DVDTitle?, totalTitles: Int) {
         DispatchQueue.main.async {

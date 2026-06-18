@@ -88,13 +88,14 @@ class DVDStructureParser {
     }
 
     private func parseTitleEntry(data: Data, offset: Int, titleNumber: Int) throws -> DVDTitle {
-        _ = data[offset]
+        // TT_SRPT entry is 12 bytes (DVD spec):
+        // [0] title_category  [1] angles  [2-3] num_ptts(chapters)
+        // [4-5] parental_id   [6] vts_nr  [7] vts_ttn  [8-11] start_sector
         let numAngles = data[offset + 1]
         let numChapters = data.readUInt16(at: offset + 2)
-        _ = data.readUInt16(at: offset + 4)
-        let vtsNumber = data.readUInt16(at: offset + 6)
-        let vtsTitleNumber = data.readUInt16(at: offset + 8)
-        let startSector = data.readUInt32(at: offset + 10)
+        let vtsNumber = data[offset + 6]
+        let vtsTitleNumber = data[offset + 7]
+        let startSector = data.readUInt32(at: offset + 8)
 
         let title = DVDTitle(
             number: titleNumber,
@@ -150,19 +151,16 @@ class DVDStructureParser {
 
     private func parsePGCI(data: Data, offset: Int, for title: DVDTitle) throws {
         // Parse Program Chain Information Table
+        // Use vtsTitleNumber (1-based) to select the correct PGC for this title
         let pgcCount = data.readUInt16(at: offset)
+        let targetPGC = max(1, title.vtsTitleNumber)
+        let pgcIndex = min(targetPGC - 1, max(0, Int(pgcCount) - 1))
 
-        // Find the PGC for this title
-        var currentOffset = offset + 8
-        for _ in 0..<pgcCount {
-            let pgcOffset = offset + Int(data.readUInt32(at: currentOffset + 4))
+        let entryOffset = offset + 8 + pgcIndex * 8
+        let pgcOffset = offset + Int(data.readUInt32(at: entryOffset + 4))
 
-            if pgcOffset < data.count {
-                try parsePGC(data: data, offset: pgcOffset, for: title)
-                break // Use first PGC for now
-            }
-
-            currentOffset += 8
+        if pgcOffset > 0 && pgcOffset < data.count {
+            try parsePGC(data: data, offset: pgcOffset, for: title)
         }
     }
 
@@ -237,12 +235,15 @@ class DVDStructureParser {
     // MARK: - Utility Functions
 
     private func decodeBCDTime(_ bcdTime: UInt32) -> TimeInterval {
-        // Decode BCD (Binary Coded Decimal) time format
-        let hours = Double((bcdTime >> 20) & 0xFF)
-        let minutes = Double((bcdTime >> 12) & 0xFF)
-        let seconds = Double((bcdTime >> 4) & 0xFF)
-        let frames = Double(bcdTime & 0x0F)
-
+        // DVD IFO stores playback time as 4 BCD bytes: HH MM SS FF
+        // Each byte: upper nibble = tens digit, lower nibble = units digit
+        func bcd(_ byte: UInt32) -> Double {
+            return Double((byte >> 4) & 0xF) * 10 + Double(byte & 0xF)
+        }
+        let hours   = bcd((bcdTime >> 24) & 0xFF)
+        let minutes = bcd((bcdTime >> 16) & 0xFF)
+        let seconds = bcd((bcdTime >> 8) & 0xFF)
+        let frames  = bcd(bcdTime & 0xFF)
         return hours * 3600 + minutes * 60 + seconds + frames / 25.0
     }
 }

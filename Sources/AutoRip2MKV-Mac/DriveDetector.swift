@@ -125,6 +125,12 @@ class DriveDetector {
             "CERTIFICATE"
         ]
 
+        let hddvdIndicators = [
+            "HVDVD_TS",
+            "ADV_OBJ",
+            "HVAUDIO_TS"
+        ]
+
         // Check for DVD structure first (more specific)
         for indicator in dvdIndicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)

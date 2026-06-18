@@ -10,7 +10,9 @@ APP_NAME="AutoRip2MKV-Mac"
 BUNDLE_ID="com.autorip2mkv.mac"
 VERSION="1.2.4"
 BUILD_DIR="build"
-APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
+WORK_DIR="$(/usr/bin/mktemp -d)"
+APP_BUNDLE="${WORK_DIR}/${APP_NAME}.app"
+FINAL_APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
@@ -37,7 +39,7 @@ fi
 
 # Clean previous build
 echo -e "${BLUE}Cleaning previous build...${NC}"
-rm -rf "${BUILD_DIR}"
+rm -rf "${BUILD_DIR}" "${WORK_DIR}"
 
 # Create app bundle structure
 echo -e "${BLUE}Creating app bundle structure...${NC}"
@@ -51,7 +53,8 @@ swift build -c release --product AutoRip2MKV-Mac
 
 # Copy executable
 echo -e "${BLUE}Copying executable...${NC}"
-cp .build/release/AutoRip2MKV-Mac "${MACOS_DIR}/"
+/usr/bin/ditto --noextattr --noqtn .build/release/AutoRip2MKV-Mac "${MACOS_DIR}/AutoRip2MKV-Mac"
+/usr/bin/xattr -d com.apple.provenance "${MACOS_DIR}/AutoRip2MKV-Mac" 2>/dev/null || true
 
 # Create Info.plist in the bundle
 echo -e "${BLUE}Creating Info.plist...${NC}"
@@ -90,9 +93,9 @@ cat > "${CONTENTS_DIR}/Info.plist" << EOF
 </plist>
 EOF
 
-# Copy entitlements
-echo -e "${BLUE}Copying entitlements...${NC}"
-cp AutoRip2MKV.entitlements "${CONTENTS_DIR}/"
+# Remove any bundled entitlements file
+echo -e "${BLUE}Removing bundled entitlements...${NC}"
+rm -f "${CONTENTS_DIR}/AutoRip2MKV.entitlements"
 
 # Bundle FFmpeg if available
 if [ -f "/usr/local/bin/ffmpeg" ] || [ -f "/opt/homebrew/bin/ffmpeg" ]; then
@@ -107,8 +110,9 @@ if [ -f "/usr/local/bin/ffmpeg" ] || [ -f "/opt/homebrew/bin/ffmpeg" ]; then
     fi
     
     if [ -n "$FFMPEG_PATH" ]; then
-        cp "$FFMPEG_PATH" "${MACOS_DIR}/ffmpeg"
+        /usr/bin/ditto --noextattr --noqtn "$FFMPEG_PATH" "${MACOS_DIR}/ffmpeg"
         chmod +x "${MACOS_DIR}/ffmpeg"
+        /usr/bin/xattr -d com.apple.provenance "${MACOS_DIR}/ffmpeg" 2>/dev/null || true
         echo -e "${GREEN}✓ FFmpeg bundled successfully${NC}"
     fi
 else
@@ -118,14 +122,11 @@ fi
 # Copy any required frameworks/libraries
 echo -e "${BLUE}Checking for required frameworks...${NC}"
 
-# Create a simple launcher script that sets up the environment
-cat > "${MACOS_DIR}/launch.sh" << 'EOF'
-#!/bin/bash
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export PATH="$DIR:$PATH"
-exec "$DIR/AutoRip2MKV-Mac" "$@"
-EOF
-chmod +x "${MACOS_DIR}/launch.sh"
+# Strip extended attributes to avoid signing failures
+echo -e "${BLUE}Cleaning extended attributes...${NC}"
+/usr/bin/xattr -cr "${APP_BUNDLE}" 2>/dev/null || true
+/usr/bin/dot_clean -m "${APP_BUNDLE}" 2>/dev/null || true
+/usr/bin/xattr -cr "${APP_BUNDLE}" 2>/dev/null || true
 
 # Sign the app if we have a certificate
 if [ "$SHOULD_SIGN" = true ]; then
@@ -165,16 +166,22 @@ else
     exit 1
 fi
 
+# Copy signed bundle to build directory without xattrs
+echo -e "${BLUE}Copying signed bundle to build directory...${NC}"
+mkdir -p "${BUILD_DIR}"
+/usr/bin/ditto --noextattr --noqtn "${APP_BUNDLE}" "${FINAL_APP_BUNDLE}"
+rm -rf "${WORK_DIR}"
+
 # Show bundle information
 echo -e "\n${GREEN}=== App Bundle Created Successfully ===${NC}"
-echo -e "${BLUE}Location:${NC} ${APP_BUNDLE}"
-echo -e "${BLUE}Size:${NC} $(du -sh "${APP_BUNDLE}" | cut -f1)"
+echo -e "${BLUE}Location:${NC} ${FINAL_APP_BUNDLE}"
+echo -e "${BLUE}Size:${NC} $(du -sh "${FINAL_APP_BUNDLE}" | cut -f1)"
 echo -e "${BLUE}Bundle ID:${NC} ${BUNDLE_ID}"
 echo -e "${BLUE}Version:${NC} ${VERSION}"
 
 # Next steps
 echo -e "\n${BLUE}=== Next Steps ===${NC}"
-echo -e "1. Test the app: open '${APP_BUNDLE}'"
+echo -e "1. Test the app: open '${FINAL_APP_BUNDLE}'"
 echo -e "2. For distribution, create a DMG: scripts/create-dmg.sh"
 if [ "$SHOULD_SIGN" = true ]; then
     echo -e "3. Submit for notarization: scripts/notarize-app.sh"

@@ -5,6 +5,24 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-17
+
+### 🎉 First Real-World DVD Rip
+- **Actually works on physical discs**: Inserted an encrypted DVD, clicked Start Ripping, got a decrypted MKV. First time end-to-end ripping has ever succeeded.
+
+### 🐛 Fixed
+- **DVDDecryptor was still a stub**: v1.3.0 left `import Clibdvdcss` commented out and all methods as no-ops. Replaced with proper `@_silgen_name` bindings to `dvdcss_open/seek/read/close`.
+- **Wrong device path for libdvdcss**: Opening via mount point (`/Volumes/DISC`) uses software cracking which can't decrypt real discs. Fixed to resolve mount point → `/dev/rdiskN` (raw device) via `diskutil info -plist` for hardware CSS authentication.
+- **IFO BCD duration decode had wrong bit shifts**: `decodeBCDTime()` shifted by 20/12/4 instead of 24/16/8. All title durations parsed as ~0 seconds, causing intelligent title filter to reject every title.
+- **TT_SRPT entry field offsets wrong**: `vtsNumber` and `vtsTitleNumber` read as `UInt16` at wrong offsets; they are single bytes at offsets 6 and 7. `startSector` was at wrong offset (10 vs 8).
+- **Wrong PGC selected for multi-title VTS**: Parser always used PGC 0 for every title. Fixed to use `vtsTitleNumber` to index into the correct Program Chain for each title.
+- **VOB extraction bypassed libdvdcss**: Raw `FileHandle` reads of VOB files return still-encrypted data. Removed this path; all extraction now goes through `dvdcss_seek + dvdcss_read` with `DVDCSS_READ_DECRYPT`.
+
+### 🔧 Technical
+- Used `@_silgen_name` for libdvdcss C bindings (correct SPM approach; bridging headers not auto-exposed to Swift)
+- `findRawDVDDevice()` uses `diskutil info -plist` for reliable raw device resolution on any macOS system
+- Removed dead `extractFromVOBFiles()` method
+
 ## [1.3.0] - 2026-02-07
 
 ### 🔐 Major Changes

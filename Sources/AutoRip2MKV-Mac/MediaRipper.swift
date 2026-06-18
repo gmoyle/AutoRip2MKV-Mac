@@ -7,7 +7,7 @@ class MediaRipper {
     /// Performs HD DVD ripping workflow with error recovery and notifications
     func performHDDVDRipping(hddvdPath: String, configuration: RippingConfiguration) {
         Logger.shared.log("Starting HD DVD ripping for path: \(hddvdPath)", level: .info, category: .general)
-        delegate?.ripperDidUpdateStatus("Parsing HD DVD structure...")
+        delegate?.mediaRipperDidUpdateStatus("Parsing HD DVD structure...")
         let maxRetries = 3
         var parser: HDDVDStructureParser? = nil
         var structure: HDDVDStructure? = nil
@@ -20,9 +20,9 @@ class MediaRipper {
             } catch {
                 lastError = error
                 Logger.shared.logError(error, context: "HD DVD structure parse failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
+                delegate?.mediaRipperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
                 if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
+                    delegate?.mediaRipperDidFail(with: error)
                     return
                 }
             }
@@ -30,12 +30,12 @@ class MediaRipper {
         guard let structureUnwrapped = structure, let mainTitleIndex = structureUnwrapped.mainTitleIndex, structureUnwrapped.titles.indices.contains(mainTitleIndex) else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No main title found in HD DVD")
-            delegate?.ripperDidFail(with: error)
+            delegate?.mediaRipperDidFail(with: error)
             return
         }
         let mainTitle = structureUnwrapped.titles[mainTitleIndex]
         Logger.shared.log("HD DVD main title: \(mainTitle.name), duration: \(mainTitle.durationSeconds)s, chapters: \(mainTitle.chapters)", level: .info, category: .general)
-        delegate?.ripperDidUpdateStatus("Ripping HD DVD: \(mainTitle.name)")
+        delegate?.mediaRipperDidUpdateStatus("Ripping HD DVD: \(mainTitle.name)")
         // Simulate ripping process with retry
         var ripSuccess = false
         for attempt in 1...maxRetries {
@@ -46,16 +46,16 @@ class MediaRipper {
             } catch {
                 lastError = error
                 Logger.shared.logError(error, context: "HD DVD ripping failed (attempt \(attempt))")
-                delegate?.ripperDidUpdateStatus("Ripping failed (attempt \(attempt)). Retrying...")
+                delegate?.mediaRipperDidUpdateStatus("Ripping failed (attempt \(attempt)). Retrying...")
                 if attempt == maxRetries {
-                    delegate?.ripperDidFail(with: error)
+                    delegate?.mediaRipperDidFail(with: error)
                     return
                 }
             }
         }
         if ripSuccess {
             Logger.shared.log("HD DVD ripping completed for \(mainTitle.name)", level: .info, category: .general)
-            delegate?.ripperDidUpdateStatus("HD DVD ripping completed.")
+            delegate?.mediaRipperDidUpdateStatus("HD DVD ripping completed.")
         }
     }
 
@@ -134,7 +134,7 @@ class MediaRipper {
     func startBatchRipping(mediaPaths: [String], configuration: RippingConfiguration) {
         guard !isRipping else {
             Logger.shared.logError(MediaRipperError.alreadyRipping, context: "Attempted to start batch ripping while already in progress")
-            delegate?.ripperDidFail(with: MediaRipperError.alreadyRipping)
+            delegate?.mediaRipperDidFail(with: MediaRipperError.alreadyRipping)
             return
         }
         isRipping = true
@@ -146,28 +146,28 @@ class MediaRipper {
                     break
                 }
                 DispatchQueue.main.async {
-                    self.delegate?.ripperDidUpdateStatus("Batch: Processing disc \(index+1) of \(mediaPaths.count)...")
+                    self.delegate?.mediaRipperDidUpdateStatus("Batch: Processing disc \(index+1) of \(mediaPaths.count)...")
                 }
                 do {
                     try self.performRipping(mediaPath: mediaPath, configuration: configuration)
                 } catch {
                     Logger.shared.logError(error, context: "Batch: Failed to rip disc \(index+1)")
                     DispatchQueue.main.async {
-                        self.delegate?.ripperDidFail(with: error)
+                        self.delegate?.mediaRipperDidFail(with: error)
                     }
                     // Continue to next disc in batch
                 }
                 // Optionally: Insert delay or prompt for next disc
                 if index < mediaPaths.count - 1 {
                     DispatchQueue.main.async {
-                        self.delegate?.ripperDidUpdateStatus("Please insert next disc (")
+                        self.delegate?.mediaRipperDidUpdateStatus("Please insert next disc (")
                     }
                     // Simulate wait for user to insert next disc (could poll for mount, etc.)
                     Thread.sleep(forTimeInterval: 5.0) // Replace with smarter disc detection
                 }
             }
             DispatchQueue.main.async {
-                self.delegate?.ripperDidComplete()
+                self.delegate?.mediaRipperDidComplete()
                 self.isRipping = false
             }
         }
@@ -235,6 +235,9 @@ class MediaRipper {
     private func performRipping(mediaPath: String, configuration: RippingConfiguration) throws {
         delegate?.mediaRipperDidStart()
 
+        let maxRetries = 3
+        var lastError: Error? = nil
+
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
 
@@ -251,9 +254,9 @@ class MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "DVD structure/decryption failed (attempt \(attempt))", category: .dvdRipping)
-                    delegate?.ripperDidUpdateStatus("DVD parse/decryption failed (attempt \(attempt)). Retrying...")
+                    delegate?.mediaRipperDidUpdateStatus("DVD parse/decryption failed (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
-                        delegate?.ripperDidFail(with: error)
+                        delegate?.mediaRipperDidFail(with: error)
                         throw error
                     }
                 }
@@ -271,9 +274,9 @@ class MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "Blu-ray structure/decryption failed (attempt \(attempt))", category: .blurayRipping)
-                    delegate?.ripperDidUpdateStatus("Blu-ray parse/decryption failed (attempt \(attempt)). Retrying...")
+                    delegate?.mediaRipperDidUpdateStatus("Blu-ray parse/decryption failed (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
-                        delegate?.ripperDidFail(with: error)
+                        delegate?.mediaRipperDidFail(with: error)
                         throw error
                     }
                 }
@@ -291,9 +294,9 @@ class MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "HD DVD structure/decryption failed (attempt \(attempt))", category: .general)
-                    delegate?.ripperDidUpdateStatus("HD DVD parse/decryption failed (attempt \(attempt)). Retrying...")
+                    delegate?.mediaRipperDidUpdateStatus("HD DVD parse/decryption failed (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
-                        delegate?.ripperDidFail(with: error)
+                        delegate?.mediaRipperDidFail(with: error)
                         throw error
                     }
                 }

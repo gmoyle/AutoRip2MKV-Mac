@@ -5,6 +5,9 @@ import Foundation
 extension MediaRipper {
 
     func performBluRayRipping(blurayPath: String, configuration: RippingConfiguration) throws {
+        let maxRetries = 3
+        var lastError: Error? = nil
+
         // Step 1: Parse Blu-ray structure
         delegate?.mediaRipperDidUpdateStatus("Analyzing Blu-ray structure...")
         blurayParser = BluRayStructureParser(blurayPath: blurayPath)
@@ -13,7 +16,7 @@ extension MediaRipper {
         guard !playlists.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No playlists found in Blu-ray")
-            delegate?.ripperDidFail(with: error)
+            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -29,6 +32,34 @@ extension MediaRipper {
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,
                       mediaType: currentMediaType, movieName: movieName)
+
+        // Step 2.5: Analyze disc for quality optimization
+        let qualityAssessment: QualityAssessment
+        do {
+            qualityAssessment = try analyzeMedia(mediaPath: blurayPath, mediaType: currentMediaType)
+        } catch {
+            Logger.shared.logError(error, context: "Quality analysis failed; using default settings.")
+            qualityAssessment = QualityAssessment(
+                resolution: .fullHD1080p,
+                estimatedBitrate: 18000,
+                contentType: .liveAction,
+                complexityScore: 7.0,
+                hdrPresent: false,
+                audioTracks: [],
+                recommendedCodec: configuration.videoCodec,
+                recommendedCRF: configuration.quality.crf,
+                recommendedBitrate: 18000,
+                sceneChangeRate: nil,
+                motionIntensity: nil,
+                grainLevel: nil,
+                animationScore: nil,
+                subtitleComplexity: nil,
+                audioComplexity: nil,
+                hdrType: nil,
+                immersiveAudio: nil
+            )
+        }
+
         // Log quality report
         Logger.shared.log(MediaRipper.generateQualityReport(qualityAssessment), level: .info, category: .general)
 
@@ -65,7 +96,7 @@ extension MediaRipper {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.ripperDidFail(with: error)
+                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 
@@ -84,9 +115,9 @@ extension MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "Failed to rip playlist \(playlist.number) (attempt \(attempt))")
-                    delegate?.ripperDidUpdateStatus("Ripping failed for playlist \(playlist.number) (attempt \(attempt)). Retrying...")
+                    delegate?.mediaRipperDidUpdateStatus("Ripping failed for playlist \(playlist.number) (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
-                        delegate?.ripperDidUpdateStatus("Skipping failed playlist \(playlist.number).")
+                        delegate?.mediaRipperDidUpdateStatus("Skipping failed playlist \(playlist.number).")
                         // Optionally, continue with next playlist instead of failing all
                     }
                 }
@@ -97,7 +128,7 @@ extension MediaRipper {
             }
         }
         // All playlists processed
-        delegate?.ripperDidUpdateStatus("Blu-ray ripping completed.")
+        delegate?.mediaRipperDidUpdateStatus("Blu-ray ripping completed.")
     }
 
     private func ripBluRayPlaylist(

@@ -198,7 +198,8 @@ class RippingCoordinator: RippingCoordinating, @unchecked Sendable {
             quality: mapQuality(configuration.quality),
             includeSubtitles: configuration.includeSubtitles,
             includeChapters: configuration.includeChapters,
-            mediaType: mapMediaType(detectedMediaType)
+            mediaType: mapMediaType(detectedMediaType),
+            batchMode: false
         )
         
         let jobId = conversionQueue.addJob(
@@ -354,6 +355,7 @@ class RippingCoordinator: RippingCoordinating, @unchecked Sendable {
         case .bluray: return .bluray
         case .ultraHDDVD: return .ultraHDDVD
         case .bluray4K: return .bluray4K
+        case .hddvd: return .ultraHDDVD
         case .unknown: return .unknown
         }
     }
@@ -396,11 +398,11 @@ protocol RippingCoordinatorDelegate: AnyObject {
 // MARK: - MediaRipperDelegate Extension
 
 extension RippingCoordinator: MediaRipperDelegate {
-    func ripperDidStart() {
+    func mediaRipperDidStart() {
         // MediaRipper started - update internal progress
     }
     
-    func ripperDidUpdateStatus(_ status: String) {
+    func mediaRipperDidUpdateStatus(_ status: String) {
         Task {
             await sendProgress(.init(
                 phase: .extracting,
@@ -413,7 +415,7 @@ extension RippingCoordinator: MediaRipperDelegate {
         }
     }
     
-    func ripperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+    func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         Task {
             let overallProgress = 0.2 + (progress * 0.6) // Map ripper progress to 20%-80% of overall
             let itemTitle = currentItem.map(titleForMediaItem) ?? "Processing"
@@ -428,11 +430,11 @@ extension RippingCoordinator: MediaRipperDelegate {
         }
     }
     
-    func ripperDidComplete() {
+    func mediaRipperDidComplete() {
         // MediaRipper completed - this will be handled by the queue monitoring
     }
     
-    func ripperDidFail(with error: Error) {
+    func mediaRipperDidFail(with error: Error) {
         Task {
             await handleRippingError(error)
         }

@@ -287,7 +287,8 @@ class MainViewController: NSViewController {
             }(),
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: mediaType
+            mediaType: mediaType,
+            batchMode: false
         )
 
         // Update UI for ripping state
