@@ -14,7 +14,10 @@ class MainViewController: NSViewController {
     internal var browseOutputButton: NSButton!
     internal var ripButton: NSButton!
     internal var progressIndicator: NSProgressIndicator!
+    internal var progressStatusLabel: NSTextField!
+    internal var totalRipSizeBytes: Int64 = 0
     internal var logTextView: NSTextView!
+    internal var activeMediaRipper: MediaRipper?
     internal var scrollView: NSScrollView!
 
     // Automation Settings
@@ -29,6 +32,7 @@ class MainViewController: NSViewController {
     internal var detectedDrives: [OpticalDrive] = []
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
+    internal var resolvedDiscTitle: String? = nil
 
     // DVD Ripper
     internal var dvdRipper: DVDRipper!
@@ -54,6 +58,38 @@ class MainViewController: NSViewController {
         
         // Check FFmpeg and hardware acceleration on startup
         checkFFmpegAndHardwareAcceleration()
+
+        // Warn if running from a non-permanent location (DMG, /tmp, Downloads)
+        // TCC permission grants won't persist unless the app is in /Applications or ~/Applications
+        checkInstallLocation()
+    }
+
+    private func checkInstallLocation() {
+        let bundlePath = Bundle.main.bundlePath
+        let permanent = ["/Applications/", "/Users/\(NSUserName())/Applications/"]
+        let isInstalled = permanent.contains { bundlePath.hasPrefix($0) }
+        guard !isInstalled else { return }
+
+        // Only show once per app location to avoid nagging
+        let key = "installWarningShown_\(bundlePath.hash)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let alert = NSAlert()
+            alert.messageText = "Move AutoRip2MKV to Applications"
+            alert.informativeText = """
+                AutoRip2MKV is running from:
+                \(bundlePath)
+
+                For disc access permissions to be remembered by macOS, the app must be in your Applications folder. If you leave it here, macOS may ask for permission every time you rip.
+
+                Drag AutoRip2MKV to /Applications or ~/Applications to fix this.
+                """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     deinit {
@@ -170,19 +206,62 @@ class MainViewController: NSViewController {
     }
 
     private func setupRipButton() {
-        ripButton = NSButton(title: "Start Ripping", target: self, action: #selector(startRipping))
+        ripButton = NSButton(title: "Start Ripping", target: self, action: #selector(ripButtonPressed))
         ripButton.bezelStyle = .rounded
         ripButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(ripButton)
     }
 
+    @objc private func ripButtonPressed() {
+        if activeMediaRipper != nil {
+            cancelRipping()
+        } else {
+            startRipping()
+        }
+    }
+
+    @objc private func cancelRipping() {
+        appendToLog("Cancelling rip...")
+        activeMediaRipper?.cancelRipping()
+        activeMediaRipper = nil
+        // Clean up any temp VOB files left behind
+        let tmp = NSTemporaryDirectory()
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: tmp) {
+            for file in files where file.hasPrefix("temp_dvd_title_") && file.hasSuffix(".vob") {
+                try? FileManager.default.removeItem(atPath: tmp + file)
+            }
+        }
+        resetRipUI()
+    }
+
+    internal func resetRipUI() {
+        ripButton.title = "Start Ripping"
+        ripButton.isEnabled = true
+        progressIndicator.doubleValue = 0
+        progressIndicator.isHidden = true
+        progressStatusLabel.stringValue = ""
+        progressStatusLabel.isHidden = true
+        updateDriveDropdown()
+    }
+
     private func setupProgressIndicator() {
         progressIndicator = NSProgressIndicator()
         progressIndicator.style = .bar
-        progressIndicator.isIndeterminate = true
+        progressIndicator.isIndeterminate = false
+        progressIndicator.minValue = 0
+        progressIndicator.maxValue = 100
+        progressIndicator.doubleValue = 0
         progressIndicator.isHidden = true
         progressIndicator.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(progressIndicator)
+
+        progressStatusLabel = NSTextField(labelWithString: "")
+        progressStatusLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        progressStatusLabel.textColor = NSColor.secondaryLabelColor
+        progressStatusLabel.alignment = .center
+        progressStatusLabel.isHidden = true
+        progressStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(progressStatusLabel)
     }
 
     private func setupLogTextView() {
@@ -242,6 +321,19 @@ class MainViewController: NSViewController {
     @objc internal func startRipping() {
         appendToLog("startRipping method called")
 
+        // Block ripping if not installed — TCC grants won't persist from a DMG or Downloads
+        let bundlePath = Bundle.main.bundlePath
+        let permanent = ["/Applications/", "/Users/\(NSUserName())/Applications/"]
+        if !permanent.contains(where: { bundlePath.hasPrefix($0) }) {
+            let alert = NSAlert()
+            alert.messageText = "Install Required Before Ripping"
+            alert.informativeText = "AutoRip2MKV must be in your Applications folder for disc access permissions to be remembered by macOS. Drag it from the DMG to Applications, then relaunch."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
         // Check if we have a detected disc
         guard let currentDrive = detectedDrives.first else {
             showAlert(title: "No Disc Detected", message: "Please insert a DVD or BluRay disc to start ripping.")
@@ -292,15 +384,22 @@ class MainViewController: NSViewController {
         )
 
         // Update UI for ripping state
-        ripButton.title = "Ripping..."
-        ripButton.isEnabled = false
+        ripButton.title = "Cancel Ripping"
+        ripButton.isEnabled = true
+        totalRipSizeBytes = 0
+        progressIndicator.doubleValue = 0
         progressIndicator.isHidden = false
-        progressIndicator.startAnimation(nil)
+        progressStatusLabel.stringValue = "Preparing..."
+        progressStatusLabel.isHidden = false
+        let driveTypeString = currentDrive.type == .dvd ? "DVD" : currentDrive.type == .bluray ? "Blu-ray" : "Unknown"
+        let ripTitle = resolvedDiscTitle ?? currentDrive.name
+        sourceLabel.stringValue = "\(ripTitle) (\(driveTypeString)) - Ripping..."
 
         // Save current settings
         saveCurrentSettings()
 
         // Start direct ripping with MediaRipper (not queue)
+        activeMediaRipper = mediaRipper
         mediaRipper.delegate = self
         mediaRipper.startRipping(mediaPath: currentDrive.mountPoint, configuration: configuration)
     }
@@ -345,12 +444,14 @@ class MainViewController: NSViewController {
     private func updateDriveDropdown() {
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
+            resolvedDiscTitle = nil
             sourceLabel.stringValue = "No disc detected - Please insert a DVD or BluRay"
             ripButton.isEnabled = false
         } else {
             let drive = detectedDrives.first!
             let driveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
-            sourceLabel.stringValue = "\(drive.displayName) (\(driveTypeString)) - Ready to rip"
+            let displayTitle = resolvedDiscTitle ?? drive.name
+            sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - Ready to rip"
             ripButton.isEnabled = true
         }
         
@@ -447,17 +548,37 @@ class MainViewController: NSViewController {
 
 extension MainViewController: DriveDetectorDelegate {
     func driveDetector(_ detector: DriveDetector, didDetectNewDisc drive: OpticalDrive) {
-        appendToLog("New disc detected: \(drive.displayName)")
-        autoStartRipping(for: drive)
+        DispatchQueue.main.async {
+            self.detectedDrives.append(drive)
+            self.appendToLog("New disc detected: \(drive.displayName)")
+            self.resolvedDiscTitle = nil
+            self.updateDriveDropdown()
+            self.lookupDiscTitle(volumeName: drive.name) { title in
+                self.resolvedDiscTitle = title
+                self.updateDriveDropdown()
+                if let t = title { self.appendToLog("Disc identified: \(t)") }
+            }
+            self.autoStartRipping(for: drive)
+        }
     }
 
     func driveDetector(_ detector: DriveDetector, didEjectDisc drive: OpticalDrive) {
-        appendToLog("Disc ejected: \(drive.displayName)")
+        DispatchQueue.main.async {
+            self.detectedDrives.removeAll { $0.mountPoint == drive.mountPoint }
+            self.resolvedDiscTitle = nil
+            self.appendToLog("Disc ejected: \(drive.displayName)")
+            self.updateDriveDropdown()
+        }
     }
 
     internal func autoStartRipping(for drive: OpticalDrive) {
         guard settingsManager.autoRipEnabled else {
             appendToLog("Auto-ripping is disabled. Click 'Start Ripping' to manually start ripping.")
+            return
+        }
+
+        guard activeMediaRipper == nil else {
+            appendToLog("Rip already in progress, skipping auto-rip trigger.")
             return
         }
 
@@ -496,15 +617,22 @@ extension MainViewController: DriveDetectorDelegate {
         )
 
         // Update UI for auto-ripping state
-        ripButton.title = "Auto-Ripping..."
-        ripButton.isEnabled = false
+        ripButton.title = "Cancel Ripping"
+        ripButton.isEnabled = true
+        totalRipSizeBytes = 0
+        progressIndicator.doubleValue = 0
         progressIndicator.isHidden = false
-        progressIndicator.startAnimation(nil)
+        progressStatusLabel.stringValue = "Preparing..."
+        progressStatusLabel.isHidden = false
+        let autodriveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+        let autoRipTitle = resolvedDiscTitle ?? drive.name
+        sourceLabel.stringValue = "\(autoRipTitle) (\(autodriveTypeString)) - Ripping..."
 
         // Save current settings
         saveCurrentSettings()
 
         // Start direct ripping with MediaRipper (not queue)
+        activeMediaRipper = mediaRipper
         mediaRipper.delegate = self
         mediaRipper.startRipping(mediaPath: drive.mountPoint, configuration: configuration)
     }

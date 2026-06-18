@@ -29,9 +29,8 @@ extension MainViewController: DVDRipperDelegate {
     func ripperDidComplete() {
         DispatchQueue.main.async {
             self.appendToLog("DVD ripping completed successfully!")
-            self.progressIndicator.isHidden = true
-            self.ripButton.isEnabled = true
-            self.ripButton.title = "Start Ripping"
+            self.activeMediaRipper = nil
+            self.resetRipUI()
 
             // Show completion notification
             self.showCompletionNotification()
@@ -49,9 +48,8 @@ extension MainViewController: DVDRipperDelegate {
     func ripperDidFail(with error: Error) {
         DispatchQueue.main.async {
             self.appendToLog("Error: \(error.localizedDescription)")
-            self.progressIndicator.isHidden = true
-            self.ripButton.isEnabled = true
-            self.ripButton.title = "Start Ripping"
+            self.activeMediaRipper = nil
+            self.resetRipUI()
 
             // Show error notification
             self.showErrorNotification("Ripping failed: \(error.localizedDescription)")
@@ -74,32 +72,45 @@ extension MainViewController: MediaRipperDelegate {
     func mediaRipperDidUpdateStatus(_ status: String) {
         DispatchQueue.main.async {
             self.appendToLog(status)
+            // Capture total size from extraction status: "Reading N sectors for title X via libdvdcss..."
+            if status.contains("sectors for title") && status.contains("via libdvdcss") {
+                let parts = status.components(separatedBy: " ")
+                if let idx = parts.firstIndex(of: "Reading"), idx + 1 < parts.count,
+                   let sectors = Int64(parts[idx + 1]) {
+                    self.totalRipSizeBytes = sectors * 2048
+                }
+            }
         }
     }
 
     func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         DispatchQueue.main.async {
-            self.progressIndicator.doubleValue = progress * 100.0
+            let pct = min(max(progress, 0), 1)
+            self.progressIndicator.doubleValue = pct * 100.0
 
-            if let item = currentItem {
-                switch item {
-                case .dvdTitle(let title):
-                    self.appendToLog("Processing DVD title \(title.number) - \(Int(progress * 100))% complete")
-                case .blurayPlaylist(let playlist):
-                    self.appendToLog(
-                        "Processing Blu-ray playlist \(playlist.number) - \(Int(progress * 100))% complete"
-                    )
-                }
+            if self.totalRipSizeBytes > 0 {
+                let done = Int64(Double(self.totalRipSizeBytes) * pct)
+                let doneStr = self.formatBytes(done)
+                let totalStr = self.formatBytes(self.totalRipSizeBytes)
+                self.progressStatusLabel.stringValue = "\(doneStr) / \(totalStr)  (\(Int(pct * 100))%)"
+            } else if pct > 0 {
+                self.progressStatusLabel.stringValue = "\(Int(pct * 100))%"
             }
         }
     }
-    
+
+    internal func formatBytes(_ bytes: Int64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1 { return String(format: "%.2f GB", gb) }
+        let mb = Double(bytes) / 1_048_576
+        return String(format: "%.1f MB", mb)
+    }
+
     func mediaRipperDidComplete() {
         DispatchQueue.main.async {
             self.appendToLog("Media ripping completed successfully!")
-            self.progressIndicator.isHidden = true
-            self.ripButton.isEnabled = true
-            self.ripButton.title = "Start Ripping"
+            self.activeMediaRipper = nil
+            self.resetRipUI()
             
             // Show completion notification
             self.showCompletionNotification()
@@ -117,9 +128,8 @@ extension MainViewController: MediaRipperDelegate {
     func mediaRipperDidFail(with error: Error) {
         DispatchQueue.main.async {
             self.appendToLog("Error: \(error.localizedDescription)")
-            self.progressIndicator.isHidden = true
-            self.ripButton.isEnabled = true
-            self.ripButton.title = "Start Ripping"
+            self.activeMediaRipper = nil
+            self.resetRipUI()
             
             // Show error notification
             self.showErrorNotification("Ripping failed: \(error.localizedDescription)")

@@ -1,5 +1,6 @@
 import Foundation
 import IOKit
+import AppKit
 
 protocol DriveDetectorDelegate: AnyObject {
     func driveDetector(_ detector: DriveDetector, didDetectNewDisc drive: OpticalDrive)
@@ -18,7 +19,7 @@ struct OpticalDrive {
         case bluray4K
         case hddvd
         case unknown
-        
+
         var displayName: String {
             switch self {
             case .dvd: return "DVD"
@@ -28,14 +29,14 @@ struct OpticalDrive {
             case .unknown: return "Unknown"
             }
         }
-        
+
         var defaultPriority: ConversionQueue.JobPriority {
             switch self {
-            case .bluray4K: return .high     // 4K discs get high priority
-            case .bluray: return .normal     // Regular Blu-ray normal priority
-            case .hddvd: return .normal      // HD DVD normal priority
-            case .dvd: return .low           // DVDs get low priority
-            case .unknown: return .normal    // Unknown gets normal
+            case .bluray4K: return .high
+            case .bluray: return .normal
+            case .hddvd: return .normal
+            case .dvd: return .low
+            case .unknown: return .normal
             }
         }
     }
@@ -51,139 +52,199 @@ class DriveDetector {
 
     weak var delegate: DriveDetectorDelegate?
     private var isMonitoring = false
-    private var monitoringTimer: Timer?
+    private var mountObserver: NSObjectProtocol?
+    private var unmountObserver: NSObjectProtocol?
     private var lastKnownDrives: [OpticalDrive] = []
 
     private init() {}
 
-    /// Detects all mounted optical drives
-    func detectOpticalDrives() -> [OpticalDrive] {
-        var drives: [OpticalDrive] = []
+    // MARK: - Automatic Monitoring
 
-        // Get all mounted volumes
-        let mountedVolumes = getMountedVolumes()
-        print("[DriveDetector] Found \(mountedVolumes.count) mounted volumes")
+    /// Starts monitoring for disc insertion/ejection using NSWorkspace notifications.
+    /// This avoids polling mounted volumes, which would trigger a TCC removable-volume prompt.
+    func startMonitoring() {
+        guard !isMonitoring else { return }
+        isMonitoring = true
 
-        for volume in mountedVolumes {
-            print("[DriveDetector] Checking volume: \(volume)")
-            if isOpticalDrive(at: volume) {
-                let driveInfo = getOpticalDriveInfo(at: volume)
-                print("[DriveDetector] ✓ Movie disc detected: \(driveInfo.displayName) (\(driveInfo.type))")
-                drives.append(driveInfo)
-            } else {
-                print("[DriveDetector] ✗ Not a movie disc: \(volume)")
-            }
+        let nc = NSWorkspace.shared.notificationCenter
+
+        mountObserver = nc.addObserver(
+            forName: NSWorkspace.didMountNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let url = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            self.handleVolumeMount(url: url)
         }
 
-        print("[DriveDetector] Total movie discs found: \(drives.count)")
-        return drives
+        unmountObserver = nc.addObserver(
+            forName: NSWorkspace.didUnmountNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let url = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            self.handleVolumeUnmount(url: url)
+        }
+
+        // Check for already-mounted discs at startup — only runs once on launch
+        checkAlreadyMountedDiscs()
     }
 
-    /// Gets all mounted volumes
-    private func getMountedVolumes() -> [String] {
-        var volumes: [String] = []
+    /// Stops monitoring for disc changes
+    func stopMonitoring() {
+        isMonitoring = false
+        if let obs = mountObserver { NSWorkspace.shared.notificationCenter.removeObserver(obs) }
+        if let obs = unmountObserver { NSWorkspace.shared.notificationCenter.removeObserver(obs) }
+        mountObserver = nil
+        unmountObserver = nil
+    }
 
-        let fileManager = FileManager.default
-        let volumeKeys: [URLResourceKey] = [.volumeNameKey, .volumeIsRemovableKey]
+    // MARK: - Volume Event Handlers
 
-        guard let mountedVolumeURLs = fileManager.mountedVolumeURLs(
-            includingResourceValuesForKeys: volumeKeys,
-            options: []
-        ) else {
-            return volumes
+    private func handleVolumeMount(url: URL) {
+        let path = url.path
+        print("[DriveDetector] Volume mounted: \(path)")
+        guard isOpticalDrive(at: path) else {
+            print("[DriveDetector] ✗ Not a movie disc: \(path)")
+            return
         }
+        let drive = getOpticalDriveInfo(at: path)
+        print("[DriveDetector] ✓ Movie disc detected: \(drive.displayName) (\(drive.type))")
+        lastKnownDrives.append(drive)
+        delegate?.driveDetector(self, didDetectNewDisc: drive)
+    }
 
-        for volumeURL in mountedVolumeURLs {
-            do {
-                let resourceValues = try volumeURL.resourceValues(forKeys: Set(volumeKeys))
+    private func handleVolumeUnmount(url: URL) {
+        let path = url.path
+        if let idx = lastKnownDrives.firstIndex(where: { $0.mountPoint == path }) {
+            let drive = lastKnownDrives.remove(at: idx)
+            print("[DriveDetector] Disc ejected: \(drive.displayName)")
+            delegate?.driveDetector(self, didEjectDisc: drive)
+        }
+    }
 
-                // Check if it's a removable volume (potential optical drive)
-                if let isRemovable = resourceValues.volumeIsRemovable, isRemovable {
-                    volumes.append(volumeURL.path)
+    /// Checks once at startup for any already-mounted optical discs.
+    /// Uses diskutil list (IOKit-level, no TCC) to find optical media,
+    /// then only accesses the mount point if we know it's an optical drive.
+    private func checkAlreadyMountedDiscs() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            let opticalMountPoints = self.findOpticalMountPointsViaIOKit()
+            for path in opticalMountPoints {
+                if self.isOpticalDrive(at: path) {
+                    let drive = self.getOpticalDriveInfo(at: path)
+                    DispatchQueue.main.async {
+                        print("[DriveDetector] ✓ Already mounted disc: \(drive.displayName)")
+                        self.lastKnownDrives.append(drive)
+                        self.delegate?.driveDetector(self, didDetectNewDisc: drive)
+                    }
                 }
-            } catch {
-                continue
             }
         }
-
-        return volumes
     }
 
-    /// Checks if a volume is an optical drive with movie content
+    /// Uses `diskutil list -plist` to enumerate disks and find optical drive mount points.
+    /// This is IOKit-level and does NOT trigger a TCC removable-volume prompt.
+    private func findOpticalMountPointsViaIOKit() -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["list", "-plist"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
+        }
+
+        guard process.terminationStatus == 0 else { return [] }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+              let allDisks = plist["AllDisksAndPartitions"] as? [[String: Any]] else {
+            return []
+        }
+
+        var mountPoints: [String] = []
+        for disk in allDisks {
+            // Check if this disk is optical media
+            if let content = disk["Content"] as? String,
+               (content.contains("DVD") || content.contains("CD") || content.contains("optical") || content == "") {
+                // Look for mount point in partitions
+                if let partitions = disk["Partitions"] as? [[String: Any]] {
+                    for partition in partitions {
+                        if let mp = partition["MountPoint"] as? String, !mp.isEmpty {
+                            mountPoints.append(mp)
+                        }
+                    }
+                }
+                if let mp = disk["MountPoint"] as? String, !mp.isEmpty {
+                    mountPoints.append(mp)
+                }
+            }
+        }
+
+        // Also check /Volumes directly for anything that looks like optical media
+        // without touching file attributes — just check for known disc folder names
+        if let volumes = try? FileManager.default.contentsOfDirectory(atPath: "/Volumes") {
+            for vol in volumes {
+                let path = "/Volumes/\(vol)"
+                if !mountPoints.contains(path) {
+                    mountPoints.append(path)
+                }
+            }
+        }
+
+        return mountPoints
+    }
+
+    // MARK: - Public API
+
+    /// Returns currently known optical drives (populated from mount events, not polling).
+    func detectOpticalDrives() -> [OpticalDrive] {
+        return lastKnownDrives
+    }
+
+    // MARK: - Drive Detection Helpers
+
+    /// Checks if a volume path contains DVD/Blu-ray/HD DVD structure
     private func isOpticalDrive(at path: String) -> Bool {
-        // Check for common optical drive characteristics
         let fileManager = FileManager.default
 
-        // Check for DVD/Blu-ray structure indicators
-        let dvdIndicators = [
-            "VIDEO_TS",
-            "AUDIO_TS"
-        ]
-
-        let blurayIndicators = [
-            "BDMV",
-            "CERTIFICATE"
-        ]
-
-        let hddvdIndicators = [
-            "HVDVD_TS",
-            "ADV_OBJ",
-            "HVAUDIO_TS"
-        ]
-
-        // Check for DVD structure first (more specific)
-        for indicator in dvdIndicators {
+        let indicators = ["VIDEO_TS", "AUDIO_TS", "BDMV", "CERTIFICATE", "HVDVD_TS", "ADV_OBJ", "HVAUDIO_TS"]
+        for indicator in indicators {
             let indicatorPath = (path as NSString).appendingPathComponent(indicator)
             if fileManager.fileExists(atPath: indicatorPath) {
-                print("[DriveDetector]   Found DVD structure: \(indicator) at \(path)")
+                print("[DriveDetector]   Found disc structure: \(indicator) at \(path)")
                 return true
             }
         }
 
-        // Check for Blu-ray structure
-        for indicator in blurayIndicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
-                print("[DriveDetector]   Found Blu-ray structure: \(indicator) at \(path)")
-                return true
-            }
-        }
-
-        // Check for HD DVD structure
-        for indicator in hddvdIndicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
-                print("[DriveDetector]   Found Blu-ray structure: \(indicator) at \(path)")
-                return true
-            }
-        }
-
-        // If no movie disc structure found, it's not a movie disc
         print("[DriveDetector]   No movie disc structure found at \(path)")
         return false
     }
 
     /// Gets optical drive information
     private func getOpticalDriveInfo(at path: String) -> OpticalDrive {
-        _ = FileManager.default
         let url = URL(fileURLWithPath: path)
-
-        // Determine media type
         let mediaType = determineMediaType(at: path)
 
-        // Get volume name
-        var volumeName = "Unknown Drive"
-        do {
-            let resourceValues = try url.resourceValues(forKeys: [.volumeNameKey])
-            volumeName = resourceValues.volumeName ?? "Unknown Drive"
-        } catch {
-            // Fallback to last path component
-            volumeName = url.lastPathComponent
+        var rawName = "Unknown Drive"
+        if let resourceValues = try? url.resourceValues(forKeys: [.volumeNameKey]),
+           let name = resourceValues.volumeName {
+            rawName = name
+        } else {
+            rawName = url.lastPathComponent
         }
+        let volumeName = prettifyDiscName(rawName)
 
-        // Get device path using diskutil
         let devicePath = getDevicePath(for: path) ?? "/dev/disk1"
-
         return OpticalDrive(mountPoint: path, name: volumeName, type: mediaType, devicePath: devicePath)
     }
 
@@ -191,120 +252,60 @@ class DriveDetector {
     private func determineMediaType(at path: String) -> OpticalDrive.MediaType {
         let fileManager = FileManager.default
 
-        // Check for Blu-ray indicators first
-        let blurayIndicators = ["BDMV", "CERTIFICATE"]
-        for indicator in blurayIndicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
-                // Check if it's 4K UHD Blu-ray by examining resolution or playlist files
-                if is4KBluRay(at: path) {
-                    return .bluray4K
-                }
-                return .bluray
+        for indicator in ["BDMV", "CERTIFICATE"] {
+            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
+                return is4KBluRay(at: path) ? .bluray4K : .bluray
             }
         }
 
-        // Check for HD DVD indicators
-        let hddvdIndicators = ["HVDVD_TS", "ADV_OBJ"]
-        for indicator in hddvdIndicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
+        for indicator in ["HVDVD_TS", "ADV_OBJ"] {
+            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
                 return .hddvd
             }
         }
 
-        // Check for DVD indicators
-        let dvdIndicators = ["VIDEO_TS", "AUDIO_TS"]
-        for indicator in dvdIndicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
+        for indicator in ["VIDEO_TS", "AUDIO_TS"] {
+            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
                 return .dvd
             }
         }
 
         return .unknown
     }
-    
+
     /// Determines if a Blu-ray disc is 4K UHD
     private func is4KBluRay(at path: String) -> Bool {
         let fileManager = FileManager.default
-        
-        // Check for UHD-specific indicators in BDMV structure
         let bdmvPath = (path as NSString).appendingPathComponent("BDMV")
-        
-        // Check for UHD playlist directory
         let playlistPath = (bdmvPath as NSString).appendingPathComponent("PLAYLIST")
-        if fileManager.fileExists(atPath: playlistPath) {
-            // Check for 4K resolution indicators in playlist files
-            do {
-                let playlists = try fileManager.contentsOfDirectory(atPath: playlistPath)
-                for playlist in playlists where playlist.hasSuffix(".mpls") {
-                    let playlistFilePath = (playlistPath as NSString).appendingPathComponent(playlist)
-                    if let data = try? Data(contentsOf: URL(fileURLWithPath: playlistFilePath)),
-                       data.count > 1000 {
-                        // Check for 4K indicators: 3840x2160 resolution markers
-                        // UHD Blu-ray playlists contain specific resolution markers
-                        let dataString = String(decoding: data.prefix(2000), as: UTF8.self)
-                        if dataString.contains("3840") || dataString.contains("2160") {
-                            return true
-                        }
-                        
-                        // Check for HEVC/H.265 codec indicators (common in 4K)
-                        if dataString.contains("hev1") || dataString.contains("hvc1") {
-                            return true
-                        }
+
+        if fileManager.fileExists(atPath: playlistPath),
+           let playlists = try? fileManager.contentsOfDirectory(atPath: playlistPath) {
+            for playlist in playlists where playlist.hasSuffix(".mpls") {
+                let filePath = (playlistPath as NSString).appendingPathComponent(playlist)
+                if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)), data.count > 1000 {
+                    let dataString = String(decoding: data.prefix(2000), as: UTF8.self)
+                    if dataString.contains("3840") || dataString.contains("2160") ||
+                       dataString.contains("hev1") || dataString.contains("hvc1") {
+                        return true
                     }
                 }
-            } catch {
-                // If we can't read playlists, fall back to stream analysis
             }
         }
-        
-        // Check for 4K stream files in STREAM directory
-        let streamPath = (bdmvPath as NSString).appendingPathComponent("STREAM")
-        if fileManager.fileExists(atPath: streamPath) {
-            do {
-                let streams = try fileManager.contentsOfDirectory(atPath: streamPath)
-                for stream in streams where stream.hasSuffix(".m2ts") {
-                    let streamFilePath = (streamPath as NSString).appendingPathComponent(stream)
-                    
-                    // Check file size - 4K streams are typically much larger
-                    let attributes = try fileManager.attributesOfItem(atPath: streamFilePath)
-                    if let fileSize = attributes[.size] as? Int64 {
-                        // 4K streams typically > 10GB for main feature
-                        // This is a heuristic - large files suggest 4K content
-                        if fileSize > 10_000_000_000 { // 10GB threshold
-                            // Further validate by checking stream headers
-                            if let data = try? Data(contentsOf: URL(fileURLWithPath: streamFilePath)),
-                               data.count > 2048 {
-                                // Check for HEVC NAL unit types (0x40-0x42) in first 2KB
-                                let header = data.prefix(2048)
-                                // HEVC slice segments indicate 4K content
-                                if header.contains(where: { $0 == 0x40 || $0 == 0x42 }) {
-                                    return true
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch {
-                // If analysis fails, conservatively return false
-            }
-        }
-        
+
         return false
     }
 
-    /// Checks if the path represents removable media
-    private func isRemovableMedia(at path: String) -> Bool {
-        let url = URL(fileURLWithPath: path)
-
-        do {
-            let resourceValues = try url.resourceValues(forKeys: [.volumeIsRemovableKey])
-            return resourceValues.volumeIsRemovable ?? false
-        } catch {
-            return false
-        }
+    /// Converts DVD volume names like "THE_DARK_KNIGHT" to "The Dark Knight"
+    private func prettifyDiscName(_ raw: String) -> String {
+        let words = raw.replacingOccurrences(of: "_", with: " ")
+                       .components(separatedBy: " ")
+                       .filter { !$0.isEmpty }
+        let lowercaseWords = Set(["a","an","the","and","but","or","for","nor","on","at","to","by","in","of","up","as"])
+        return words.enumerated().map { idx, word in
+            let lower = word.lowercased()
+            return (idx == 0 || !lowercaseWords.contains(lower)) ? lower.capitalized : lower
+        }.joined(separator: " ")
     }
 
     /// Gets the device path for a mount point using diskutil
@@ -315,6 +316,7 @@ class DriveDetector {
 
         let pipe = Pipe()
         process.standardOutput = pipe
+        process.standardError = Pipe()
 
         do {
             try process.run()
@@ -322,10 +324,7 @@ class DriveDetector {
 
             if process.terminationStatus == 0 {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let plist = try PropertyListSerialization.propertyList(
-                    from: data, options: [], format: nil
-                ) as? [String: Any]
-                if let plist = plist,
+                if let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
                    let deviceIdentifier = plist["DeviceIdentifier"] as? String {
                     return "/dev/\(deviceIdentifier)"
                 }
@@ -335,48 +334,5 @@ class DriveDetector {
         }
 
         return nil
-    }
-
-    // MARK: - Automatic Monitoring
-
-    /// Starts monitoring for disc insertion/ejection
-    func startMonitoring() {
-        guard !isMonitoring else { return }
-
-        isMonitoring = true
-        lastKnownDrives = detectOpticalDrives()
-
-        // Start polling for changes every 2 seconds
-        monitoringTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.checkForDriveChanges()
-        }
-    }
-
-    /// Stops monitoring for disc changes
-    func stopMonitoring() {
-        isMonitoring = false
-        monitoringTimer?.invalidate()
-        monitoringTimer = nil
-    }
-
-    /// Checks for changes in optical drives
-    private func checkForDriveChanges() {
-        let currentDrives = detectOpticalDrives()
-
-        // Check for newly inserted discs
-        for drive in currentDrives {
-            if !lastKnownDrives.contains(where: { $0.mountPoint == drive.mountPoint }) {
-                delegate?.driveDetector(self, didDetectNewDisc: drive)
-            }
-        }
-
-        // Check for ejected discs
-        for drive in lastKnownDrives {
-            if !currentDrives.contains(where: { $0.mountPoint == drive.mountPoint }) {
-                delegate?.driveDetector(self, didEjectDisc: drive)
-            }
-        }
-
-        lastKnownDrives = currentDrives
     }
 }

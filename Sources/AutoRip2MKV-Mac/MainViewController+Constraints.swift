@@ -71,8 +71,13 @@ extension MainViewController {
             progressIndicator.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             progressIndicator.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
+            // Progress Status Label
+            progressStatusLabel.topAnchor.constraint(equalTo: progressIndicator.bottomAnchor, constant: 4),
+            progressStatusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            progressStatusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+
             // Log Text View
-            scrollView.topAnchor.constraint(equalTo: progressIndicator.bottomAnchor, constant: 20),
+            scrollView.topAnchor.constraint(equalTo: progressStatusLabel.bottomAnchor, constant: 8),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)

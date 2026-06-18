@@ -187,6 +187,7 @@ extension MainViewController {
     }
 
     func resetRipButton() {
+        guard activeMediaRipper == nil else { return }
         ripButton.title = "Start Ripping"
         ripButton.isEnabled = true
     }
@@ -194,15 +195,24 @@ extension MainViewController {
     // MARK: - FFmpeg Path Management
 
     func getBundledFFmpegPath() -> String? {
-        // Check if FFmpeg is bundled in the app bundle (Contents/Resources)
-        let bundlePath = Bundle.main.bundlePath
-        let ffmpegPath = bundlePath.appending("/Contents/Resources/ffmpeg")
-        if FileManager.default.fileExists(atPath: ffmpegPath) {
-            return ffmpegPath
-        }
+        let candidates = [
+            Bundle.main.bundlePath.appending("/Contents/Resources/ffmpeg"),
+            Bundle.main.path(forResource: "ffmpeg", ofType: nil)
+        ].compactMap { $0 }
 
-        // Fallback to legacy path
-        return Bundle.main.path(forResource: "ffmpeg", ofType: nil)
+        for path in candidates {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            // Verify it's a Mach-O executable, not a zip or other non-binary
+            guard let fh = FileHandle(forReadingAtPath: path),
+                  let magic = try? fh.read(upToCount: 4) else { continue }
+            fh.closeFile()
+            let bytes = [UInt8](magic)
+            let isMachO = (bytes == [0xCF, 0xFA, 0xED, 0xFE]) ||  // 64-bit little-endian
+                          (bytes == [0xCE, 0xFA, 0xED, 0xFE]) ||  // 32-bit little-endian
+                          (bytes == [0xCA, 0xFE, 0xBA, 0xBE])     // fat binary
+            if isMachO { return path }
+        }
+        return nil
     }
 
     func getInstalledFFmpegPath() -> String {

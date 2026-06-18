@@ -71,10 +71,13 @@ class DVDDecryptor {
     }
 
     /// Read and decrypt sectors using libdvdcss (seek then read with DVDCSS_READ_DECRYPT).
+    /// If read fails, retries with DVDCSS_SEEK_KEY to renegotiate the title key
+    /// (required when key changes between VOB files on some discs).
     func readAndDecryptSectors(startSector: UInt32, sectorCount: Int) throws -> Data {
         guard let css = dvdcss else { throw DVDError.deviceNotOpen }
 
-        let seekResult = dvdcss_seek(css, Int32(startSector), DVDCSS_SEEK_MPEG)
+        // Seek to position
+        var seekResult = dvdcss_seek(css, Int32(startSector), DVDCSS_SEEK_MPEG)
         if seekResult < 0 {
             throw DVDError.invalidSector
         }
@@ -82,9 +85,19 @@ class DVDDecryptor {
         let bufferSize = sectorCount * DVDCSS_BLOCK_SIZE
         var buffer = [UInt8](repeating: 0, count: bufferSize)
 
-        let blocksRead = dvdcss_read(css, &buffer, Int32(sectorCount), DVDCSS_READ_DECRYPT)
+        var blocksRead = dvdcss_read(css, &buffer, Int32(sectorCount), DVDCSS_READ_DECRYPT)
+
         if blocksRead < 0 {
-            throw DVDError.decryptionFailed
+            // Title key may have changed (new VOB file). Re-seek with KEY flag and retry.
+            print("[DVDDecryptor] Read failed at sector \(startSector), renegotiating title key...")
+            seekResult = dvdcss_seek(css, Int32(startSector), DVDCSS_SEEK_KEY)
+            if seekResult < 0 {
+                throw DVDError.invalidSector
+            }
+            blocksRead = dvdcss_read(css, &buffer, Int32(sectorCount), DVDCSS_READ_DECRYPT)
+            if blocksRead < 0 {
+                throw DVDError.decryptionFailed
+            }
         }
 
         let bytesRead = Int(blocksRead) * DVDCSS_BLOCK_SIZE

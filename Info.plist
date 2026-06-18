@@ -65,5 +65,13 @@
     <false/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>AutoRip2MKV needs access to your optical disc to read and decrypt DVD and Blu-ray content.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>AutoRip2MKV may save ripped files to your Desktop.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>AutoRip2MKV may save ripped files to your Documents folder.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>AutoRip2MKV may save ripped files to your Downloads folder.</string>
 </dict>
 </plist>

@@ -102,9 +102,24 @@ extension MediaRipper {
 
         defer { outputHandle.closeFile() }
 
-        var totalBytesRead: Int64 = 0
-        let totalSectors = title.sectors > 0 ? title.sectors : UInt32(1)
+        // Calculate total sectors from VOB file sizes (authoritative source).
+        // IFO cell-table end sectors are VTS-relative and unreliable across VOB boundaries.
+        let totalSectors: UInt32
+        if !title.vobFiles.isEmpty {
+            let totalBytes = title.vobFiles.reduce(Int64(0)) { acc, path in
+                acc + ((try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0)
+            }
+            totalSectors = totalBytes > 0 ? UInt32(totalBytes / 2048) : max(title.sectors, 1)
+            delegate?.mediaRipperDidUpdateStatus(
+                "Title \(title.number): \(title.vobFiles.count) VOB files, \(totalSectors) total sectors")
+        } else {
+            totalSectors = max(title.sectors, 1)
+            delegate?.mediaRipperDidUpdateStatus(
+                "Title \(title.number): no VOB files found, estimating \(totalSectors) sectors")
+        }
+
         let totalSize = Int64(totalSectors) * 2048
+        var totalBytesRead: Int64 = 0
 
         delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
 
