@@ -65,7 +65,7 @@ jobs:
 
         # Info.plist — substitute version from tag
         VERSION_NUMBER=${{ steps.version.outputs.VERSION_NUMBER }}
-        sed "s/1\.[0-9]\+\.[0-9]\+/$VERSION_NUMBER/g" Info.plist > "$APP/Contents/Info.plist"
+        sed -E "s/[0-9]+\.[0-9]+\.[0-9]+/$VERSION_NUMBER/g" Info.plist > "$APP/Contents/Info.plist"
 
         # Icon
         [ -f assets/AppIcon.icns ] && cp assets/AppIcon.icns "$APP/Contents/Resources/"
