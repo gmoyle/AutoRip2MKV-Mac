@@ -1,0 +1,145 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build, Sign, Notarize & Release
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Get version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
+
+    - name: Import Developer ID certificate
+      env:
+        CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+        CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+      run: |
+        KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+        CERT_PATH=$RUNNER_TEMP/cert.p12
+        echo "$CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+        security create-keychain -p "build" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "build" "$KEYCHAIN_PATH"
+        security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+        security list-keychain -d user -s "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple: -k "build" "$KEYCHAIN_PATH"
+
+    - name: Install libdvdcss and libaacs
+      run: |
+        brew install libdvdcss libaacs
+
+    - name: Cache Swift packages
+      uses: actions/cache@v4
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: ${{ runner.os }}-spm-
+
+    - name: Build universal binary
+      run: |
+        swift build -c release --arch arm64 --arch x86_64
+
+    - name: Assemble app bundle
+      run: |
+        APP=AutoRip2MKV.app
+        mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
+
+        # Binary
+        cp .build/apple/Products/Release/AutoRip2MKV-Mac "$APP/Contents/MacOS/"
+
+        # Info.plist — update version from tag
+        sed "s/1\.4\.0/${{ steps.version.outputs.VERSION_NUMBER }}/g" Info.plist > "$APP/Contents/Info.plist"
+
+        # Icon
+        [ -f assets/AppIcon.icns ] && cp assets/AppIcon.icns "$APP/Contents/Resources/"
+
+        # Bundle libdvdcss and libaacs so the app is self-contained
+        for LIB in \
+          "$(brew --prefix libdvdcss)/lib/libdvdcss.2.dylib" \
+          "$(brew --prefix libaacs)/lib/libaacs.0.dylib"; do
+          [ -f "$LIB" ] && cp "$LIB" "$APP/Contents/Frameworks/"
+        done
+
+        # Fix dylib install names to @executable_path/../Frameworks/
+        for DYLIB in "$APP/Contents/Frameworks/"*.dylib; do
+          NAME=$(basename "$DYLIB")
+          install_name_tool -id "@executable_path/../Frameworks/$NAME" "$DYLIB"
+          install_name_tool -change "$(otool -D "$DYLIB" | tail -1)" \
+            "@executable_path/../Frameworks/$NAME" \
+            "$APP/Contents/MacOS/AutoRip2MKV-Mac" 2>/dev/null || true
+        done
+
+    - name: Sign app bundle
+      env:
+        SIGN_IDENTITY: "Developer ID Application: Gregory Moyle (85XT8FWW2B)"
+      run: |
+        APP=AutoRip2MKV.app
+        # Sign frameworks first, then the app
+        for DYLIB in "$APP/Contents/Frameworks/"*.dylib; do
+          codesign --force --sign "$SIGN_IDENTITY" \
+            --options runtime \
+            --timestamp \
+            "$DYLIB"
+        done
+        codesign --force --deep --sign "$SIGN_IDENTITY" \
+          --entitlements AutoRip2MKV.entitlements \
+          --options runtime \
+          --timestamp \
+          "$APP"
+        codesign --verify --verbose "$APP"
+
+    - name: Create DMG
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        mkdir dmg_stage
+        cp -R AutoRip2MKV.app dmg_stage/
+        ln -s /Applications dmg_stage/Applications
+        hdiutil create -volname "AutoRip2MKV $VERSION" \
+          -srcfolder dmg_stage \
+          -ov -format UDZO \
+          "AutoRip2MKV-${VERSION}.dmg"
+
+    - name: Notarize DMG
+      env:
+        APPLE_ID: ${{ secrets.NOTARIZE_APPLE_ID }}
+        TEAM_ID: ${{ secrets.NOTARIZE_TEAM_ID }}
+        APP_PASSWORD: ${{ secrets.NOTARIZE_APP_PASSWORD }}
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        xcrun notarytool submit "AutoRip2MKV-${VERSION}.dmg" \
+          --apple-id "$APPLE_ID" \
+          --team-id "$TEAM_ID" \
+          --password "$APP_PASSWORD" \
+          --wait
+        xcrun stapler staple "AutoRip2MKV-${VERSION}.dmg"
+
+    - name: Generate checksum
+      run: |
+        VERSION=${{ steps.version.outputs.VERSION }}
+        shasum -a 256 "AutoRip2MKV-${VERSION}.dmg" > checksums.txt
+        cat checksums.txt
+
+    - name: Upload to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          AutoRip2MKV-${{ steps.version.outputs.VERSION }}.dmg
+          checksums.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
