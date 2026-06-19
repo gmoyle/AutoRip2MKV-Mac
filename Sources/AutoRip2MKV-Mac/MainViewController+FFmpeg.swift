@@ -143,11 +143,27 @@ extension MainViewController {
         }
 
         do {
-            // If it's a zip file, extract it
-            if tempURL.pathExtension.lowercased() == "zip" {
+            // Remove any previously corrupted install before replacing
+            if FileManager.default.fileExists(atPath: ffmpegPath) {
+                try FileManager.default.removeItem(atPath: ffmpegPath)
+            }
+
+            // Detect zip by magic bytes (PK\x03\x04) — temp files have no extension
+            let isZip: Bool
+            if let fh = FileHandle(forReadingAtPath: tempURL.path),
+               let magic = try? fh.read(upToCount: 4) {
+                fh.closeFile()
+                let bytes = [UInt8](magic)
+                isZip = bytes.count >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B &&
+                        bytes[2] == 0x03 && bytes[3] == 0x04
+            } else {
+                isZip = false
+            }
+
+            if isZip {
                 try self.extractZip(from: tempURL, to: destinationPath)
             } else {
-                // If it's a direct binary, copy it
+                // Direct binary
                 try FileManager.default.copyItem(at: tempURL, to: URL(fileURLWithPath: ffmpegPath))
             }
 
