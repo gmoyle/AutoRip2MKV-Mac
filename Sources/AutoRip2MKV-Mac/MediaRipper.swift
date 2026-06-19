@@ -82,6 +82,7 @@ class MediaRipper {
 
     // Progress and status tracking
     weak var delegate: MediaRipperDelegate?
+    weak var conversionQueue: ConversionQueue?
 
     var dvdParser: DVDStructureParser?
     var blurayParser: BluRayStructureParser?
@@ -90,6 +91,10 @@ class MediaRipper {
     var isRipping = false
     var shouldCancel = false
     var currentMediaType: MediaType = .unknown
+    var activeFFmpegProcess: Process?
+    /// All ffmpeg processes launched for the current rip, still encoding after disc eject.
+    /// The queue waits on these before marking a job complete.
+    var backgroundEncodingProcesses: [(process: Process, outputPath: String, titleNumber: Int)] = []
 
     // Ripping configuration
     struct RippingConfiguration {
@@ -127,6 +132,10 @@ class MediaRipper {
 
     init() {
         Logger.shared.log("MediaRipper initialized", level: .info, category: .general)
+    }
+
+    deinit {
+        activeFFmpegProcess?.terminate()
     }
 
     // MARK: - Public Interface
@@ -223,6 +232,8 @@ class MediaRipper {
     func cancelRipping() {
         Logger.shared.log("Cancelling ripping operation", level: .info, category: .general)
         shouldCancel = true
+        activeFFmpegProcess?.terminate()
+        activeFFmpegProcess = nil
     }
 
     /// Check if currently ripping
@@ -308,11 +319,15 @@ class MediaRipper {
             throw MediaRipperError.unsupportedMediaType
         }
 
-        // Complete
-        Logger.shared.log("Ripping process completed successfully", level: .info, category: .general)
-        DispatchQueue.main.async {
-            self.delegate?.mediaRipperDidComplete()
-            self.isRipping = false
+        // DVD ripping fires mediaRipperDidComplete() itself (after last sector is fed,
+        // before encoding finishes) so the disc can be ejected immediately.
+        // Other media types complete synchronously and need the signal here.
+        if currentMediaType != .dvd && currentMediaType != .ultraHDDVD {
+            Logger.shared.log("Ripping process completed successfully", level: .info, category: .general)
+            DispatchQueue.main.async {
+                self.delegate?.mediaRipperDidComplete()
+                self.isRipping = false
+            }
         }
     }
 }

@@ -9,9 +9,10 @@ echo "Building..."
 cd "$REPO"
 swift build -c release
 
-echo "Stopping running instance..."
+echo "Stopping running instance and any child ffmpeg processes..."
 pkill -x AutoRip2MKV-Mac 2>/dev/null || true
-sleep 0.5
+pkill -x ffmpeg 2>/dev/null || true
+sleep 1
 
 echo "Deploying binary and Info.plist..."
 cp "$REPO/.build/release/AutoRip2MKV-Mac" "$APP/Contents/MacOS/AutoRip2MKV-Mac"

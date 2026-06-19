@@ -32,15 +32,18 @@ extension MainViewController {
             return
         }
 
-        // Check if already installed in Application Support
+        // Check if already installed in Application Support (verify it's a real executable)
         let installedPath = getInstalledFFmpegPath()
-        if FileManager.default.fileExists(atPath: installedPath) {
+        if isValidFFmpegExecutable(atPath: installedPath) {
             DispatchQueue.main.async {
                 self.appendToLog("Using previously installed FFmpeg")
                 self.appendToLog("FFmpeg is ready for use!")
                 self.resetRipButton()
             }
             return
+        } else if FileManager.default.fileExists(atPath: installedPath) {
+            // Corrupt/non-executable file — remove it so we don't try to run it
+            try? FileManager.default.removeItem(atPath: installedPath)
         }
 
         // Check system PATH for FFmpeg
@@ -232,20 +235,30 @@ extension MainViewController {
     }
 
     func getInstalledFFmpegPath() -> String {
-        // Get path to FFmpeg in Application Support directory
         let appSupportPath = getApplicationSupportPath()
         return (appSupportPath as NSString).appendingPathComponent("ffmpeg")
     }
 
+    func isValidFFmpegExecutable(atPath path: String) -> Bool {
+        guard let fh = FileHandle(forReadingAtPath: path),
+              let magic = try? fh.read(upToCount: 4) else { return false }
+        fh.closeFile()
+        let bytes = [UInt8](magic)
+        return (bytes == [0xCF, 0xFA, 0xED, 0xFE]) ||
+               (bytes == [0xCE, 0xFA, 0xED, 0xFE]) ||
+               (bytes == [0xCA, 0xFE, 0xBA, 0xBE])
+    }
+
     func getFFmpegExecutablePath() -> String? {
-        // Return the path to the FFmpeg executable, checking bundled first
         if let bundledPath = getBundledFFmpegPath(), FileManager.default.fileExists(atPath: bundledPath) {
             return bundledPath
         }
 
         let installedPath = getInstalledFFmpegPath()
-        if FileManager.default.fileExists(atPath: installedPath) {
+        if isValidFFmpegExecutable(atPath: installedPath) {
             return installedPath
+        } else if FileManager.default.fileExists(atPath: installedPath) {
+            try? FileManager.default.removeItem(atPath: installedPath)
         }
 
         // Check system PATH for FFmpeg

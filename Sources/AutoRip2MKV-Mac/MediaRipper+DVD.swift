@@ -45,7 +45,11 @@ extension MediaRipper {
         delegate?.mediaRipperDidUpdateStatus("Titles to rip: \(titlesToRip.map({ $0.number }))")
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
-        // Step 5: Rip each title to organized directory with error recovery
+        // Step 5: Feed each title's decrypted sectors into its ffmpeg stdin pipe.
+        // Processes are collected in backgroundEncodingProcesses so the ConversionQueue
+        // can wait on them (serialised) after the disc is ejected.
+        backgroundEncodingProcesses.removeAll()
+
         for (index, title) in titlesToRip.enumerated() {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
@@ -54,109 +58,115 @@ extension MediaRipper {
                 throw error
             }
 
-            delegate?.mediaRipperDidUpdateStatus("Ripping DVD title \(title.number) (\(title.formattedDuration))...")
-            try ripDVDTitle(title, configuration: configuration, outputDirectory: organizedOutputDirectory,
-                           titleIndex: index, totalTitles: titlesToRip.count)
+            let titleName = determineTitleName(title: title, titleIndex: index, totalTitles: titlesToRip.count)
+            let outputFileName = "\(titleName)_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+            let outputPath = organizedOutputDirectory.appending("/\(outputFileName)")
+
+            // Remove any stale/incomplete output from a prior interrupted run
+            if FileManager.default.fileExists(atPath: outputPath) {
+                try? FileManager.default.removeItem(atPath: outputPath)
+            }
+
+            delegate?.mediaRipperDidUpdateStatus("Ripping title \(title.number) (\(title.formattedDuration)) → \(outputFileName)...")
+            let titleKey = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
+            let process = try feedDVDTitleToFFmpeg(title, titleKey: titleKey, outputPath: outputPath,
+                                                   configuration: configuration, titleIndex: index,
+                                                   totalTitles: titlesToRip.count)
+            backgroundEncodingProcesses.append((process: process, outputPath: outputPath, titleNumber: title.number))
+        }
+
+        // All sectors fed — disc can be ejected.
+        // mediaRipperDidComplete signals the queue/UI to eject and advance the job to .encoding.
+        // The queue's performConversion then waits on backgroundEncodingProcesses serially.
+        delegate?.mediaRipperDidUpdateStatus("All titles read from disc. Encoding continues in background...")
+        DispatchQueue.main.async {
+            self.delegate?.mediaRipperDidComplete()
+            self.isRipping = false
         }
     }
 
-    private func ripDVDTitle(_ title: DVDTitle, configuration: RippingConfiguration, outputDirectory: String, titleIndex: Int, totalTitles: Int) throws {
-        // Get title key for decryption
-        let titleKey = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
+    /// Starts an ffmpeg process and feeds all decrypted sectors into its stdin pipe.
+    /// Returns the running Process as soon as the last sector is written — the caller
+    /// is responsible for waiting on it (after the disc is ejected).
+    private func feedDVDTitleToFFmpeg(_ title: DVDTitle, titleKey: DVDDecryptor.CSSKey,
+                                      outputPath: String, configuration: RippingConfiguration,
+                                      titleIndex: Int, totalTitles: Int) throws -> Process {
+        let ffmpegPath = try getFFmpegPath()
 
-        // Create intelligent output filename
-        let titleName = determineTitleName(title: title, titleIndex: titleIndex, totalTitles: totalTitles)
-        let outputFileName = "\(titleName)_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
-        let outputPath = outputDirectory.appending("/\(outputFileName)")
+        var args = ["-i", "-",
+                    "-c:v", videoCodecArgument(for: configuration.videoCodec)]
+        args.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
+        args.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
+        if configuration.includeSubtitles { args.append(contentsOf: ["-c:s", "copy"]) }
+        if configuration.includeChapters  { args.append(contentsOf: ["-map_chapters", "0"]) }
+        args.append(contentsOf: ["-y", outputPath])
 
-        // Extract and decrypt video data
-        delegate?.mediaRipperDidUpdateStatus("Extracting video data for title \(title.number)...")
-        let tempVideoFile = try extractAndDecryptDVDTitle(title, titleKey: titleKey)
-        delegate?.mediaRipperDidUpdateStatus("Extracted video data to: \(tempVideoFile)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ffmpegPath)
+        process.arguments = args
 
-        // Convert to MKV
-        delegate?.mediaRipperDidUpdateStatus("Converting to MKV format...")
-        try convertToMKV(
-            inputFile: tempVideoFile,
-            outputFile: outputPath,
-            mediaItem: .dvdTitle(title),
-            configuration: configuration,
-            itemIndex: titleIndex,
-            totalItems: totalTitles
-        )
-        delegate?.mediaRipperDidUpdateStatus("Conversion complete: \(outputPath)")
+        let stdinPipe  = Pipe()
+        let stderrPipe = Pipe()
+        process.standardInput  = stdinPipe
+        process.standardError  = stderrPipe
+        process.standardOutput = Pipe()
 
-        // Cleanup temp file
-        try? FileManager.default.removeItem(atPath: tempVideoFile)
-    }
+        try process.run()
+        activeFFmpegProcess = process
 
-    private func extractAndDecryptDVDTitle(_ title: DVDTitle, titleKey: DVDDecryptor.CSSKey) throws -> String {
-        let tempDirectory = NSTemporaryDirectory()
-        let tempFileName = "temp_dvd_title_\(title.number).vob"
-        let tempFilePath = tempDirectory.appending(tempFileName)
-
-        guard let outputHandle = FileHandle(forWritingAtPath: tempFilePath) ??
-              createFileAndGetHandle(at: tempFilePath) else {
-            throw MediaRipperError.fileCreationFailed
+        let progressQueue = DispatchQueue(label: "ffmpeg.progress.\(title.number)")
+        progressQueue.async {
+            self.monitorFFmpegProgress(pipe: stderrPipe, mediaItem: .dvdTitle(title),
+                                       itemIndex: titleIndex, totalItems: totalTitles)
         }
 
-        defer { outputHandle.closeFile() }
-
-        // Calculate total sectors from VOB file sizes (authoritative source).
-        // IFO cell-table end sectors are VTS-relative and unreliable across VOB boundaries.
         let totalSectors: UInt32
         if !title.vobFiles.isEmpty {
             let totalBytes = title.vobFiles.reduce(Int64(0)) { acc, path in
                 acc + ((try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0)
             }
             totalSectors = totalBytes > 0 ? UInt32(totalBytes / 2048) : max(title.sectors, 1)
-            delegate?.mediaRipperDidUpdateStatus(
-                "Title \(title.number): \(title.vobFiles.count) VOB files, \(totalSectors) total sectors")
         } else {
             totalSectors = max(title.sectors, 1)
-            delegate?.mediaRipperDidUpdateStatus(
-                "Title \(title.number): no VOB files found, estimating \(totalSectors) sectors")
         }
-
-        let totalSize = Int64(totalSectors) * 2048
-        var totalBytesRead: Int64 = 0
-
         delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
 
-        // Read and decrypt via libdvdcss in 1024-sector chunks
         var sectorOffset: UInt32 = 0
-        while sectorOffset < totalSectors {
-            if shouldCancel {
-                throw MediaRipperError.cancelled
-            }
+        let stdinHandle = stdinPipe.fileHandleForWriting
 
-            let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
-            let startSector = title.startSector + sectorOffset
+        do {
+            while sectorOffset < totalSectors {
+                if shouldCancel {
+                    stdinHandle.closeFile()
+                    process.terminate()
+                    activeFFmpegProcess = nil
+                    throw MediaRipperError.cancelled
+                }
 
-            let decryptedData = try dvdDecryptor!.readAndDecryptSectors(
-                startSector: startSector, sectorCount: sectorsToRead
-            )
+                let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
+                let startSector = title.startSector + sectorOffset
 
-            if decryptedData.isEmpty {
-                delegate?.mediaRipperDidUpdateStatus("Warning: no data at sector \(startSector)")
+                let decryptedData = try dvdDecryptor!.readAndDecryptSectors(
+                    startSector: startSector, sectorCount: sectorsToRead)
+
+                if !decryptedData.isEmpty {
+                    stdinHandle.write(decryptedData)
+                }
                 sectorOffset += UInt32(sectorsToRead)
-                continue
             }
-
-            outputHandle.write(decryptedData)
-            totalBytesRead += Int64(decryptedData.count)
-            sectorOffset += UInt32(sectorsToRead)
-
-            let progress = Double(totalBytesRead) / Double(totalSize)
-            delegate?.mediaRipperDidUpdateProgress(
-                progress * 0.5, currentItem: .dvdTitle(title), totalItems: 1
-            )
+        } catch {
+            stdinHandle.closeFile()
+            process.terminate()
+            activeFFmpegProcess = nil
+            throw error
         }
 
-        delegate?.mediaRipperDidUpdateStatus("Extraction complete: \(totalBytesRead) bytes")
-        return tempFilePath
+        // Close stdin — ffmpeg will finish encoding what it has received and exit cleanly.
+        stdinHandle.closeFile()
+        return process
     }
-    
+
+
     internal func createFileAndGetHandle(at path: String) -> FileHandle? {
         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
         return FileHandle(forWritingAtPath: path)

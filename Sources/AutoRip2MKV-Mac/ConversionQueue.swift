@@ -148,9 +148,7 @@ class ConversionQueue {
     private let extractionQueue = DispatchQueue(label: "com.autoRip2MKV.extraction", qos: .userInitiated)
     private let conversionQueue = DispatchQueue(label: "com.autoRip2MKV.conversion", qos: .utility)
 
-    private var isExtracting = false
-    private var activeConversions = 0
-    private(set) var maxConcurrentConversions = 2 // Configurable limit
+    private var isProcessing = false  // true while any job is ripping or encoding
 
     weak var delegate: ConversionQueueDelegate?
     weak var ejectionDelegate: ConversionQueueEjectionDelegate?
@@ -242,13 +240,10 @@ class ConversionQueue {
                 return job1.addedTime < job2.addedTime
             }
             
-            // Estimate based on predicted durations and concurrency
-            for (index, job) in waitingJobs.enumerated() {
-                let duration = job.estimatedDuration ?? 3600 // Default 1 hour
-                // Account for parallel processing
-                let queuePosition = index / maxConcurrentConversions
-                let parallelDelay = Double(queuePosition) * duration
-                totalRemaining += duration + parallelDelay
+            // Jobs run serially — each waits for all previous to finish
+            for job in waitingJobs {
+                let duration = job.estimatedDuration ?? 3600
+                totalRemaining += duration
             }
             
             return totalRemaining > 0 ? totalRemaining : nil
@@ -280,6 +275,36 @@ class ConversionQueue {
             processNextJob()
         }
         return job.id
+    }
+
+    /// Add a job that has already been extracted (VOB on disk), skipping straight to conversion.
+    /// The queue takes ownership of the VOB file and deletes it after conversion.
+    func addPreExtractedVOBJob(vocPath: String, outputPath: String, discTitle: String,
+                               mediaType: MediaRipper.MediaType,
+                               configuration: MediaRipper.RippingConfiguration) {
+        var job = ConversionJob(
+            sourcePath: vocPath,
+            outputDirectory: (outputPath as NSString).deletingLastPathComponent,
+            configuration: configuration,
+            mediaType: mediaType,
+            discTitle: discTitle
+        )
+        job.status = .extracted
+        job.extractedDataPath = vocPath
+        // Store the intended output file in outputFiles so conversion knows where to write
+        job.outputFiles = [outputPath]
+
+        jobsQueue.async(flags: .barrier) {
+            self.jobs.append(job)
+            Logger.shared.logQueue("Added pre-extracted VOB job \(job.id) for: \(discTitle)", level: .info)
+            DispatchQueue.main.async {
+                self.delegate?.queueDidUpdateJobs(self.jobs)
+            }
+        }
+
+        if !testMode {
+            processNextJob()
+        }
     }
 
     /// Cancel a specific job
@@ -330,20 +355,6 @@ class ConversionQueue {
         }
     }
     
-    /// Configure maximum concurrent conversions
-    /// - Parameter maxConcurrent: Number of simultaneous conversions (1-4 recommended)
-    func setMaxConcurrentConversions(_ maxConcurrent: Int) {
-        let validatedMax = max(1, min(maxConcurrent, 8)) // Clamp between 1-8
-        jobsQueue.sync(flags: .barrier) {
-            self.maxConcurrentConversions = validatedMax
-            Logger.shared.logQueue("Updated max concurrent conversions to \(validatedMax)", level: .info)
-        }
-        // Trigger processing in case more slots opened up
-        if !testMode {
-            processNextJob()
-        }
-    }
-    
     /// Update priority of a pending job
     /// - Parameters:
     ///   - jobId: UUID of the job to update
@@ -378,6 +389,18 @@ class ConversionQueue {
         let converting: Int
         let completed: Int
         let failed: Int
+    }
+
+    /// Returns true if an active or pending job already exists for this source path.
+    func hasActiveJob(forSourcePath path: String) -> Bool {
+        return jobsQueue.sync {
+            jobs.contains { job in
+                job.sourcePath == path &&
+                job.status != .completed &&
+                job.status != .cancelled &&
+                !{ if case .failed = job.status { return true }; return false }()
+            }
+        }
     }
 
     /// Get current queue status
@@ -437,226 +460,156 @@ class ConversionQueue {
 
     private func processNextJob() {
         jobsQueue.async {
-            // Start extraction if not already running and there are pending jobs
-            if !self.isExtracting {
-                // Get all pending jobs and sort by priority (highest first), then by addedTime (oldest first)
-                let pendingJobs = self.jobs.filter {
-                    if case .pending = $0.status { return true }
-                    return false
-                }.sorted { job1, job2 in
-                    // First sort by priority (higher priority first)
-                    if job1.priority != job2.priority {
-                        return job1.priority > job2.priority
-                    }
-                    // If same priority, sort by addedTime (older first - FIFO within priority)
-                    return job1.addedTime < job2.addedTime
-                }
-                
-                if let nextExtractionJob = pendingJobs.first {
-                    self.startExtraction(for: nextExtractionJob.id)
-                }
-            }
+            guard !self.isProcessing else { return }
 
-            // Start conversions if under limit and there are extracted jobs waiting
-            if self.activeConversions < self.maxConcurrentConversions {
-                let availableSlots = self.maxConcurrentConversions - self.activeConversions
-                
-                // Sort extracted jobs by priority as well
-                let extractedJobs = self.jobs.filter {
-                    if case .extracted = $0.status { return true }
-                    return false
-                }.sorted { job1, job2 in
-                    if job1.priority != job2.priority {
-                        return job1.priority > job2.priority
-                    }
-                    return job1.addedTime < job2.addedTime
-                }
+            // Pick the highest-priority pending job (FIFO within priority)
+            let next = self.jobs.filter {
+                if case .pending = $0.status { return true }
+                return false
+            }.sorted { a, b in
+                a.priority != b.priority ? a.priority > b.priority : a.addedTime < b.addedTime
+            }.first
 
-                for job in extractedJobs.prefix(availableSlots) {
-                    self.startConversion(for: job.id)
-                }
+            if let job = next {
+                self.startRipping(for: job.id)
             }
         }
     }
 
-    private func startExtraction(for jobId: UUID) {
+    private func startRipping(for jobId: UUID) {
         jobsQueue.async(flags: .barrier) {
-            guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return }
-
-            self.jobs[jobIndex].status = .extracting
-            self.jobs[jobIndex].startTime = Date()
-            self.isExtracting = true
-            
-            Logger.shared.logQueue("Starting extraction for job \(jobId)", level: .info)
+            guard let idx = self.jobs.firstIndex(where: { $0.id == jobId }) else { return }
+            self.jobs[idx].status = .extracting
+            self.jobs[idx].startTime = Date()
+            self.isProcessing = true
+            Logger.shared.logQueue("Starting rip for job \(jobId)", level: .info)
             DispatchQueue.main.async {
                 self.delegate?.queueDidUpdateJobs(self.jobs)
                 self.delegate?.queueDidStartExtraction(jobId: jobId)
             }
         }
-
-        extractionQueue.async {
-            self.performExtraction(for: jobId)
-        }
+        extractionQueue.async { self.performRip(for: jobId) }
     }
 
-    private func performExtraction(for jobId: UUID) {
-        let tempDir = NSTemporaryDirectory().appending("AutoRip2MKV/\(jobId.uuidString)")
-        var tempDirCreated = false
+    /// Drives a full MediaRipper session for one disc job.
+    /// Phase 1 (.extracting): sectors fed into ffmpeg pipes; ends when disc can be ejected.
+    /// Phase 2 (.extracted → .converting): waits on background ffmpeg processes serially.
+    private func performRip(for jobId: UUID) {
+        guard let job = getJob(id: jobId) else { return }
 
-        // Ensure cleanup happens regardless of success/failure
-        defer {
-            if tempDirCreated {
-                cleanupTempDirectory(tempDir)
-            }
-        }
+        ScriptRunner.shared.runHook(.preProcessing, job: job)
 
-        do {
-            guard let job = getJob(id: jobId) else { return }
+        let ripper = MediaRipper()
+        let semaphore = DispatchSemaphore(value: 0)
+        var ripError: Error?
 
-            ScriptRunner.shared.runHook(.preProcessing, job: job)
+        // Delegate bridges MediaRipper callbacks into queue state transitions
+        let bridge = QueueRipperDelegate(
+            jobId: jobId,
+            queue: self,
+            onComplete: { semaphore.signal() },
+            onFail: { error in ripError = error; semaphore.signal() }
+        )
+        ripper.delegate = bridge
 
-            // Validate available disk space before extraction
-            try validateDiskSpace(for: job, outputDirectory: tempDir)
+        ripper.startRipping(mediaPath: job.sourcePath, configuration: job.configuration)
 
-            // Create temporary directory for extracted data
-            try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-            tempDirCreated = true
+        // Wait for mediaRipperDidComplete (all sectors fed, disc can eject)
+        semaphore.wait()
 
-            // Perform disc extraction (copy all necessary data from disc)
-            try extractDiscData(job: job, toDirectory: tempDir)
-
-            // Update job status atomically
-            let sourcePath: String? = jobsQueue.sync(flags: .barrier) {
-                guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return "" }
-
-                self.jobs[jobIndex].status = .extracted
-                self.jobs[jobIndex].extractedDataPath = tempDir
-                self.jobs[jobIndex].progress = 1.0
-                self.isExtracting = false
-
-                let jobSourcePath = self.jobs[jobIndex].sourcePath
-                Logger.shared.logQueue("Extraction completed for job \(jobId)", level: .info)
-
-                DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidCompleteExtraction(jobId: jobId)
-                }
-
-                return jobSourcePath
-            }
-
-            // Request ejection outside the barrier to avoid deadlock
-            if let sourcePath = sourcePath {
-                DispatchQueue.main.async {
-                    self.ejectionDelegate?.queueShouldEjectDisc(sourcePath: sourcePath)
-                }
-            }
-
-            // Process next jobs
-            processNextJob()
-
-        } catch {
+        if let error = ripError {
             jobsQueue.async(flags: .barrier) {
-                if let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) {
-                    self.jobs[jobIndex].status = .failed(error)
-                    self.jobs[jobIndex].endTime = Date()
+                if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+                    self.jobs[idx].status = .failed(error)
+                    self.jobs[idx].endTime = Date()
                 }
-                self.isExtracting = false
-
-                Logger.shared.logError(error, context: "Extraction failed for job \(jobId)")
+                self.isProcessing = false
+                Logger.shared.logError(error, context: "Rip failed for job \(jobId)")
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
                     self.delegate?.queueDidFailExtraction(jobId: jobId, error: error)
                 }
             }
-
             processNextJob()
+            return
         }
-    }
 
-    private func startConversion(for jobId: UUID) {
+        // Disc is done — transition to .extracted and request eject
+        let sourcePath = job.sourcePath
         jobsQueue.async(flags: .barrier) {
-            guard let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) else { return }
-
-            self.jobs[jobIndex].status = .converting
-            self.jobs[jobIndex].progress = 0.0
-            self.activeConversions += 1
-
-            Logger.shared.logQueue("Starting conversion for job \(jobId)", level: .info)
-            DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
-                self.delegate?.queueDidStartConversion(jobId: jobId)
-            }
-        }
-
-        conversionQueue.async {
-            self.performConversion(for: jobId)
-        }
-    }
-
-    private func performConversion(for jobId: UUID) {
-        do {
-            guard let job = getJob(id: jobId) else { return }
-            guard let extractedPath = job.extractedDataPath else {
-                throw ConversionQueueError.noExtractedData
-            }
-
-            // Perform video conversion from extracted data
-            let outputFiles = try convertExtractedData(job: job, fromDirectory: extractedPath)
-            let resolvedOutputFiles = resolveOutputFiles(for: job, convertedFiles: outputFiles)
-
-            var scriptJob = job
-            scriptJob.endTime = Date()
-            scriptJob.outputFiles = resolvedOutputFiles
-
-            // Update job status
-            jobsQueue.async(flags: .barrier) {
-                if let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) {
-                    self.jobs[jobIndex].status = .completed
-                    self.jobs[jobIndex].outputFiles = resolvedOutputFiles
-                    self.jobs[jobIndex].endTime = scriptJob.endTime
-                    self.jobs[jobIndex].progress = 1.0
-                    Logger.shared.logQueue("Conversion completed for job \(jobId) with \(resolvedOutputFiles.count) output files", level: .info)
-                }
-                self.activeConversions -= 1
-
+            if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+                self.jobs[idx].status = .extracted
+                Logger.shared.logQueue("Disc read complete for job \(jobId), ejecting", level: .info)
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidCompleteConversion(jobId: jobId, outputFiles: resolvedOutputFiles)
+                    self.delegate?.queueDidCompleteExtraction(jobId: jobId)
+                    self.ejectionDelegate?.queueShouldEjectDisc(sourcePath: sourcePath)
                 }
             }
+        }
 
-            ScriptRunner.shared.runHook(.postProcessing, job: scriptJob, outputFiles: resolvedOutputFiles)
-
-            // Clean up extracted data
-            try? FileManager.default.removeItem(atPath: extractedPath)
-
-            // Process next jobs
-            processNextJob()
-
-        } catch {
-            jobsQueue.async(flags: .barrier) {
-                if let jobIndex = self.jobs.firstIndex(where: { $0.id == jobId }) {
-                    self.jobs[jobIndex].status = .failed(error)
-                    self.jobs[jobIndex].endTime = Date()
+        // Phase 2: wait for each background ffmpeg process serially
+        jobsQueue.async(flags: .barrier) {
+            if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+                self.jobs[idx].status = .converting
+                DispatchQueue.main.async {
+                    self.delegate?.queueDidUpdateJobs(self.jobs)
+                    self.delegate?.queueDidStartConversion(jobId: jobId)
                 }
-                self.activeConversions -= 1
+            }
+        }
 
-                Logger.shared.logError(error, context: "Conversion failed for job \(jobId)")
+        var outputFiles: [String] = []
+        var encodeError: Error?
+
+        for entry in ripper.backgroundEncodingProcesses {
+            entry.process.waitUntilExit()
+            if entry.process.terminationStatus == 0 {
+                outputFiles.append(entry.outputPath)
+                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(entry.outputPath)")
+            } else {
+                encodeError = MediaRipperError.conversionFailed
+                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for title \(entry.titleNumber)")
+            }
+        }
+
+        let endTime = Date()
+        var scriptJob = job
+        scriptJob.endTime = endTime
+        scriptJob.outputFiles = outputFiles
+
+        if let error = encodeError {
+            jobsQueue.async(flags: .barrier) {
+                if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+                    self.jobs[idx].status = .failed(error)
+                    self.jobs[idx].endTime = endTime
+                }
+                self.isProcessing = false
+                Logger.shared.logError(error, context: "Encoding failed for job \(jobId)")
                 DispatchQueue.main.async {
                     self.delegate?.queueDidUpdateJobs(self.jobs)
                     self.delegate?.queueDidFailConversion(jobId: jobId, error: error)
                 }
             }
-
-            if let job = getJob(id: jobId) {
-                var scriptJob = job
-                scriptJob.endTime = Date()
-                ScriptRunner.shared.runHook(.postProcessing, job: scriptJob, outputFiles: job.outputFiles, error: error)
+        } else {
+            jobsQueue.async(flags: .barrier) {
+                if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+                    self.jobs[idx].status = .completed
+                    self.jobs[idx].outputFiles = outputFiles
+                    self.jobs[idx].endTime = endTime
+                    self.jobs[idx].progress = 1.0
+                }
+                self.isProcessing = false
+                Logger.shared.logQueue("Job \(jobId) fully complete: \(outputFiles.count) file(s)", level: .info)
+                DispatchQueue.main.async {
+                    self.delegate?.queueDidUpdateJobs(self.jobs)
+                    self.delegate?.queueDidCompleteConversion(jobId: jobId, outputFiles: outputFiles)
+                }
             }
-
-            processNextJob()
+            ScriptRunner.shared.runHook(.postProcessing, job: scriptJob, outputFiles: outputFiles)
         }
+
+        processNextJob()
     }
 
     private func getJob(id: UUID) -> ConversionJob? {
@@ -670,95 +623,6 @@ class ConversionQueue {
         return try jobsQueue.sync(flags: .barrier) {
             guard let index = jobs.firstIndex(where: { $0.id == id }) else { return nil }
             return try operation(&jobs[index])
-        }
-    }
-
-    private func extractDiscData(job: ConversionJob, toDirectory: String) throws {
-        // This will copy all necessary data from the disc to local storage
-        // Implementation depends on media type
-
-        switch job.mediaType {
-        case .dvd, .ultraHDDVD, .hddvd:
-            try extractDVDData(sourcePath: job.sourcePath, outputPath: toDirectory)
-        case .bluray, .bluray4K:
-            try extractBluRayData(sourcePath: job.sourcePath, outputPath: toDirectory)
-        case .unknown:
-            throw ConversionQueueError.unsupportedMediaType
-        }
-    }
-
-    private func extractDVDData(sourcePath: String, outputPath: String) throws {
-        // Copy VIDEO_TS folder and all VOB files
-        let videoTSSource = sourcePath.appending("/VIDEO_TS")
-        let videoTSDestination = outputPath.appending("/VIDEO_TS")
-
-        guard FileManager.default.fileExists(atPath: videoTSSource) else {
-            // Check if the source path itself exists to provide better error message
-            if !FileManager.default.fileExists(atPath: sourcePath) {
-                throw ConversionQueueError.sourceDiscEjected(sourcePath)
-            } else {
-                throw ConversionQueueError.sourceNotFound
-            }
-        }
-
-        try FileManager.default.copyItem(atPath: videoTSSource, toPath: videoTSDestination)
-    }
-
-    private func extractBluRayData(sourcePath: String, outputPath: String) throws {
-        // Copy BDMV folder structure
-        let bdmvSource = sourcePath.appending("/BDMV")
-        let bdmvDestination = outputPath.appending("/BDMV")
-
-        guard FileManager.default.fileExists(atPath: bdmvSource) else {
-            // Check if the source path itself exists to provide better error message
-            if !FileManager.default.fileExists(atPath: sourcePath) {
-                throw ConversionQueueError.sourceDiscEjected(sourcePath)
-            } else {
-                throw ConversionQueueError.sourceNotFound
-            }
-        }
-
-        try FileManager.default.copyItem(atPath: bdmvSource, toPath: bdmvDestination)
-    }
-
-    private func convertExtractedData(job: ConversionJob, fromDirectory: String) throws -> [String] {
-        // Use existing MediaRipper logic but with local extracted data
-        let mediaRipper = MediaRipper()
-
-        // Use a semaphore for proper async/sync coordination
-        let semaphore = DispatchSemaphore(value: 0)
-        var conversionResult: Result<[String], Error>?
-
-        // Create a custom delegate to capture output files
-        let conversionDelegate = ConversionProgressDelegate(
-            jobId: job.id,
-            queueDelegate: self.delegate
-        ) { result in
-            conversionResult = result
-            semaphore.signal()
-        }
-        mediaRipper.delegate = conversionDelegate
-
-        // Start conversion from extracted data
-        mediaRipper.startRipping(mediaPath: fromDirectory, configuration: job.configuration)
-
-        // Wait for completion with timeout (30 minutes max)
-        let timeoutResult = semaphore.wait(timeout: .now() + 1800) // 30 minutes
-
-        if timeoutResult == .timedOut {
-            mediaRipper.cancelRipping()
-            throw ConversionQueueError.conversionTimeout
-        }
-
-        guard let result = conversionResult else {
-            throw ConversionQueueError.conversionFailed
-        }
-
-        switch result {
-        case .success(let outputFiles):
-            return outputFiles
-        case .failure(let error):
-            throw error
         }
     }
 
@@ -838,42 +702,45 @@ class ConversionQueue {
 
 // MARK: - Helper Classes
 
-private class ConversionProgressDelegate: MediaRipperDelegate {
+/// Bridges MediaRipper delegate callbacks into ConversionQueue state.
+/// onComplete fires when the disc is fully read (sectors piped to ffmpeg) — not when encoding finishes.
+private class QueueRipperDelegate: MediaRipperDelegate {
     let jobId: UUID
-    weak var queueDelegate: ConversionQueueDelegate?
-    var outputFiles: [String] = []
-    private let completion: (Result<[String], Error>) -> Void
+    weak var queue: ConversionQueue?
+    private let onComplete: () -> Void
+    private let onFail: (Error) -> Void
 
-    init(jobId: UUID, queueDelegate: ConversionQueueDelegate?, completion: @escaping (Result<[String], Error>) -> Void) {
+    init(jobId: UUID, queue: ConversionQueue, onComplete: @escaping () -> Void, onFail: @escaping (Error) -> Void) {
         self.jobId = jobId
-        self.queueDelegate = queueDelegate
-        self.completion = completion
+        self.queue = queue
+        self.onComplete = onComplete
+        self.onFail = onFail
     }
 
     func mediaRipperDidStart() {
         DispatchQueue.main.async {
-            self.queueDelegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: "Starting conversion...")
+            self.queue?.delegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: "Reading disc...")
         }
     }
 
     func mediaRipperDidUpdateStatus(_ status: String) {
         DispatchQueue.main.async {
-            self.queueDelegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: status)
+            self.queue?.delegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: status)
         }
     }
 
     func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
         DispatchQueue.main.async {
-            self.queueDelegate?.queueDidUpdateConversionProgress(jobId: self.jobId, progress: progress)
+            self.queue?.delegate?.queueDidUpdateConversionProgress(jobId: self.jobId, progress: progress)
         }
     }
 
     func mediaRipperDidComplete() {
-        completion(.success(outputFiles))
+        onComplete()
     }
 
     func mediaRipperDidFail(with error: Error) {
-        completion(.failure(error))
+        onFail(error)
     }
 }
 

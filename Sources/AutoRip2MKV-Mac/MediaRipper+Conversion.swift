@@ -50,7 +50,17 @@ extension MediaRipper {
         )
     }
 
-    private func getFFmpegPath() throws -> String {
+    private func isValidMachO(atPath path: String) -> Bool {
+        guard let fh = FileHandle(forReadingAtPath: path),
+              let magic = try? fh.read(upToCount: 4) else { return false }
+        fh.closeFile()
+        let bytes = [UInt8](magic)
+        return (bytes == [0xCF, 0xFA, 0xED, 0xFE]) ||
+               (bytes == [0xCE, 0xFA, 0xED, 0xFE]) ||
+               (bytes == [0xCA, 0xFE, 0xBA, 0xBE])
+    }
+
+    func getFFmpegPath() throws -> String {
         // 1. Check if FFmpeg is bundled in the app bundle (Contents/Resources)
         let bundlePath = Bundle.main.bundlePath
         let bundledFFmpeg = bundlePath.appending("/Contents/Resources/ffmpeg")
@@ -67,7 +77,11 @@ extension MediaRipper {
         let appSupportPath = getApplicationSupportPath()
         let installedFFmpeg = (appSupportPath as NSString).appendingPathComponent("ffmpeg")
         if FileManager.default.fileExists(atPath: installedFFmpeg) {
-            return installedFFmpeg
+            if isValidMachO(atPath: installedFFmpeg) {
+                return installedFFmpeg
+            }
+            // Corrupt file (e.g. un-extracted ZIP) — remove it so it can be re-downloaded
+            try? FileManager.default.removeItem(atPath: installedFFmpeg)
         }
 
         // 4. Check system PATH as fallback
@@ -113,7 +127,7 @@ extension MediaRipper {
         return appPath.path
     }
 
-    private func videoCodecArgument(for codec: RippingConfiguration.VideoCodec) -> String {
+    func videoCodecArgument(for codec: RippingConfiguration.VideoCodec) -> String {
         switch codec {
         case .h264:
             return "libx264"
@@ -127,7 +141,7 @@ extension MediaRipper {
     }
 
     /// Generates codec-specific FFmpeg arguments for optimal encoding
-    private func codecSpecificArguments(for codec: RippingConfiguration.VideoCodec, quality: RippingConfiguration.RippingQuality) -> [String] {
+    func codecSpecificArguments(for codec: RippingConfiguration.VideoCodec, quality: RippingConfiguration.RippingQuality) -> [String] {
         switch codec {
         case .h264:
             return h264Arguments(quality: quality)
@@ -296,7 +310,7 @@ extension MediaRipper {
         return args
     }
 
-    private func audioCodecArgument(for codec: RippingConfiguration.AudioCodec) -> String {
+    func audioCodecArgument(for codec: RippingConfiguration.AudioCodec) -> String {
         switch codec {
         case .aac:
             return "aac"
@@ -349,7 +363,7 @@ extension MediaRipper {
         }
     }
 
-    private func monitorFFmpegProgress(pipe: Pipe, mediaItem: MediaItem, itemIndex: Int, totalItems: Int) {
+    func monitorFFmpegProgress(pipe: Pipe, mediaItem: MediaItem, itemIndex: Int, totalItems: Int) {
         let fileHandle = pipe.fileHandleForReading
 
         var buffer = Data()
@@ -423,13 +437,12 @@ extension MediaRipper {
             totalDuration = playlist.duration
         }
 
-        let conversionProgress = min(currentTime / totalDuration, 1.0)
+        let conversionProgress = totalDuration > 0 ? min(currentTime / totalDuration, 1.0) : 0.0
 
-        // Conversion is the second half of the process (50-100%)
-        let overallProgress = 0.5 + (conversionProgress * 0.5)
+        let itemProgress = (Double(itemIndex) + conversionProgress) / Double(max(totalItems, 1))
 
         DispatchQueue.main.async {
-            self.delegate?.mediaRipperDidUpdateProgress(overallProgress, currentItem: mediaItem, totalItems: totalItems)
+            self.delegate?.mediaRipperDidUpdateProgress(itemProgress, currentItem: mediaItem, totalItems: totalItems)
         }
     }
 

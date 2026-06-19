@@ -383,25 +383,19 @@ class MainViewController: NSViewController {
             batchMode: false
         )
 
-        // Update UI for ripping state
-        ripButton.title = "Cancel Ripping"
-        ripButton.isEnabled = true
-        totalRipSizeBytes = 0
-        progressIndicator.doubleValue = 0
-        progressIndicator.isHidden = false
-        progressStatusLabel.stringValue = "Preparing..."
-        progressStatusLabel.isHidden = false
-        let driveTypeString = currentDrive.type == .dvd ? "DVD" : currentDrive.type == .bluray ? "Blu-ray" : "Unknown"
-        let ripTitle = resolvedDiscTitle ?? currentDrive.name
-        sourceLabel.stringValue = "\(ripTitle) (\(driveTypeString)) - Ripping..."
-
-        // Save current settings
         saveCurrentSettings()
 
-        // Start direct ripping with MediaRipper (not queue)
-        activeMediaRipper = mediaRipper
-        mediaRipper.delegate = self
-        mediaRipper.startRipping(mediaPath: currentDrive.mountPoint, configuration: configuration)
+        let discTitle = resolvedDiscTitle ?? currentDrive.name
+        let driveTypeString = currentDrive.type == .dvd ? "DVD" : currentDrive.type == .bluray ? "Blu-ray" : "Unknown"
+        appendToLog("Queued: \(discTitle) (\(driveTypeString))")
+
+        conversionQueue.addJob(
+            sourcePath: currentDrive.mountPoint,
+            outputDirectory: outputPathField.stringValue,
+            configuration: configuration,
+            mediaType: mediaType,
+            discTitle: discTitle
+        )
     }
 
     func generateDiscTitle(from sourcePath: String) -> String {
@@ -577,8 +571,8 @@ extension MainViewController: DriveDetectorDelegate {
             return
         }
 
-        guard activeMediaRipper == nil else {
-            appendToLog("Rip already in progress, skipping auto-rip trigger.")
+        guard !conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint) else {
+            appendToLog("Skipping auto-rip: job already active for \(drive.displayName)")
             return
         }
 
@@ -616,25 +610,19 @@ extension MainViewController: DriveDetectorDelegate {
             batchMode: batchModeCheckbox.state == .on
         )
 
-        // Update UI for auto-ripping state
-        ripButton.title = "Cancel Ripping"
-        ripButton.isEnabled = true
-        totalRipSizeBytes = 0
-        progressIndicator.doubleValue = 0
-        progressIndicator.isHidden = false
-        progressStatusLabel.stringValue = "Preparing..."
-        progressStatusLabel.isHidden = false
-        let autodriveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
-        let autoRipTitle = resolvedDiscTitle ?? drive.name
-        sourceLabel.stringValue = "\(autoRipTitle) (\(autodriveTypeString)) - Ripping..."
-
-        // Save current settings
         saveCurrentSettings()
 
-        // Start direct ripping with MediaRipper (not queue)
-        activeMediaRipper = mediaRipper
-        mediaRipper.delegate = self
-        mediaRipper.startRipping(mediaPath: drive.mountPoint, configuration: configuration)
+        let autoRipTitle = resolvedDiscTitle ?? drive.name
+        let autodriveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+        appendToLog("Queued: \(autoRipTitle) (\(autodriveTypeString))")
+
+        conversionQueue.addJob(
+            sourcePath: drive.mountPoint,
+            outputDirectory: outputPathField.stringValue,
+            configuration: configuration,
+            mediaType: mediaType,
+            discTitle: autoRipTitle
+        )
     }
 }
 
