@@ -666,10 +666,24 @@ class ConversionQueue {
         for entry in ripper.backgroundEncodingProcesses {
             entry.process.waitUntilExit()
             if entry.process.terminationStatus == 0 {
-                outputFiles.append(entry.outputPath)
-                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(entry.outputPath)")
+                do {
+                    // Move the finished encode from local staging into the output
+                    // directory in one step, so sync services (iCloud) never see
+                    // a partially written file.
+                    if FileManager.default.fileExists(atPath: entry.outputPath) {
+                        try? FileManager.default.removeItem(atPath: entry.outputPath)
+                    }
+                    try FileManager.default.moveItem(atPath: entry.stagingPath, toPath: entry.outputPath)
+                    outputFiles.append(entry.outputPath)
+                    ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(entry.outputPath)")
+                } catch {
+                    encodeError = error
+                    Logger.shared.logError(error, context: "Failed to move finished encode into place for title \(entry.titleNumber)")
+                    ripper.delegate?.mediaRipperDidUpdateStatus("Failed to move finished file for title \(entry.titleNumber)")
+                }
             } else {
                 encodeError = MediaRipperError.conversionFailed
+                try? FileManager.default.removeItem(atPath: entry.stagingPath)
                 ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for title \(entry.titleNumber)")
             }
         }

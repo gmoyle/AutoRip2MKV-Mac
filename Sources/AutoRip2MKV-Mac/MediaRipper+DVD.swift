@@ -69,13 +69,18 @@ extension MediaRipper {
             if FileManager.default.fileExists(atPath: outputPath) {
                 try? FileManager.default.removeItem(atPath: outputPath)
             }
+            let stagingPath = encodingStagingPath(for: outputPath)
+            if FileManager.default.fileExists(atPath: stagingPath) {
+                try? FileManager.default.removeItem(atPath: stagingPath)
+            }
 
             delegate?.mediaRipperDidUpdateStatus("Ripping title \(title.number) (\(title.formattedDuration)) → \(outputFileName)...")
             let titleKey = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
             let process = try feedDVDTitleToFFmpeg(title, titleKey: titleKey, outputPath: outputPath,
                                                    configuration: configuration, titleIndex: index,
                                                    totalTitles: titlesToRip.count)
-            backgroundEncodingProcesses.append((process: process, outputPath: outputPath, titleNumber: title.number))
+            backgroundEncodingProcesses.append((process: process, outputPath: outputPath,
+                                                stagingPath: stagingPath, titleNumber: title.number))
         }
 
         // Release the raw device before requesting eject — libdvdcss's open file
@@ -112,7 +117,9 @@ extension MediaRipper {
         args.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
         if configuration.includeSubtitles { args.append(contentsOf: ["-c:s", "copy"]) }
         if configuration.includeChapters  { args.append(contentsOf: ["-map_chapters", "0"]) }
-        args.append(contentsOf: ["-y", outputPath])
+        // Encode into local staging; the queue moves the file into the (possibly
+        // cloud-synced) output directory only after ffmpeg exits successfully.
+        args.append(contentsOf: ["-f", "matroska", "-y", encodingStagingPath(for: outputPath)])
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)

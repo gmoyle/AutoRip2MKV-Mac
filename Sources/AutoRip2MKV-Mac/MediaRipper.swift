@@ -98,7 +98,19 @@ class MediaRipper {
     var activeFFmpegProcess: Process?
     /// All ffmpeg processes launched for the current rip, still encoding after disc eject.
     /// The queue waits on these before marking a job complete.
-    var backgroundEncodingProcesses: [(process: Process, outputPath: String, titleNumber: Int)] = []
+    var backgroundEncodingProcesses: [(process: Process, outputPath: String, stagingPath: String, titleNumber: Int)] = []
+
+    /// Local (non-iCloud-synced) staging path for an in-progress encode. Encoding
+    /// directly into the output directory corrupts rips when that directory is
+    /// synced (iCloud restores stale versions of files it saw mid-write); the
+    /// finished file is moved into place atomically on success.
+    func encodingStagingPath(for outputPath: String) -> String {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+            .first?.path ?? NSTemporaryDirectory()
+        let stagingDir = base.appending("/AutoRip2MKV/encoding")
+        try? FileManager.default.createDirectory(atPath: stagingDir, withIntermediateDirectories: true)
+        return stagingDir.appending("/\((outputPath as NSString).lastPathComponent)")
+    }
 
     // Ripping configuration
     struct RippingConfiguration {
