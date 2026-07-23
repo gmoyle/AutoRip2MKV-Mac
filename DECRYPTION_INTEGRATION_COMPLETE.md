@@ -76,18 +76,9 @@ The project is now **fully functional** for:
 
 ### Next Steps
 
-For distribution builds:
-
-```bash
-# 1. Build the app
-./scripts/build-with-bundled-ffmpeg.sh
-
-# 2. Bundle decryption libraries
-./scripts/bundle-decryption-libs.sh
-
-# 3. Code sign and distribute
-./scripts/distribute.sh
-```
+Distribution builds are produced by the GitHub Actions release workflow
+(`.github/workflows/release.yml`), which builds the app, bundles the ffmpeg and
+decryption dylibs into `Contents/Frameworks`, signs, and notarizes the DMG.
 
 ---
 

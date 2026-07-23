@@ -62,16 +62,13 @@ The build system will:
 
 ## Distribution
 
-For release builds that bundle the libraries:
+Release DMGs are built by the GitHub Actions workflow
+(`.github/workflows/release.yml`), which bundles the libraries into the app so
+it runs standalone without Homebrew. The workflow:
 
-```bash
-./scripts/bundle-decryption-libs.sh
-```
-
-This script:
-1. Copies libdvdcss and libaacs dylibs into the .app bundle
-2. Updates library install names for bundled paths
-3. Ensures the app runs standalone without Homebrew dependencies
+1. Copies libdvdcss and libaacs dylibs into `AutoRip2MKV.app/Contents/Frameworks`
+2. Rewrites install names to `@executable_path/../Frameworks/...` with `install_name_tool`
+3. Signs each dylib, then the app, and notarizes the DMG
 
 ## Implementation Details
 
@@ -150,10 +147,9 @@ Blu-ray device not found or libaacs failed to open device
 dyld: Library not loaded: @rpath/libdvdcss.2.dylib
 ```
 
-**Solution**: Run the bundling script before distributing:
-```bash
-./scripts/bundle-decryption-libs.sh
-```
+**Solution**: Distribute via the release workflow (`.github/workflows/release.yml`),
+which bundles the dylibs into the app. For local development, `brew install
+libdvdcss libaacs` provides them at their Homebrew paths.
 
 ## References
 
