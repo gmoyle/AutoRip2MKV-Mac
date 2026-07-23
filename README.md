@@ -13,32 +13,6 @@
 
 A native macOS application for automatically ripping DVDs and Blu-rays to MKV format using **open-source decryption libraries** (libdvdcss & libaacs) - no third-party applications like MakeMKV required!
 
-## 🎨 App Icon
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center">
-        <img src="assets/icon.svg" alt="Main Icon" width="128" height="128">
-        <br><strong>Main Icon</strong>
-        <br><em>512×512 Application Icon</em>
-      </td>
-      <td align="center">
-        <img src="assets/icon-simple.svg" alt="Simple Icon" width="64" height="64">
-        <br><strong>Simple Icon</strong>
-        <br><em>128×128 Favicon & Small UI</em>
-      </td>
-      <td align="center">
-        <img src="assets/logo.png" alt="Logo" width="200" height="60">
-        <br><strong>Horizontal Logo</strong>
-        <br><em>400×120 Documentation & Web</em>
-      </td>
-    </tr>
-  </table>
-  
-  <p><em>Professional macOS-style icon featuring a large DVD disc with bright orange floppy disk overlay,<br>representing the classic-to-digital conversion process. Floppy disk design recommended by<br><strong>Susanne Moyle</strong> for nostalgic throwback appeal, with anatomically correct vertical access window.</em></p>
-</div>
-
 ## Features
 
 - **Hands-free ripping** - Insert a disc and walk away: auto-rip on insert, auto-eject when the read finishes, skip discs already ripped
@@ -275,3 +249,29 @@ This project represents a groundbreaking experiment in AI-powered software devel
 - The Swift and macOS development communities
 - FFmpeg project for video conversion capabilities
 - DVD Forum specifications for DVD structure documentation
+
+## 🎨 App Icon
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/icon.svg" alt="Main Icon" width="128" height="128">
+        <br><strong>Main Icon</strong>
+        <br><em>512×512 Application Icon</em>
+      </td>
+      <td align="center">
+        <img src="assets/icon-simple.svg" alt="Simple Icon" width="64" height="64">
+        <br><strong>Simple Icon</strong>
+        <br><em>128×128 Favicon & Small UI</em>
+      </td>
+      <td align="center">
+        <img src="assets/logo.png" alt="Logo" width="200" height="60">
+        <br><strong>Horizontal Logo</strong>
+        <br><em>400×120 Documentation & Web</em>
+      </td>
+    </tr>
+  </table>
+  
+  <p><em>Professional macOS-style icon featuring a large DVD disc with bright orange floppy disk overlay,<br>representing the classic-to-digital conversion process. Floppy disk design recommended by<br><strong>Susanne Moyle</strong> for nostalgic throwback appeal, with anatomically correct vertical access window.</em></p>
+</div>
