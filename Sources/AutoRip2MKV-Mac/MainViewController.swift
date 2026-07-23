@@ -60,11 +60,11 @@ class MainViewController: NSViewController {
         setupUI()
         setupDVDRipper()
         setupConversionQueue()
+        settingsManager.setDefaultsIfNeeded()  // must run before loadSettings reads values
         loadSettings()
         refreshDrives()
         driveDetector.delegate = self
         driveDetector.startMonitoring()
-        settingsManager.setDefaultsIfNeeded()
         
         // Check FFmpeg and hardware acceleration on startup
         checkFFmpegAndHardwareAcceleration()
