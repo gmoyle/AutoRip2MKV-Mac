@@ -47,6 +47,55 @@ final class MakeMKVBackend {
 
     static var isInstalled: Bool { executablePath() != nil }
 
+    /// The MakeMKV.app bundle path, if installed, derived from the makemkvcon path.
+    static func appBundlePath() -> String? {
+        guard let exe = executablePath() else { return nil }
+        // .../MakeMKV.app/Contents/MacOS/makemkvcon -> .../MakeMKV.app
+        if let range = exe.range(of: "/Contents/MacOS/") {
+            return String(exe[..<range.lowerBound])
+        }
+        return nil
+    }
+
+    /// True if makemkvcon carries the com.apple.quarantine attribute — meaning
+    /// Gatekeeper will block it (MakeMKV isn't notarized). Rips fail opaquely
+    /// (exit 9, no output) until it's cleared.
+    static func isQuarantined() -> Bool {
+        guard let exe = executablePath() else { return false }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        task.arguments = ["-p", "com.apple.quarantine", exe]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0  // attribute present
+        } catch {
+            return false
+        }
+    }
+
+    /// Recursively clear the quarantine attribute from the MakeMKV bundle. This
+    /// is a non-privileged operation (no password), so it's safe to run for the
+    /// user. Returns true on success.
+    @discardableResult
+    static func clearQuarantine() -> Bool {
+        guard let app = appBundlePath() else { return false }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        task.arguments = ["-dr", "com.apple.quarantine", app]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
     private var process: Process?
     private let cancelledFlag: () -> Bool
 

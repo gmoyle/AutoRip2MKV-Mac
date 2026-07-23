@@ -663,8 +663,11 @@ extension MainViewController: DriveDetectorDelegate {
         guard !settingsManager.makemkvFirstRunChecked else { return }
         settingsManager.makemkvFirstRunChecked = true
 
-        // Already installed — nothing to prompt, just confirm it's wired up.
+        // Already installed — clear any Gatekeeper quarantine and confirm it's wired up.
         guard !MakeMKVBackend.isInstalled else {
+            if MakeMKVBackend.isQuarantined() {
+                MakeMKVBackend.clearQuarantine()
+            }
             appendToLog("MakeMKV detected — Blu-ray ripping is ready.")
             return
         }
@@ -685,7 +688,22 @@ extension MainViewController: DriveDetectorDelegate {
     /// Blu-ray can be ripped if MakeMKV is available (preferred) or the user has
     /// supplied a libaacs key database.
     internal func blurayDecryptionReady() -> Bool {
-        if settingsManager.useMakeMKVForBluRay && MakeMKVBackend.isInstalled { return true }
+        if settingsManager.useMakeMKVForBluRay && MakeMKVBackend.isInstalled {
+            // MakeMKV isn't notarized; if Gatekeeper has quarantined it, makemkvcon
+            // is killed on launch (rips fail with exit 9 / no output). Clear it —
+            // xattr is non-privileged, so we can fix this for the user directly.
+            if MakeMKVBackend.isQuarantined() {
+                appendToLog("MakeMKV is quarantined by macOS Gatekeeper — clearing so it can run...")
+                if MakeMKVBackend.clearQuarantine() {
+                    appendToLog("Cleared MakeMKV quarantine.")
+                } else {
+                    appendToLog("Couldn't clear MakeMKV quarantine automatically. "
+                        + "Run: xattr -dr com.apple.quarantine /Applications/MakeMKV.app")
+                    return false
+                }
+            }
+            return true
+        }
         let keydb = NSString(string: "~/.config/aacs/KEYDB.cfg").expandingTildeInPath
         return FileManager.default.fileExists(atPath: keydb)
     }
