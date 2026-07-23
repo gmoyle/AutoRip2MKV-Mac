@@ -26,6 +26,7 @@ class SettingsManager {
         static let autoDeinterlace = "autoDeinterlace"
         static let skipRippedDiscs = "skipRippedDiscs"
         static let useMakeMKVForBluRay = "useMakeMKVForBluRay"
+        static let makemkvFirstRunChecked = "makemkvFirstRunChecked"
         
         // Intelligent Title Selection (Phase 2 Task 3)
         static let intelligentTitleSelection = "intelligentTitleSelection"
@@ -140,6 +141,16 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.quality)
+        }
+    }
+
+    /// Whether the one-time first-run MakeMKV setup prompt has been shown.
+    var makemkvFirstRunChecked: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.makemkvFirstRunChecked)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.makemkvFirstRunChecked)
         }
     }
 

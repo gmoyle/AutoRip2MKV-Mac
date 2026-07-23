@@ -655,6 +655,33 @@ extension MainViewController: DriveDetectorDelegate {
         return dir
     }
 
+    /// One-time, first-run prompt offering to set up MakeMKV for Blu-ray. Runs
+    /// after the hardware-acceleration check so the two dialogs don't overlap.
+    /// DVD ripping needs nothing; this is purely to make Blu-ray work later
+    /// without a surprise when the user first inserts a Blu-ray disc.
+    func performFirstRunMakeMKVCheck() {
+        guard !settingsManager.makemkvFirstRunChecked else { return }
+        settingsManager.makemkvFirstRunChecked = true
+
+        // Already installed — nothing to prompt, just confirm it's wired up.
+        guard !MakeMKVBackend.isInstalled else {
+            appendToLog("MakeMKV detected — Blu-ray ripping is ready.")
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Set Up Blu-ray Support?"
+        alert.informativeText = """
+            AutoRip2MKV rips DVDs with no setup. Blu-ray discs use AACS/BD+ \
+            protection that needs MakeMKV (free during beta) to decrypt.
+
+            You can set this up now, or skip it — DVD ripping works either way, \
+            and you can add Blu-ray support later from Settings.
+            """
+        alert.alertStyle = .informational
+        presentMakeMKVInstallOptions(on: alert, includeSkip: true)
+    }
+
     /// Blu-ray can be ripped if MakeMKV is available (preferred) or the user has
     /// supplied a libaacs key database.
     internal func blurayDecryptionReady() -> Bool {
@@ -677,12 +704,17 @@ extension MainViewController: DriveDetectorDelegate {
             The disc has been ejected. Reinsert it after installing MakeMKV.
             """
         alert.alertStyle = .informational
+        presentMakeMKVInstallOptions(on: alert, includeSkip: false)
+    }
 
-        // Track each button's action by index so the branching stays unambiguous
-        // regardless of whether the Homebrew option is present.
+    /// Adds MakeMKV install actions to an alert and runs it. Offers a one-click
+    /// Homebrew install when brew is present, always offers the download page,
+    /// and a dismiss button ("Skip"/"Cancel"). Index-based dispatch keeps the
+    /// branching correct whether or not the Homebrew option is shown.
+    private func presentMakeMKVInstallOptions(on alert: NSAlert, includeSkip: Bool) {
         var actions: [() -> Void] = []
-        let brew = homebrewPath()
-        if let brew = brew {
+
+        if let brew = homebrewPath() {
             alert.addButton(withTitle: "Install with Homebrew")
             actions.append { [weak self] in self?.installMakeMKVWithHomebrew(brewPath: brew) }
         }
@@ -692,7 +724,7 @@ extension MainViewController: DriveDetectorDelegate {
                 NSWorkspace.shared.open(url)
             }
         }
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: includeSkip ? "Skip for Now" : "Cancel")
         actions.append { }
 
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue

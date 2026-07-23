@@ -329,6 +329,12 @@ extension MainViewController {
             DispatchQueue.main.async {
                 self.performFirstRunHardwareAccelerationCheck()
             }
+        } else {
+            // Hardware check already done (e.g. upgrade from an earlier build) —
+            // still offer the one-time MakeMKV setup if it hasn't been shown.
+            DispatchQueue.main.async {
+                self.performFirstRunMakeMKVCheck()
+            }
         }
     }
     
@@ -337,19 +343,21 @@ extension MainViewController {
         guard getFFmpegExecutablePath() != nil else {
             // FFmpeg not available, mark as checked and continue
             settingsManager.hardwareAccelerationChecked = true
+            performFirstRunMakeMKVCheck()
             return
         }
-        
+
         // Check if hardware acceleration is available
         let hardwareAccelSupported = checkHardwareAccelerationSupport()
-        
+
         if hardwareAccelSupported {
-            // Show dialog to user
+            // Show dialog to user (chains into the MakeMKV check when dismissed)
             showHardwareAccelerationDialog()
         } else {
             // No hardware acceleration available, mark as checked
             settingsManager.hardwareAccelerationChecked = true
             appendToLog("Hardware acceleration not available on this system")
+            performFirstRunMakeMKVCheck()
         }
     }
     
@@ -375,5 +383,8 @@ extension MainViewController {
         
         // Mark as checked so we don't ask again
         settingsManager.hardwareAccelerationChecked = true
+
+        // Then offer Blu-ray/MakeMKV setup (sequential, so dialogs don't overlap)
+        performFirstRunMakeMKVCheck()
     }
 }
