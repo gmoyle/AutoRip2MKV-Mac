@@ -78,6 +78,11 @@ extension MediaRipper {
             backgroundEncodingProcesses.append((process: process, outputPath: outputPath, titleNumber: title.number))
         }
 
+        // Release the raw device before requesting eject — libdvdcss's open file
+        // descriptor would otherwise make the physical eject fail as busy.
+        dvdDecryptor?.closeDevice()
+        dvdDecryptor = nil
+
         // All sectors fed — disc can be ejected.
         // mediaRipperDidComplete signals the queue/UI to eject and advance the job to .encoding.
         // The queue's performConversion then waits on backgroundEncodingProcesses serially.

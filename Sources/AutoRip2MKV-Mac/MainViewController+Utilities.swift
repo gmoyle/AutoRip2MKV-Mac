@@ -101,15 +101,30 @@ extension MainViewController {
     }
 
     private func ejectDisk(at devicePath: String) -> Bool {
+        // Unmount first so the physical eject isn't blocked by the mounted volume
+        _ = runEjectTool("/usr/sbin/diskutil", ["unmountDisk", devicePath])
+        // drutil performs the physical eject (opens the tray/clamshell);
+        // diskutil eject alone often only unmounts on optical drives
+        if runEjectTool("/usr/bin/drutil", ["eject"]) {
+            return true
+        }
+        return runEjectTool("/usr/sbin/diskutil", ["eject", devicePath])
+    }
+
+    private func runEjectTool(_ toolPath: String, _ arguments: [String]) -> Bool {
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/diskutil")
-        task.arguments = ["eject", devicePath]
+        task.executableURL = URL(fileURLWithPath: toolPath)
+        task.arguments = arguments
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
 
         do {
             try task.run()
             task.waitUntilExit()
             return task.terminationStatus == 0
         } catch {
+            Logger.shared.log("Eject tool failed to launch: \(toolPath) — \(error.localizedDescription)",
+                              level: .error, category: .general)
             return false
         }
     }
