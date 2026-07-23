@@ -11,14 +11,14 @@
 
 > 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
-A native macOS application for automatically ripping DVDs and Blu-rays to MKV format using **open-source decryption libraries** (libdvdcss & libaacs) - no third-party applications like MakeMKV required!
+A native macOS application for automatically ripping DVDs and Blu-rays to MKV format. **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
 
 ## Features
 
 - **Hands-free ripping** - Insert a disc and walk away: auto-rip on insert, auto-eject when the read finishes, skip discs already ripped
 - **DVD CSS Decryption** - Open-source libdvdcss for Content Scramble System decryption
-- **Blu-ray AACS Support** - Open-source libaacs for AACS decryption and BDMV parsing (requires a key database)
-- **No Third-Party Applications** - No MakeMKV or other separate ripping tools
+- **Blu-ray Support** - Via MakeMKV (auto-detected once installed); the app helps you set it up on first run
+- **DVDs need nothing extra** - No MakeMKV, key database, or other tools required for DVD ripping
 - **All tracks captured** - Every audio and subtitle track, tagged with languages from the disc
 - **Auto-deinterlace** - Interlaced (NTSC) sources are deinterlaced automatically
 - **Plex-ready** - `Movie (Year)` naming and defaults to your local Plex movie library
@@ -103,6 +103,26 @@ each have a checkbox in the main window; the output directory can be changed wit
 Rips are named `Movie (Year)/Movie (Year).mkv` and default to your local Plex
 movie library, so finished files appear in Plex automatically. Point AutoRip's
 output at a **local** folder (not an iCloud-synced one like Desktop or Documents).
+
+### Blu-ray support (requires MakeMKV)
+
+**DVDs rip with no setup.** Blu-ray discs use AACS/BD+ copy protection that
+AutoRip2MKV cannot legitimately decrypt on its own, so Blu-ray ripping is handled
+by [MakeMKV](https://www.makemkv.com/) (free during its beta), which manages
+decryption with its own keys. AutoRip2MKV ships no decryption keys.
+
+- On **first launch**, the app offers to help you install MakeMKV. You can also
+  install it any time from [makemkv.com/download](https://www.makemkv.com/download/).
+- Once MakeMKV is installed, AutoRip2MKV **detects and uses it automatically** —
+  insert a Blu-ray and it rips just like a DVD, with the same Plex-style naming
+  and output location.
+- The **"Use MakeMKV for Blu-ray"** setting (Detailed Settings, on by default)
+  controls this. Advanced users can instead supply a libaacs key database at
+  `~/.config/aacs/KEYDB.cfg` to use the built-in libaacs path.
+
+> **Note:** MakeMKV's Homebrew cask is deprecated (fails macOS Gatekeeper) and is
+> scheduled for removal on 2026-09-01. The download from makemkv.com is the
+> recommended, durable install method.
 
 ### DVD Structure
 
