@@ -124,6 +124,9 @@ class MediaRipper {
     let mediaType: MediaType? // Optional override for media type detection
     // Deinterlace frames flagged as interlaced (bwdif); progressive frames pass through
     var autoDeinterlace: Bool = true
+    // Resolved "Movie (Year)" title; when set, output uses Plex-style naming:
+    // <output>/<Movie (Year)>/<Movie (Year)>.mkv
+    var plexName: String? = nil
 
         enum VideoCodec {
             case h264, h265, av1, vp9

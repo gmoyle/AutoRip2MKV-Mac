@@ -17,14 +17,22 @@ extension MediaRipper {
             throw error
         }
 
-        // Step 2: Extract movie name and create organized directory
+        // Step 2: Determine the output directory. With a resolved title, use
+        // Plex-style "<output>/<Movie (Year)>/"; otherwise the media-type layout.
         delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
-        let organizedOutputDirectory = createOrganizedOutputDirectory(
-            baseDirectory: configuration.outputDirectory,
-            mediaType: currentMediaType,
-            movieName: movieName
-        )
+        let organizedOutputDirectory: String
+        if let plexBase = plexBaseName(from: configuration) {
+            organizedOutputDirectory = configuration.outputDirectory.appending("/\(plexBase)")
+            try? FileManager.default.createDirectory(
+                atPath: organizedOutputDirectory, withIntermediateDirectories: true)
+        } else {
+            organizedOutputDirectory = createOrganizedOutputDirectory(
+                baseDirectory: configuration.outputDirectory,
+                mediaType: currentMediaType,
+                movieName: movieName
+            )
+        }
 
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: dvdPath,
@@ -62,7 +70,14 @@ extension MediaRipper {
             }
 
             let titleName = determineTitleName(title: title, titleIndex: index, totalTitles: titlesToRip.count)
-            let outputFileName = "\(titleName)_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+            let outputFileName: String
+            if let plexBase = plexBaseName(from: configuration) {
+                // Main feature is "<Movie (Year)>.mkv" so Plex matches it directly;
+                // any extra titles get a distinguishing suffix
+                outputFileName = index == 0 ? "\(plexBase).mkv" : "\(plexBase) - \(titleName).mkv"
+            } else {
+                outputFileName = "\(titleName)_\(title.formattedDuration.replacingOccurrences(of: ":", with: "-")).mkv"
+            }
             let outputPath = organizedOutputDirectory.appending("/\(outputFileName)")
 
             // Remove any stale/incomplete output from a prior interrupted run

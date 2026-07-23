@@ -275,6 +275,17 @@ extension MediaRipper {
         }
     }
 
+    /// Plex-style folder/file base name from the resolved disc title —
+    /// filesystem-safe but keeping spaces and parentheses ("Movie (Year)").
+    func plexBaseName(from configuration: RippingConfiguration) -> String? {
+        guard let name = configuration.plexName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return nil }
+        let invalid = CharacterSet(charactersIn: "/:*?\"<>|\\")
+        let cleaned = name.components(separatedBy: invalid).joined(separator: "-")
+            .trimmingCharacters(in: .whitespaces)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     // MARK: - Directory Organization
 
     /// Create organized output directory structure

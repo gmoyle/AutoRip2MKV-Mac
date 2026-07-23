@@ -439,7 +439,8 @@ class MainViewController: NSViewController {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            autoDeinterlace: settingsManager.autoDeinterlace
+            autoDeinterlace: settingsManager.autoDeinterlace,
+            plexName: resolvedDiscTitle
         )
 
         saveCurrentSettings()
@@ -601,12 +602,14 @@ extension MainViewController: DriveDetectorDelegate {
             self.appendToLog("New disc detected: \(drive.displayName)")
             self.resolvedDiscTitle = nil
             self.updateDriveDropdown()
+            // Auto-rip only after the title lookup resolves (or fails) so the
+            // rip can use Plex-style "Movie (Year)" naming from the start
             self.lookupDiscTitle(volumeName: drive.name) { title in
                 self.resolvedDiscTitle = title
                 self.updateDriveDropdown()
                 if let t = title { self.appendToLog("Disc identified: \(t)") }
+                self.autoStartRipping(for: drive)
             }
-            self.autoStartRipping(for: drive)
         }
     }
 
@@ -625,9 +628,13 @@ extension MainViewController: DriveDetectorDelegate {
                                    mediaType: MediaRipper.MediaType,
                                    configuration: MediaRipper.RippingConfiguration) -> String? {
         let ripper = MediaRipper()
-        let movieName = ripper.extractMovieName(from: drive.mountPoint, mediaType: mediaType)
-        let dir = outputPathField.stringValue
-            .appending("/\(mediaType.folderName)/\(movieName)")
+        let dir: String
+        if let plexBase = ripper.plexBaseName(from: configuration) {
+            dir = outputPathField.stringValue.appending("/\(plexBase)")
+        } else {
+            let movieName = ripper.extractMovieName(from: drive.mountPoint, mediaType: mediaType)
+            dir = outputPathField.stringValue.appending("/\(mediaType.folderName)/\(movieName)")
+        }
         let markerPath = dir.appending("/rip_complete.json")
 
         guard FileManager.default.fileExists(atPath: markerPath),
@@ -641,7 +648,7 @@ extension MainViewController: DriveDetectorDelegate {
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let savedSettings = json["settings"] as? [String: String],
            savedSettings != ConversionQueue.settingsFingerprint(of: configuration) {
-            appendToLog("Settings changed since the last rip of \(movieName) — re-ripping.")
+            appendToLog("Settings changed since the last rip of \(drive.displayName) — re-ripping.")
             return nil
         }
 
@@ -690,7 +697,8 @@ extension MainViewController: DriveDetectorDelegate {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            autoDeinterlace: settingsManager.autoDeinterlace
+            autoDeinterlace: settingsManager.autoDeinterlace,
+            plexName: resolvedDiscTitle
         )
 
         // Skip discs already ripped with the same settings; a settings change
