@@ -55,9 +55,9 @@ Native macOS DVD/Blu-ray ripper with built-in CSS/AACS decryption. Written entir
 
 **UI Layer** (AppKit, programmatic - no storyboards)
 - `AppDelegate.swift` - App lifecycle
-- `MainViewController.swift` + extensions - Main window
+- `MainViewController.swift` + extensions - Main window, including the embedded
+  conversion queue table (`MainViewController+QueueTable.swift`)
 - `DetailedSettingsWindowController.swift` - Settings UI
-- `QueueWindowController.swift` - Conversion queue UI
 
 **Singletons**
 - `SettingsManager.shared` - UserDefaults wrapper

@@ -5,6 +5,39 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-22
+
+### ✨ Hands-free ripping straight into Plex
+- **Insert-and-walk-away workflow**: auto-rip on insert, auto-eject when the disc read finishes, and skip discs already ripped — rip disc after disc without touching the app.
+- **Skip already-ripped discs**: a `rip_complete.json` marker records the disc and a fingerprint of the settings used; matching discs are skipped and ejected. Change any rip setting, hold ⌥ while inserting, or click Start Ripping to force a re-rip.
+- **Plex library auto-detection**: on first launch the default output directory is taken from a local Plex Media Server's movie library, falling back to `~/Movies/AutoRip2MKV`.
+- **Plex-style naming**: with a disc identified via OMDb, output is `Movie (Year)/Movie (Year).mkv` for direct Plex matching. OMDb lookup strips screener/format junk from volume labels and prefers exact matches.
+
+### 🖥️ UI
+- **Queue embedded in the main window** (the separate Conversion Queue window is gone), with per-row cancel/retry/reveal/remove.
+- **Live two-phase progress**: disc-read progress in GB, then encode progress as a percentage.
+- **Log hidden** behind a disclosure triangle; removed the non-functional Batch Mode checkbox.
+
+### 🎬 Output quality
+- **Auto-deinterlace** interlaced (NTSC) sources with bwdif (flagged frames only); on by default.
+- **All audio and subtitle tracks** are captured (not just one of each) and tagged with languages parsed from the VTS IFO, so Plex shows proper track names.
+
+### 🐛 Fixed
+- **Disc eject never worked**: called `/usr/bin/diskutil` (nonexistent; it's in `/usr/sbin`) and only unmounted. Now unmounts then physically ejects with `drutil`, and releases the libdvdcss device handle first.
+- **iCloud corruption**: encoding large files directly into an iCloud-synced output folder let stale partials be restored over finished rips. Encodes now go to local staging and move into place atomically on success.
+- **Duplicate queue jobs**: the disc detector re-queued the same disc repeatedly; Start Ripping now refuses duplicates and superseded failures are pruned.
+- **Retry backoff**: DVD parse/decrypt retries now wait 5s instead of firing three times instantly, riding out transient device contention (e.g. macOS DVD Player grabbing the drive).
+
+### 🔧 Technical
+- Deploys sign with Developer ID so macOS remembers the removable-volume permission across rebuilds.
+- Removed the orphaned `scripts/bundle-decryption-libs.sh` (the release workflow inlines dylib bundling).
+
+## [1.4.2] - 2026-06-18
+
+### 🔧 Technical
+- Notarized DMG release workflow (build, bundle ffmpeg + decryption dylibs, sign with Developer ID, notarize).
+- Build arm64-only to match the runner's Homebrew dylibs.
+
 ## [1.4.0] - 2026-06-17
 
 ### 🎉 First Real-World DVD Rip

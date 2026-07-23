@@ -102,19 +102,34 @@ When you launch AutoRip2MKV for the first time, the application will:
 
 ### Normal Operation
 
-1. **Insert DVD/Blu-ray** into your Mac's optical drive
-2. **Launch AutoRip2MKV** from Applications
-3. **Select your disc** from the automatically detected drives dropdown
-4. **Choose output directory** where MKV files will be saved
-5. **Click "Start Ripping"** - uses bundled FFmpeg for immediate processing
-6. **Monitor progress** in the real-time log area
+With the default settings, ripping is hands-free — insert a disc and walk away:
 
-**That's it!** The app handles everything automatically including:
+1. **Launch AutoRip2MKV** from Applications (leave it running).
+2. **Insert a DVD/Blu-ray.** The app detects it, identifies the movie, and starts ripping automatically.
+3. **The disc ejects** when the read finishes; encoding continues in the background.
+4. **Insert the next disc.** Repeat for as many as you like.
+
+The main window shows the queue and live progress (disc-read size, then encode
+percentage). The app handles everything automatically:
 - ✅ FFmpeg bundled (no downloads or Homebrew needed)
-- ✅ Drive detection and selection
-- ✅ CSS/AACS decryption
-- ✅ Video conversion to MKV
+- ✅ Drive detection, disc identification (OMDb), and CSS/AACS decryption
+- ✅ Auto-deinterlace of interlaced (NTSC) sources
+- ✅ All audio and subtitle tracks captured, with language labels
+- ✅ Conversion to MKV, with Plex-style `Movie (Year)` naming
+- ✅ Auto-eject when the read completes; already-ripped discs are skipped
 - ✅ Optional hardware acceleration (VideoToolbox)
+
+**Overrides**: a disc already ripped with the current settings is skipped and
+ejected. Change any rip setting, hold **⌥ Option** while inserting, or click
+**Start Ripping** to force a re-rip. Auto-rip, auto-eject, and skip-already-ripped
+each have a checkbox in the main window; the output directory can be changed with
+**Browse** (it defaults to your Plex movie library if one is found).
+
+### Plex
+
+Rips are named `Movie (Year)/Movie (Year).mkv` and default to your local Plex
+movie library, so finished files appear in Plex automatically. Point AutoRip's
+output at a **local** folder (not an iCloud-synced one like Desktop or Documents).
 
 ### DVD Structure
 
@@ -178,7 +193,7 @@ swift build && swift test && swift run
 See our comprehensive [**Roadmap**](ROADMAP.md) for planned features, enhancements, and long-term project goals including:
 
 - **Enhanced 4K Support**: Ultra HD Blu-ray detection and processing
-- **Advanced Automation**: Intelligent batch processing and workflow tools
+- **Hands-free automation**: auto-rip on insert, auto-eject, skip already-ripped discs
 - **Professional Features**: Metadata management and enterprise tools
 - **Cross-Platform Expansion**: Linux and Windows support evaluation
 - **AI Development Evolution**: Next-generation code generation experiments
