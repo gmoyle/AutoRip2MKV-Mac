@@ -55,7 +55,10 @@ extension MainViewController {
             autoEjectCheckbox.topAnchor.constraint(equalTo: autoRipCheckbox.bottomAnchor, constant: 5),
             autoEjectCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
-            batchModeCheckbox.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 5),
+            skipRippedCheckbox.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 5),
+            skipRippedCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+
+            batchModeCheckbox.topAnchor.constraint(equalTo: skipRippedCheckbox.bottomAnchor, constant: 5),
             batchModeCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             batchDiscListField.centerYAnchor.constraint(equalTo: batchModeCheckbox.centerYAnchor),

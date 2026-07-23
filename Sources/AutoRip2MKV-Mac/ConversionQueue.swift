@@ -334,6 +334,36 @@ class ConversionQueue {
         }
     }
 
+    /// Serializable fingerprint of the settings that affect rip output, stored in
+    /// the completion marker so a settings change triggers an automatic re-rip.
+    static func settingsFingerprint(of cfg: MediaRipper.RippingConfiguration) -> [String: String] {
+        return [
+            "videoCodec": String(describing: cfg.videoCodec),
+            "audioCodec": String(describing: cfg.audioCodec),
+            "quality": String(describing: cfg.quality),
+            "autoDeinterlace": String(cfg.autoDeinterlace),
+            "includeSubtitles": String(cfg.includeSubtitles),
+            "includeChapters": String(cfg.includeChapters)
+        ]
+    }
+
+    /// Write rip_complete.json next to the output files. Its presence (plus a
+    /// matching settings fingerprint) lets auto-rip skip discs already ripped.
+    private func writeRipCompleteMarker(job: ConversionJob, outputFiles: [String]) {
+        guard let firstOutput = outputFiles.first else { return }
+        let dir = (firstOutput as NSString).deletingLastPathComponent
+        let marker: [String: Any] = [
+            "disc_title": job.discTitle,
+            "volume_name": (job.sourcePath as NSString).lastPathComponent,
+            "completed": ISO8601DateFormatter().string(from: Date()),
+            "output_files": outputFiles.map { ($0 as NSString).lastPathComponent },
+            "settings": Self.settingsFingerprint(of: job.configuration)
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: marker, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: URL(fileURLWithPath: dir).appendingPathComponent("rip_complete.json"))
+        }
+    }
+
     /// Record progress for a job and refresh observers. Small deltas are dropped
     /// to keep table reloads infrequent.
     func setJobProgress(id: UUID, progress: Double) {
@@ -680,6 +710,7 @@ class ConversionQueue {
                     default: return false
                     }
                 }
+                self.writeRipCompleteMarker(job: job, outputFiles: outputFiles)
                 self.isProcessing = false
                 self.activeRipper = nil
                 Logger.shared.logQueue("Job \(jobId) fully complete: \(outputFiles.count) file(s)", level: .info)

@@ -34,6 +34,7 @@ class MainViewController: NSViewController {
     // Automation Settings
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
+    internal var skipRippedCheckbox: NSButton!
     internal var batchModeCheckbox: NSButton!
     internal var batchDiscListField: NSTextField!
     internal var settingsButton: NSButton!
@@ -192,6 +193,14 @@ class MainViewController: NSViewController {
         )
         autoEjectCheckbox.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(autoEjectCheckbox)
+
+        skipRippedCheckbox = NSButton(
+            checkboxWithTitle: "Skip discs already ripped (hold ⌥ on insert to re-rip)",
+            target: self,
+            action: #selector(skipRippedToggled)
+        )
+        skipRippedCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(skipRippedCheckbox)
 
         batchModeCheckbox = NSButton(checkboxWithTitle: "Batch Mode (unattended)", target: self, action: #selector(batchModeToggled))
         batchModeCheckbox.translatesAutoresizingMaskIntoConstraints = false
@@ -580,6 +589,11 @@ class MainViewController: NSViewController {
         appendToLog("Auto-eject \(settingsManager.autoEjectEnabled ? "enabled" : "disabled")")
     }
 
+    @objc internal func skipRippedToggled() {
+        settingsManager.skipRippedDiscs = skipRippedCheckbox.state == .on
+        appendToLog("Skip already-ripped discs \(settingsManager.skipRippedDiscs ? "enabled" : "disabled")")
+    }
+
     @objc private func showSettings() {
         print("[DEBUG] showSettings called - using DetailedSettingsWindowController")
 
@@ -620,6 +634,35 @@ extension MainViewController: DriveDetectorDelegate {
             self.appendToLog("Disc ejected: \(drive.displayName)")
             self.updateDriveDropdown()
         }
+    }
+
+    /// If the disc was already ripped into the current output directory with the
+    /// same settings, returns the existing rip's directory; otherwise nil.
+    internal func findCompletedRip(for drive: OpticalDrive,
+                                   mediaType: MediaRipper.MediaType,
+                                   configuration: MediaRipper.RippingConfiguration) -> String? {
+        let ripper = MediaRipper()
+        let movieName = ripper.extractMovieName(from: drive.mountPoint, mediaType: mediaType)
+        let dir = outputPathField.stringValue
+            .appending("/\(mediaType.folderName)/\(movieName)")
+        let markerPath = dir.appending("/rip_complete.json")
+
+        guard FileManager.default.fileExists(atPath: markerPath),
+              let contents = try? FileManager.default.contentsOfDirectory(atPath: dir),
+              contents.contains(where: { $0.hasSuffix(".mkv") }) else {
+            return nil
+        }
+
+        // Settings changed since that rip? Treat as not ripped so it re-rips.
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: markerPath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let savedSettings = json["settings"] as? [String: String],
+           savedSettings != ConversionQueue.settingsFingerprint(of: configuration) {
+            appendToLog("Settings changed since the last rip of \(movieName) — re-ripping.")
+            return nil
+        }
+
+        return dir
     }
 
     internal func autoStartRipping(for drive: OpticalDrive) {
@@ -667,6 +710,23 @@ extension MainViewController: DriveDetectorDelegate {
             batchMode: batchModeCheckbox.state == .on,
             autoDeinterlace: settingsManager.autoDeinterlace
         )
+
+        // Skip discs already ripped with the same settings; a settings change
+        // re-rips automatically. Hold Option on insert (or use Start Ripping)
+        // to force a re-rip.
+        if settingsManager.skipRippedDiscs {
+            if NSEvent.modifierFlags.contains(.option) {
+                appendToLog("Option key held — forcing re-rip of \(drive.displayName).")
+            } else if let existingDir = findCompletedRip(
+                for: drive, mediaType: mediaType, configuration: configuration) {
+                appendToLog("Already ripped with current settings — skipping: \(existingDir)")
+                appendToLog("Hold ⌥ while inserting, or click Start Ripping, to rip again.")
+                if settingsManager.autoEjectEnabled {
+                    ejectCurrentDisk()
+                }
+                return
+            }
+        }
 
         saveCurrentSettings()
 

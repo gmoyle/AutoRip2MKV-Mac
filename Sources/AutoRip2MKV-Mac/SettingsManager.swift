@@ -24,6 +24,7 @@ class SettingsManager {
         static let hardwareAcceleration = "hardwareAcceleration"
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
         static let autoDeinterlace = "autoDeinterlace"
+        static let skipRippedDiscs = "skipRippedDiscs"
         
         // Intelligent Title Selection (Phase 2 Task 3)
         static let intelligentTitleSelection = "intelligentTitleSelection"
@@ -138,6 +139,16 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.quality)
+        }
+    }
+
+    /// Skip auto-ripping discs whose completed output already exists
+    var skipRippedDiscs: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.skipRippedDiscs)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.skipRippedDiscs)
         }
     }
 
@@ -332,6 +343,9 @@ class SettingsManager {
         }
         if userDefaults.object(forKey: Keys.autoDeinterlace) == nil {
             autoDeinterlace = true  // Deinterlace flagged frames by default
+        }
+        if userDefaults.object(forKey: Keys.skipRippedDiscs) == nil {
+            skipRippedDiscs = true  // Don't re-rip discs already ripped
         }
         if userDefaults.object(forKey: Keys.includeSubtitles) == nil {
             includeSubtitles = true

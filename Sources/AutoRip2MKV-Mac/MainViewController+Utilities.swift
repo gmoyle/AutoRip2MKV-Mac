@@ -172,6 +172,7 @@ extension MainViewController {
         // Load automation settings
         autoRipCheckbox.state = settingsManager.autoRipEnabled ? .on : .off
         autoEjectCheckbox.state = settingsManager.autoEjectEnabled ? .on : .off
+        skipRippedCheckbox.state = settingsManager.skipRippedDiscs ? .on : .off
     }
 
     func saveCurrentSettings() {
