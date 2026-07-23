@@ -79,6 +79,59 @@ extension MainViewController {
 
     // MARK: - Disk Management
 
+    /// Default rip destination: the local Plex movie library when one exists,
+    /// otherwise ~/Movies/AutoRip2MKV.
+    private func defaultOutputDirectory() -> String {
+        if let plexPath = plexMovieLibraryPath() {
+            appendToLog("Plex movie library detected — defaulting output to \(plexPath)")
+            return plexPath
+        }
+        let fallback = NSString(string: "~/Movies/AutoRip2MKV").expandingTildeInPath
+        try? FileManager.default.createDirectory(
+            atPath: fallback, withIntermediateDirectories: true)
+        return fallback
+    }
+
+    /// First writable movie-library folder from a local Plex Media Server install.
+    private func plexMovieLibraryPath() -> String? {
+        let db = NSString(string: "~/Library/Application Support/Plex Media Server"
+            + "/Plug-in Support/Databases/com.plexapp.plugins.library.db").expandingTildeInPath
+        guard FileManager.default.fileExists(atPath: db) else { return nil }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        // -readonly so a running Plex server's database is never disturbed;
+        // section_type 1 is Plex's movie library type
+        task.arguments = ["-readonly", db,
+                          "SELECT sl.root_path FROM section_locations sl "
+                          + "JOIN library_sections ls ON sl.library_section_id = ls.id "
+                          + "WHERE ls.section_type = 1 ORDER BY sl.id;"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0 else { return nil }
+            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(),
+                                encoding: .utf8) ?? ""
+            for line in output.split(separator: "\n") {
+                let path = line.trimmingCharacters(in: .whitespaces)
+                var isDirectory: ObjCBool = false
+                if !path.isEmpty,
+                   FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                   isDirectory.boolValue,
+                   FileManager.default.isWritableFile(atPath: path) {
+                    return path
+                }
+            }
+        } catch {
+            return nil
+        }
+        return nil
+    }
+
     func ejectCurrentDisk() {
         guard let selectedDrive = getSelectedDrive() else {
             appendToLog("No drive selected for ejection")
@@ -172,14 +225,11 @@ extension MainViewController {
     }
 
     func loadSettings() {
-        // Load output path, defaulting to ~/Movies/AutoRip2MKV so ripping
-        // works out of the box without any setup
+        // Load output path; default so ripping works out of the box
         if let lastOutputPath = settingsManager.lastOutputPath, !lastOutputPath.isEmpty {
             outputPathField.stringValue = lastOutputPath
         } else {
-            let defaultDir = NSString(string: "~/Movies/AutoRip2MKV").expandingTildeInPath
-            try? FileManager.default.createDirectory(
-                atPath: defaultDir, withIntermediateDirectories: true)
+            let defaultDir = defaultOutputDirectory()
             outputPathField.stringValue = defaultDir
             settingsManager.lastOutputPath = defaultDir
         }
