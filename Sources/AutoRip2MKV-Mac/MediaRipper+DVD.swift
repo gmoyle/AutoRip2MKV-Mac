@@ -106,8 +106,13 @@ extension MediaRipper {
                                       titleIndex: Int, totalTitles: Int) throws -> Process {
         let ffmpegPath = try getFFmpegPath()
 
-        var args = ["-i", "-",
-                    "-c:v", videoCodecArgument(for: configuration.videoCodec)]
+        // Large probe window: audio/subtitle substreams in a piped MPEG-PS appear
+        // sporadically, and ffmpeg's default quick scan misses them entirely.
+        var args = ["-probesize", "200M", "-analyzeduration", "120M",
+                    "-i", "-",
+                    "-map", "0:v:0", "-map", "0:a?"]
+        if configuration.includeSubtitles { args.append(contentsOf: ["-map", "0:s?"]) }
+        args.append(contentsOf: ["-c:v", videoCodecArgument(for: configuration.videoCodec)])
         args.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
         if configuration.autoDeinterlace {
             // deint=interlaced only touches frames flagged interlaced (NTSC DVDs);
@@ -117,6 +122,16 @@ extension MediaRipper {
         args.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
         if configuration.includeSubtitles { args.append(contentsOf: ["-c:s", "copy"]) }
         if configuration.includeChapters  { args.append(contentsOf: ["-map_chapters", "0"]) }
+
+        // Label tracks with languages from the VTS IFO (stream order)
+        for (index, lang) in title.audioLanguages.enumerated() where !lang.isEmpty {
+            args.append(contentsOf: ["-metadata:s:a:\(index)", "language=\(iso639_2(from: lang))"])
+        }
+        if configuration.includeSubtitles {
+            for (index, lang) in title.subtitleLanguages.enumerated() where !lang.isEmpty {
+                args.append(contentsOf: ["-metadata:s:s:\(index)", "language=\(iso639_2(from: lang))"])
+            }
+        }
         // Encode into local staging; the queue moves the file into the (possibly
         // cloud-synced) output directory only after ffmpeg exits successfully.
         args.append(contentsOf: ["-f", "matroska", "-y", encodingStagingPath(for: outputPath)])
@@ -196,6 +211,19 @@ extension MediaRipper {
         return process
     }
 
+
+    /// Convert an ISO 639-1 code from the DVD IFO to the ISO 639-2/B code
+    /// Matroska and Plex expect. Unknown codes pass through unchanged.
+    private func iso639_2(from code: String) -> String {
+        let map: [String: String] = [
+            "en": "eng", "fr": "fra", "es": "spa", "de": "deu", "it": "ita",
+            "ja": "jpn", "zh": "zho", "ko": "kor", "pt": "por", "ru": "rus",
+            "nl": "nld", "sv": "swe", "no": "nor", "da": "dan", "fi": "fin",
+            "pl": "pol", "tr": "tur", "ar": "ara", "he": "heb", "hi": "hin",
+            "th": "tha", "cs": "ces", "el": "ell", "hu": "hun", "iw": "heb"
+        ]
+        return map[code] ?? code
+    }
 
     internal func createFileAndGetHandle(at path: String) -> FileHandle? {
         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)

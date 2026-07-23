@@ -145,8 +145,37 @@ class DVDStructureParser {
             try parsePGCI(data: data, offset: Int(pgciOffset), for: title)
         }
 
+        // Track language codes for audio/subtitle labeling
+        parseTrackLanguages(data: data, for: title)
+
         // Parse VOB information
         try parseVOBInfo(data: data, for: title)
+    }
+
+    /// Extract audio and subtitle language codes from the VTSI MAT.
+    /// Audio attributes: count at 0x202, 8-byte entries from 0x204 (lang code at +2).
+    /// Subpicture attributes: count at 0x254, 6-byte entries from 0x256 (lang code at +2).
+    private func parseTrackLanguages(data: Data, for title: DVDTitle) {
+        func langCode(at offset: Int) -> String? {
+            guard offset + 1 < data.count else { return nil }
+            let chars = [data[offset], data[offset + 1]].map { byte -> Character? in
+                let lower = (byte >= 0x41 && byte <= 0x5A) ? byte + 0x20 : byte
+                guard lower >= 0x61, lower <= 0x7A else { return nil }
+                return Character(UnicodeScalar(lower))
+            }
+            guard let c1 = chars[0], let c2 = chars[1] else { return nil }
+            return String([c1, c2])
+        }
+
+        let audioCount = min(Int(data.readUInt16(at: 0x202)), 8)
+        for i in 0..<audioCount {
+            title.audioLanguages.append(langCode(at: 0x204 + i * 8 + 2) ?? "")
+        }
+
+        let subpCount = min(Int(data.readUInt16(at: 0x254)), 32)
+        for i in 0..<subpCount {
+            title.subtitleLanguages.append(langCode(at: 0x256 + i * 6 + 2) ?? "")
+        }
     }
 
     private func parsePGCI(data: Data, offset: Int, for title: DVDTitle) throws {
@@ -277,6 +306,9 @@ class DVDTitle {
     var duration: TimeInterval
     var chapters: [DVDChapter] = []
     var vobFiles: [String] = []
+    // ISO 639-1 codes from the VTS IFO, in stream order ("" when unspecified)
+    var audioLanguages: [String] = []
+    var subtitleLanguages: [String] = []
 
     // Computed property for sectors - calculate from chapters or estimate
     var sectors: UInt32 {
