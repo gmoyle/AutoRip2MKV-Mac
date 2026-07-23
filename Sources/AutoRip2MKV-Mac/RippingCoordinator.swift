@@ -198,8 +198,7 @@ class RippingCoordinator: RippingCoordinating, @unchecked Sendable {
             quality: mapQuality(configuration.quality),
             includeSubtitles: configuration.includeSubtitles,
             includeChapters: configuration.includeChapters,
-            mediaType: mapMediaType(detectedMediaType),
-            batchMode: false
+            mediaType: mapMediaType(detectedMediaType)
         )
         
         let jobId = conversionQueue.addJob(

@@ -292,8 +292,7 @@ final class QueuePriorityTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: nil,
-            batchMode: false
+            mediaType: nil
         )
     }
 }

@@ -110,7 +110,6 @@ class MediaRipper {
     let includeSubtitles: Bool
     let includeChapters: Bool
     let mediaType: MediaType? // Optional override for media type detection
-    let batchMode: Bool // If true, run in unattended batch mode
     // Deinterlace frames flagged as interlaced (bwdif); progressive frames pass through
     var autoDeinterlace: Bool = true
 

@@ -35,8 +35,6 @@ class MainViewController: NSViewController {
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
     internal var skipRippedCheckbox: NSButton!
-    internal var batchModeCheckbox: NSButton!
-    internal var batchDiscListField: NSTextField!
     internal var settingsButton: NSButton!
 
     // Drive Detection - internal for extension access
@@ -202,23 +200,9 @@ class MainViewController: NSViewController {
         skipRippedCheckbox.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(skipRippedCheckbox)
 
-        batchModeCheckbox = NSButton(checkboxWithTitle: "Batch Mode (unattended)", target: self, action: #selector(batchModeToggled))
-        batchModeCheckbox.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(batchModeCheckbox)
-
-        batchDiscListField = NSTextField()
-        batchDiscListField.placeholderString = "Enter disc paths (comma-separated)"
-        batchDiscListField.translatesAutoresizingMaskIntoConstraints = false
-        batchDiscListField.isHidden = true
-        view.addSubview(batchDiscListField)
-
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
-    }
-
-    @objc private func batchModeToggled() {
-        batchDiscListField.isHidden = batchModeCheckbox.state != .on
     }
 
     private func setupRipButton() {
@@ -455,7 +439,6 @@ class MainViewController: NSViewController {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            batchMode: false,
             autoDeinterlace: settingsManager.autoDeinterlace
         )
 
@@ -707,7 +690,6 @@ extension MainViewController: DriveDetectorDelegate {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            batchMode: batchModeCheckbox.state == .on,
             autoDeinterlace: settingsManager.autoDeinterlace
         )
 

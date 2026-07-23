@@ -85,8 +85,7 @@ final class ScriptRunnerTests: XCTestCase {
             quality: .high,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: nil,
-            batchMode: false
+            mediaType: nil
         )
 
         return ConversionQueue.ConversionJob(

@@ -134,8 +134,7 @@ final class FFmpegConversionTests: XCTestCase {
                 quality: quality,
                 includeSubtitles: false,
                 includeChapters: false,
-                mediaType: .dvd,
-            batchMode: false
+                mediaType: .dvd
             )
             
             // Test that configuration is valid
@@ -161,8 +160,7 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: false,
-            mediaType: .dvd,
-            batchMode: false
+            mediaType: .dvd
         )
         
         // Test conversion setup (without actually running FFmpeg in tests)
@@ -184,8 +182,7 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: true,
-            mediaType: .dvd,
-            batchMode: false
+            mediaType: .dvd
         )
         
         XCTAssertTrue(configuration.includeChapters)
@@ -248,8 +245,7 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: false,
             includeChapters: false,
-            mediaType: .dvd,
-            batchMode: false
+            mediaType: .dvd
         )
         
         // This should eventually fail due to invalid output path
@@ -271,8 +267,7 @@ final class FFmpegConversionTests: XCTestCase {
                     quality: .medium,
                     includeSubtitles: false,
                     includeChapters: false,
-                    mediaType: .dvd,
-            batchMode: false
+                    mediaType: .dvd
                 )
                 
                 // All combinations should be valid
@@ -293,8 +288,7 @@ final class FFmpegConversionTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd,
-            batchMode: false
+            mediaType: .dvd
         )
         
         measure {

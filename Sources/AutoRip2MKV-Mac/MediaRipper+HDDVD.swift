@@ -93,8 +93,7 @@ extension MediaRipper {
             quality: .high,
             includeSubtitles: configuration.includeSubtitles,
             includeChapters: configuration.includeChapters,
-            mediaType: configuration.mediaType,
-            batchMode: configuration.batchMode
+            mediaType: configuration.mediaType
         )
 
         // Step 3: Determine which titles to rip

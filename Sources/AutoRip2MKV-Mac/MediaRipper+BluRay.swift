@@ -73,8 +73,7 @@ extension MediaRipper {
             quality: .high, // Use high for best CRF mapping
             includeSubtitles: configuration.includeSubtitles,
             includeChapters: configuration.includeChapters,
-            mediaType: configuration.mediaType,
-            batchMode: configuration.batchMode
+            mediaType: configuration.mediaType
         )
         // ...existing code...
 

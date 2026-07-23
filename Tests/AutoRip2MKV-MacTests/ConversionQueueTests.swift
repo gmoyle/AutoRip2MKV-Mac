@@ -57,8 +57,7 @@ final class ConversionQueueTests: XCTestCase {
             quality: .medium,
             includeSubtitles: true,
             includeChapters: true,
-            mediaType: .dvd,
-            batchMode: false
+            mediaType: .dvd
         )
     }
     
