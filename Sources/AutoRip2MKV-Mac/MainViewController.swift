@@ -707,23 +707,29 @@ extension MainViewController: DriveDetectorDelegate {
         presentMakeMKVInstallOptions(on: alert, includeSkip: false)
     }
 
-    /// Adds MakeMKV install actions to an alert and runs it. Offers a one-click
-    /// Homebrew install when brew is present, always offers the download page,
-    /// and a dismiss button ("Skip"/"Cancel"). Index-based dispatch keeps the
+    /// Adds MakeMKV install actions to an alert and runs it. The download page is
+    /// the primary (durable) option; Homebrew is offered secondarily and only
+    /// while the cask still works — it is deprecated for failing macOS Gatekeeper
+    /// and scheduled for removal on 2026-09-01. Index-based dispatch keeps the
     /// branching correct whether or not the Homebrew option is shown.
     private func presentMakeMKVInstallOptions(on alert: NSAlert, includeSkip: Bool) {
         var actions: [() -> Void] = []
 
-        if let brew = homebrewPath() {
-            alert.addButton(withTitle: "Install with Homebrew")
-            actions.append { [weak self] in self?.installMakeMKVWithHomebrew(brewPath: brew) }
-        }
+        // Primary: the official download page always works.
         alert.addButton(withTitle: "Open Download Page")
         actions.append {
             if let url = URL(string: "https://www.makemkv.com/download/") {
                 NSWorkspace.shared.open(url)
             }
         }
+
+        // Secondary: Homebrew, only before the cask's removal date.
+        let brewCaskRemovalDate = ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z") ?? .distantPast
+        if let brew = homebrewPath(), Date() < brewCaskRemovalDate {
+            alert.addButton(withTitle: "Install with Homebrew")
+            actions.append { [weak self] in self?.installMakeMKVWithHomebrew(brewPath: brew) }
+        }
+
         alert.addButton(withTitle: includeSkip ? "Skip for Now" : "Cancel")
         actions.append { }
 
@@ -742,9 +748,14 @@ extension MainViewController: DriveDetectorDelegate {
     /// Install MakeMKV via `brew install --cask makemkv` in Terminal, so the user
     /// can watch progress and enter their password if prompted. We don't run
     /// privileged installs silently on the user's behalf.
+    ///
+    /// The cask is deprecated (fails macOS Gatekeeper) and slated for removal on
+    /// 2026-09-01; `--no-quarantine` avoids the quarantine flag so the installed
+    /// app launches without a Gatekeeper block. After removal, users should use
+    /// the download page instead.
     private func installMakeMKVWithHomebrew(brewPath: String) {
         appendToLog("Opening Terminal to install MakeMKV via Homebrew...")
-        let command = "\(brewPath) install --cask makemkv"
+        let command = "\(brewPath) install --cask --no-quarantine makemkv"
         let script = """
             tell application "Terminal"
                 activate
