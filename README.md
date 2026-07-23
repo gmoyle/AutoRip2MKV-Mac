@@ -2,15 +2,14 @@
   <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
   <h1>AutoRip2MKV for Mac</h1>
   <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
-  <p><sub>v1.4.0 - First real-world encrypted DVD rip confirmed working</sub></p>
+  <p><sub>v1.5.0 - Hands-free disc-after-disc ripping straight into Plex</sub></p>
   
-  [![Build Status](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/ci.yml)
-  [![Update Statistics](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml/badge.svg?branch=master)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/update-stats.yml)
-  [![Latest Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
-  <!-- Badge refresh trigger: 2025-07-04-v2 -->
+  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
+  [![Latest Release](https://img.shields.io/github/v/release/gmoyle/AutoRip2MKV-Mac?sort=semver)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
+  [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-blue)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
 </div>
 
-> 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. v1.4.0 marks the first time a real encrypted DVD was successfully ripped end-to-end. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
+> 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
 A native macOS application for automatically ripping DVDs and Blu-rays to MKV format using **open-source decryption libraries** (libdvdcss & libaacs) - no third-party applications like MakeMKV required!
 
@@ -42,17 +41,17 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 
 ## Features
 
-- **DVD CSS Decryption** - Uses open-source libdvdcss for Content Scramble System decryption
-- **Blu-ray AACS Support** - Uses open-source libaacs for AACS decryption and BDMV parsing
-- **No Third-Party Applications** - No need for MakeMKV or other separate ripping tools
-- **Smart FFmpeg Detection** - Automatically detects system-installed FFmpeg or uses bundled version
-- **Homebrew Compatible** - Works seamlessly with Homebrew-installed FFmpeg
-- **No Installation Dialogs** - Eliminates unnecessary FFmpeg installation prompts
-- **Hardware Acceleration** - Optional VideoToolbox acceleration for improved performance
-- **Intelligent First-Run Setup** - Automatically detects and offers to enable hardware acceleration
+- **Hands-free ripping** - Insert a disc and walk away: auto-rip on insert, auto-eject when the read finishes, skip discs already ripped
+- **DVD CSS Decryption** - Open-source libdvdcss for Content Scramble System decryption
+- **Blu-ray AACS Support** - Open-source libaacs for AACS decryption and BDMV parsing (requires a key database)
+- **No Third-Party Applications** - No MakeMKV or other separate ripping tools
+- **All tracks captured** - Every audio and subtitle track, tagged with languages from the disc
+- **Auto-deinterlace** - Interlaced (NTSC) sources are deinterlaced automatically
+- **Plex-ready** - `Movie (Year)` naming and defaults to your local Plex movie library
+- **Bundled FFmpeg** - No downloads or Homebrew needed
+- **Hardware Acceleration** - Optional VideoToolbox acceleration
 - **Automatic Drive Detection** - Smart optical drive detection and selection
-- Native macOS interface built with Swift and AppKit
-- Easy-to-use GUI with persistent settings
+- Native macOS interface built with Swift and AppKit; persistent settings
 - Progress tracking and logging with real-time updates
 - Automatic DVD/Blu-ray structure analysis and title detection
 - Chapter preservation and metadata inclusion
@@ -259,13 +258,11 @@ This software is intended for legitimate backup purposes of DVDs you legally own
 This project represents a groundbreaking experiment in AI-powered software development:
 
 - **Developer**: Art degree, zero Swift experience
-- **Code Written by Human**: 0 lines
-- **Git Commands by Human**: 0
-- **Total Swift Code**: 13,715 lines (100% AI-generated)
-- **Tests**: 277 comprehensive tests (100.0% pass rate)
-- **Development Method**: 100% AI-assisted via Warp 2.0
-- **Latest Release**: v1.3.0 - Open-source decryption libraries (Feb 2026)
-- **Features**: DVD/Blu-ray ripping, libdvdcss/libaacs integration, auto drive detection, queue system
+- **Code written by human**: 0 lines — 100% AI-generated
+- **Development method**: 100% AI-assisted (Warp 2.0, then Claude Code)
+- **Codebase**: ~13,000 lines of Swift across the app and tests
+- **Latest release**: v1.5.0 - Hands-free ripping into Plex (Jul 2026)
+- **Features**: DVD/Blu-ray ripping, libdvdcss/libaacs decryption, hands-free auto-rip, all-track capture, Plex-ready output
 
 **[📖 Read the full experiment documentation](./WARP_AI_EXPERIMENT.md)** to see how AI democratizes software development.
 
