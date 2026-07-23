@@ -111,6 +111,8 @@ class MediaRipper {
     let includeChapters: Bool
     let mediaType: MediaType? // Optional override for media type detection
     let batchMode: Bool // If true, run in unattended batch mode
+    // Deinterlace frames flagged as interlaced (bwdif); progressive frames pass through
+    var autoDeinterlace: Bool = true
 
         enum VideoCodec {
             case h264, h265, av1, vp9

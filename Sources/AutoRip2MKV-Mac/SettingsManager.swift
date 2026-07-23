@@ -23,6 +23,7 @@ class SettingsManager {
         static let includeChapters = "includeChapters"
         static let hardwareAcceleration = "hardwareAcceleration"
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
+        static let autoDeinterlace = "autoDeinterlace"
         
         // Intelligent Title Selection (Phase 2 Task 3)
         static let intelligentTitleSelection = "intelligentTitleSelection"
@@ -137,6 +138,16 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.quality)
+        }
+    }
+
+    /// Deinterlace frames flagged as interlaced (common on NTSC DVDs) during encode
+    var autoDeinterlace: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.autoDeinterlace)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.autoDeinterlace)
         }
     }
 
@@ -318,6 +329,9 @@ class SettingsManager {
         }
         if userDefaults.object(forKey: Keys.autoQueuePriorityByMediaType) == nil {
             autoQueuePriorityByMediaType = true  // Use media-type priority by default
+        }
+        if userDefaults.object(forKey: Keys.autoDeinterlace) == nil {
+            autoDeinterlace = true  // Deinterlace flagged frames by default
         }
         if userDefaults.object(forKey: Keys.includeSubtitles) == nil {
             includeSubtitles = true

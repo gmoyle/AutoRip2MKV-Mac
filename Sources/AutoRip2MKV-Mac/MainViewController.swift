@@ -446,7 +446,8 @@ class MainViewController: NSViewController {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            batchMode: false
+            batchMode: false,
+            autoDeinterlace: settingsManager.autoDeinterlace
         )
 
         saveCurrentSettings()
@@ -663,7 +664,8 @@ extension MainViewController: DriveDetectorDelegate {
             includeSubtitles: true,
             includeChapters: true,
             mediaType: mediaType,
-            batchMode: batchModeCheckbox.state == .on
+            batchMode: batchModeCheckbox.state == .on,
+            autoDeinterlace: settingsManager.autoDeinterlace
         )
 
         saveCurrentSettings()

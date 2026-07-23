@@ -40,6 +40,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var targetBitrateField: NSTextField!
     private var twoPassEncodingCheckbox: NSButton!
     private var hardwareAccelerationCheckbox: NSButton!
+    private var autoDeinterlaceCheckbox: NSButton!
     private var customFFmpegArgsField: NSTextField!
 
     // Output Directory Section (NEW)
@@ -299,9 +300,16 @@ class DetailedSettingsWindowController: NSWindowController {
             action: nil
         )
         hardwareAccelerationCheckbox.state = .off
+        autoDeinterlaceCheckbox = NSButton(
+            checkboxWithTitle: "Auto-deinterlace interlaced video (recommended)",
+            target: self,
+            action: nil
+        )
+        autoDeinterlaceCheckbox.state = .on
 
         sectionStackView.addArrangedSubview(twoPassEncodingCheckbox)
         sectionStackView.addArrangedSubview(hardwareAccelerationCheckbox)
+        sectionStackView.addArrangedSubview(autoDeinterlaceCheckbox)
 
         // Custom FFmpeg arguments
         let customArgsLabel = NSTextField(labelWithString: "Custom FFmpeg Arguments:")
@@ -857,6 +865,7 @@ class DetailedSettingsWindowController: NSWindowController {
         }
         twoPassEncodingCheckbox.state = defaults.bool(forKey: "twoPassEncoding") ? .on : .off
         hardwareAccelerationCheckbox.state = settingsManager.hardwareAcceleration ? .on : .off
+        autoDeinterlaceCheckbox.state = settingsManager.autoDeinterlace ? .on : .off
         if let customArgs = defaults.string(forKey: "customFFmpegArgs") {
             customFFmpegArgsField.stringValue = customArgs
         }
@@ -1070,6 +1079,7 @@ class DetailedSettingsWindowController: NSWindowController {
         targetBitrateField.stringValue = "5.0"
         twoPassEncodingCheckbox.state = .off
         hardwareAccelerationCheckbox.state = .off
+        autoDeinterlaceCheckbox.state = .on
         customFFmpegArgsField.stringValue = ""
 
         // Reset Output Directory settings (NEW)
@@ -1168,6 +1178,7 @@ class DetailedSettingsWindowController: NSWindowController {
         defaults.set(targetBitrateField.stringValue, forKey: "targetBitrate")
         defaults.set(twoPassEncodingCheckbox.state == .on, forKey: "twoPassEncoding")
         settingsManager.hardwareAcceleration = hardwareAccelerationCheckbox.state == .on
+        settingsManager.autoDeinterlace = autoDeinterlaceCheckbox.state == .on
         defaults.set(customFFmpegArgsField.stringValue, forKey: "customFFmpegArgs")
 
         // Output Directory settings (NEW)

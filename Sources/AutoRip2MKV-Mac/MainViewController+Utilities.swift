@@ -157,9 +157,16 @@ extension MainViewController {
     }
 
     func loadSettings() {
-        // Load output path
-        if let lastOutputPath = settingsManager.lastOutputPath {
+        // Load output path, defaulting to ~/Movies/AutoRip2MKV so ripping
+        // works out of the box without any setup
+        if let lastOutputPath = settingsManager.lastOutputPath, !lastOutputPath.isEmpty {
             outputPathField.stringValue = lastOutputPath
+        } else {
+            let defaultDir = NSString(string: "~/Movies/AutoRip2MKV").expandingTildeInPath
+            try? FileManager.default.createDirectory(
+                atPath: defaultDir, withIntermediateDirectories: true)
+            outputPathField.stringValue = defaultDir
+            settingsManager.lastOutputPath = defaultDir
         }
 
         // Load automation settings

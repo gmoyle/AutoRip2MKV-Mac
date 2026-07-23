@@ -99,6 +99,11 @@ extension MediaRipper {
         var args = ["-i", "-",
                     "-c:v", videoCodecArgument(for: configuration.videoCodec)]
         args.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
+        if configuration.autoDeinterlace {
+            // deint=interlaced only touches frames flagged interlaced (NTSC DVDs);
+            // progressive content passes through untouched
+            args.append(contentsOf: ["-vf", "bwdif=mode=send_frame:parity=auto:deint=interlaced"])
+        }
         args.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
         if configuration.includeSubtitles { args.append(contentsOf: ["-c:s", "copy"]) }
         if configuration.includeChapters  { args.append(contentsOf: ["-map_chapters", "0"]) }
