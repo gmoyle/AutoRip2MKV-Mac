@@ -4,7 +4,6 @@ import XCTest
 final class QueueIntegrationTests: XCTestCase {
     
     var conversionQueue: ConversionQueue!
-    var queueController: QueueWindowController!
     var viewController: MainViewController!
     var mockDelegate: MockConversionQueueDelegate!
     var mockEjectionDelegate: MockConversionQueueEjectionDelegate!
@@ -17,7 +16,6 @@ final class QueueIntegrationTests: XCTestCase {
         mockDelegate = MockConversionQueueDelegate()
         mockEjectionDelegate = MockConversionQueueEjectionDelegate()
         
-        queueController = QueueWindowController(conversionQueue: conversionQueue)
         
         // Set delegates after queue controller is created
         conversionQueue.delegate = mockDelegate
@@ -37,7 +35,6 @@ final class QueueIntegrationTests: XCTestCase {
     
     override func tearDownWithError() throws {
         conversionQueue = nil
-        queueController = nil
         viewController = nil
         mockDelegate = nil
         mockEjectionDelegate = nil
@@ -100,7 +97,7 @@ final class QueueIntegrationTests: XCTestCase {
         XCTAssertEqual(mockDelegate.lastJobsUpdate?.count, 1, "Should have 1 job in update")
         
         // Step 4: Test queue controller UI update
-        queueController.queueDidUpdateJobs(conversionQueue.getAllJobs())
+        viewController.queueDidUpdateJobs(conversionQueue.getAllJobs())
         
         // Step 5: Wait for potential processing
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -176,7 +173,7 @@ final class QueueIntegrationTests: XCTestCase {
         )
     }
     
-    func testQueueWindowControllerIntegration() {
+    func testMainWindowQueueIntegration() {
         // Add multiple jobs with different states
         let jobs = [
             createMockJob(title: "DVD 1", status: .pending),
@@ -186,17 +183,17 @@ final class QueueIntegrationTests: XCTestCase {
         ]
         
         // Simulate queue updates
-        queueController.queueDidUpdateJobs(jobs)
+        viewController.queueDidUpdateJobs(jobs)
         
         // Test various delegate callbacks
         let testJobId = UUID()
         
         XCTAssertNoThrow({
-            queueController.queueDidStartExtraction(jobId: testJobId)
-            queueController.queueDidCompleteExtraction(jobId: testJobId)
-            queueController.queueDidStartConversion(jobId: testJobId)
-            queueController.queueDidUpdateConversionProgress(jobId: testJobId, progress: 0.5)
-            queueController.queueDidCompleteConversion(jobId: testJobId, outputFiles: ["test.mkv"])
+            viewController.queueDidStartExtraction(jobId: testJobId)
+            viewController.queueDidCompleteExtraction(jobId: testJobId)
+            viewController.queueDidStartConversion(jobId: testJobId)
+            viewController.queueDidUpdateConversionProgress(jobId: testJobId, progress: 0.5)
+            viewController.queueDidCompleteConversion(jobId: testJobId, outputFiles: ["test.mkv"])
         }())
     }
     
@@ -304,7 +301,7 @@ final class QueueIntegrationTests: XCTestCase {
     func testMemoryManagement() {
         // Test that queue doesn't leak memory with many operations
         weak var weakQueue = conversionQueue
-        weak var weakController = queueController
+        weak var weakController = viewController
         
         let configuration = MediaRipper.RippingConfiguration(
             outputDirectory: testOutputPath,

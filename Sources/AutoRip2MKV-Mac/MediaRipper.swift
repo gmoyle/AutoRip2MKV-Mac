@@ -90,6 +90,10 @@ class MediaRipper {
     var blurayDecryptor: BluRayDecryptor?
     var isRipping = false
     var shouldCancel = false
+    /// True while sectors are being read off the disc. While set, ffmpeg's
+    /// (much slower) encode-time progress is suppressed so the UI shows disc
+    /// read progress; once feeding ends, encode progress takes over.
+    var isFeedingDisc = false
     var currentMediaType: MediaType = .unknown
     var activeFFmpegProcess: Process?
     /// All ffmpeg processes launched for the current rip, still encoding after disc eject.
@@ -265,10 +269,18 @@ class MediaRipper {
                 } catch {
                     lastError = error
                     Logger.shared.logError(error, context: "DVD structure/decryption failed (attempt \(attempt))", category: .dvdRipping)
-                    delegate?.mediaRipperDidUpdateStatus("DVD parse/decryption failed (attempt \(attempt)). Retrying...")
                     if attempt == maxRetries {
                         delegate?.mediaRipperDidFail(with: error)
                         throw error
+                    }
+                    // Give transient contention (e.g. another process grabbing the
+                    // drive, a volume remount) a chance to clear before retrying.
+                    delegate?.mediaRipperDidUpdateStatus("DVD parse/decryption failed (attempt \(attempt)). Retrying in 5s...")
+                    Thread.sleep(forTimeInterval: 5)
+                    if shouldCancel {
+                        let cancelError = MediaRipperError.cancelled
+                        delegate?.mediaRipperDidFail(with: cancelError)
+                        throw cancelError
                     }
                 }
             }

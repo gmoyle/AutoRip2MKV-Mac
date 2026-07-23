@@ -158,25 +158,6 @@ final class QueuePriorityTests: XCTestCase {
         }
     }
     
-    // MARK: - Concurrency Tests
-    
-    func testMaxConcurrentConversionsDefault() {
-        XCTAssertEqual(queue.maxConcurrentConversions, 2)
-    }
-    
-    func testSetMaxConcurrentConversions() {
-        queue.setMaxConcurrentConversions(4)
-        XCTAssertEqual(queue.maxConcurrentConversions, 4)
-    }
-    
-    func testSetMaxConcurrentConversions_Clamping() {
-        queue.setMaxConcurrentConversions(0)
-        XCTAssertEqual(queue.maxConcurrentConversions, 1) // Should clamp to minimum 1
-        
-        queue.setMaxConcurrentConversions(10)
-        XCTAssertEqual(queue.maxConcurrentConversions, 8) // Should clamp to maximum 8
-    }
-    
     // MARK: - Priority Sorting Tests
     
     func testMultipleJobsPrioritySorting() {

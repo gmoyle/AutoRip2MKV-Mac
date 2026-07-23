@@ -437,6 +437,10 @@ extension MediaRipper {
             totalDuration = playlist.duration
         }
 
+        // While the disc is still being read, the feed loop reports sector-based
+        // progress; encode-time progress would fight it and move far slower.
+        guard !isFeedingDisc else { return }
+
         let conversionProgress = totalDuration > 0 ? min(currentTime / totalDuration, 1.0) : 0.0
 
         let itemProgress = (Double(itemIndex) + conversionProgress) / Double(max(totalItems, 1))

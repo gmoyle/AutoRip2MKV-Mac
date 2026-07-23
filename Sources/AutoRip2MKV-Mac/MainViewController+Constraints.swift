@@ -5,6 +5,8 @@ import Cocoa
 extension MainViewController {
 
     func setupConstraints() {
+        logHeightConstraint = scrollView.heightAnchor.constraint(equalToConstant: 0)
+
         NSLayoutConstraint.activate([
             // Title
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
@@ -46,23 +48,28 @@ extension MainViewController {
             browseOutputButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             browseOutputButton.widthAnchor.constraint(equalToConstant: 80),
 
-            // Automation Settings
+            // Automation Settings — three checkboxes stacked, settings button at right
             autoRipCheckbox.topAnchor.constraint(equalTo: outputPathField.bottomAnchor, constant: 20),
             autoRipCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             autoEjectCheckbox.topAnchor.constraint(equalTo: autoRipCheckbox.bottomAnchor, constant: 5),
             autoEjectCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
-            settingsButton.topAnchor.constraint(equalTo: autoEjectCheckbox.topAnchor),
+            batchModeCheckbox.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 5),
+            batchModeCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+
+            batchDiscListField.centerYAnchor.constraint(equalTo: batchModeCheckbox.centerYAnchor),
+            batchDiscListField.leadingAnchor.constraint(
+                equalTo: batchModeCheckbox.trailingAnchor, constant: 10
+            ),
+            batchDiscListField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+
+            settingsButton.topAnchor.constraint(equalTo: autoRipCheckbox.topAnchor),
             settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             settingsButton.widthAnchor.constraint(equalToConstant: 80),
 
-            queueButton.topAnchor.constraint(equalTo: autoEjectCheckbox.topAnchor),
-            queueButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor, constant: -10),
-            queueButton.widthAnchor.constraint(equalToConstant: 80),
-
             // Rip Button
-            ripButton.topAnchor.constraint(equalTo: autoEjectCheckbox.bottomAnchor, constant: 20),
+            ripButton.topAnchor.constraint(equalTo: batchModeCheckbox.bottomAnchor, constant: 20),
             ripButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             ripButton.widthAnchor.constraint(equalToConstant: 120),
 
@@ -76,11 +83,26 @@ extension MainViewController {
             progressStatusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             progressStatusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
-            // Log Text View
-            scrollView.topAnchor.constraint(equalTo: progressStatusLabel.bottomAnchor, constant: 8),
+            // Queue table fills the space between progress and the log disclosure
+            queueScrollView.topAnchor.constraint(equalTo: progressStatusLabel.bottomAnchor, constant: 8),
+            queueScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            queueScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            queueScrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 120),
+
+            // Log disclosure row
+            logDisclosureButton.topAnchor.constraint(equalTo: queueScrollView.bottomAnchor, constant: 8),
+            logDisclosureButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            logDisclosureLabel.centerYAnchor.constraint(equalTo: logDisclosureButton.centerYAnchor),
+            logDisclosureLabel.leadingAnchor.constraint(
+                equalTo: logDisclosureButton.trailingAnchor, constant: 4
+            ),
+
+            // Log Text View (collapsed by default via logHeightConstraint)
+            scrollView.topAnchor.constraint(equalTo: logDisclosureButton.bottomAnchor, constant: 6),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            logHeightConstraint
         ])
     }
 }

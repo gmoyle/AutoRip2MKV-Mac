@@ -50,6 +50,9 @@ extension MediaRipper {
         // can wait on them (serialised) after the disc is ejected.
         backgroundEncodingProcesses.removeAll()
 
+        isFeedingDisc = true
+        defer { isFeedingDisc = false }
+
         for (index, title) in titlesToRip.enumerated() {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
@@ -153,6 +156,16 @@ extension MediaRipper {
                     stdinHandle.write(decryptedData)
                 }
                 sectorOffset += UInt32(sectorsToRead)
+
+                // Report disc-read progress every ~32MB (16 chunks of 1024 sectors)
+                if sectorOffset % 16384 == 0 || sectorOffset >= totalSectors {
+                    let titleFraction = Double(sectorOffset) / Double(totalSectors)
+                    let overall = (Double(titleIndex) + titleFraction) / Double(max(totalTitles, 1))
+                    DispatchQueue.main.async {
+                        self.delegate?.mediaRipperDidUpdateProgress(
+                            overall, currentItem: .dvdTitle(title), totalItems: totalTitles)
+                    }
+                }
             }
         } catch {
             stdinHandle.closeFile()

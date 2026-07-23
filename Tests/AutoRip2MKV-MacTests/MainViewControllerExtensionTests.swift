@@ -229,13 +229,6 @@ final class MainViewControllerExtensionTests: XCTestCase {
         XCTAssertNoThrow(viewController.ripperDidComplete())
     }
     
-    // MARK: - Queue Functionality Tests
-    
-    func testShowQueueAction() {
-        // Test that showing the queue doesn't crash
-        XCTAssertNoThrow(viewController.showQueue())
-    }
-    
     func testGenerateDiscTitle() {
         let sourcePath = "/Volumes/TEST_DVD"
         let discTitle = viewController.generateDiscTitle(from: sourcePath)

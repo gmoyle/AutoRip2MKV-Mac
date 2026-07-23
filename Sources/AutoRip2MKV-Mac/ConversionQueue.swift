@@ -149,9 +149,19 @@ class ConversionQueue {
     private let conversionQueue = DispatchQueue(label: "com.autoRip2MKV.conversion", qos: .utility)
 
     private var isProcessing = false  // true while any job is ripping or encoding
+    private var activeRipper: MediaRipper?  // ripper for the currently-extracting job, if any
 
     weak var delegate: ConversionQueueDelegate?
+    /// Secondary observer (main window) — receives the same callbacks as `delegate`,
+    /// which the queue window claims when open.
+    weak var mainDelegate: ConversionQueueDelegate?
     weak var ejectionDelegate: ConversionQueueEjectionDelegate?
+
+    /// Dispatches a callback to both delegates (skipping a duplicate reference).
+    fileprivate func notifyDelegates(_ body: (ConversionQueueDelegate) -> Void) {
+        if let d = delegate { body(d) }
+        if let d = mainDelegate, d !== delegate { body(d) }
+    }
 
     // Testing mode - when true, jobs are not automatically processed
     private let testMode: Bool
@@ -267,7 +277,7 @@ class ConversionQueue {
             self.jobs.append(job)
             Logger.shared.logQueue("Added new job \(job.id) for disc title: \(job.discTitle) with priority: \(job.priority.description)", level: .info)
             DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
             }
         }
 
@@ -298,7 +308,7 @@ class ConversionQueue {
             self.jobs.append(job)
             Logger.shared.logQueue("Added pre-extracted VOB job \(job.id) for: \(discTitle)", level: .info)
             DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
             }
         }
 
@@ -307,16 +317,75 @@ class ConversionQueue {
         }
     }
 
-    /// Cancel a specific job
+    /// Cancel a specific job. If the job is currently extracting, the active ripper
+    /// is cancelled as well (which terminates its ffmpeg pipeline).
     func cancelJob(id: UUID) {
         jobsQueue.async(flags: .barrier) {
             if let index = self.jobs.firstIndex(where: { $0.id == id }) {
+                if case .extracting = self.jobs[index].status {
+                    self.activeRipper?.cancelRipping()
+                }
                 self.jobs[index].status = .cancelled
                 Logger.shared.logQueue("Cancelled job \(id)", level: .info)
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
                 }
             }
+        }
+    }
+
+    /// Record progress for a job and refresh observers. Small deltas are dropped
+    /// to keep table reloads infrequent.
+    func setJobProgress(id: UUID, progress: Double) {
+        jobsQueue.async(flags: .barrier) {
+            guard let idx = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+            let delta = abs(self.jobs[idx].progress - progress)
+            guard delta >= 0.005 || progress >= 1.0 else { return }
+            self.jobs[idx].progress = progress
+            DispatchQueue.main.async {
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+            }
+        }
+    }
+
+    /// Remove a single inactive job (pending, completed, failed, or cancelled) from the list.
+    func removeJob(id: UUID) {
+        jobsQueue.async(flags: .barrier) {
+            guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+            switch self.jobs[index].status {
+            case .extracting, .extracted, .converting:
+                return  // never remove an active job
+            default:
+                self.jobs.remove(at: index)
+                Logger.shared.logQueue("Removed job \(id)", level: .info)
+                DispatchQueue.main.async {
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                }
+            }
+        }
+    }
+
+    /// Reset a failed or cancelled job to pending and reprocess the queue.
+    func retryJob(id: UUID) {
+        jobsQueue.async(flags: .barrier) {
+            guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+            switch self.jobs[index].status {
+            case .failed, .cancelled:
+                self.jobs[index].status = .pending
+                self.jobs[index].progress = 0.0
+                self.jobs[index].startTime = nil
+                self.jobs[index].endTime = nil
+                self.jobs[index].outputFiles = []
+                Logger.shared.logQueue("Retrying job \(id)", level: .info)
+                DispatchQueue.main.async {
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                }
+            default:
+                return
+            }
+        }
+        if !testMode {
+            processNextJob()
         }
     }
 
@@ -329,7 +398,7 @@ class ConversionQueue {
                 }
             }
             DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
             }
         }
     }
@@ -350,7 +419,7 @@ class ConversionQueue {
                 }
             }
             DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
             }
         }
     }
@@ -370,7 +439,7 @@ class ConversionQueue {
                 Logger.shared.logQueue("Updated job \(jobId) priority from \(oldPriority.description) to \(priority.description)", level: .info)
                 
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
                 }
             }
         }
@@ -484,8 +553,8 @@ class ConversionQueue {
             self.isProcessing = true
             Logger.shared.logQueue("Starting rip for job \(jobId)", level: .info)
             DispatchQueue.main.async {
-                self.delegate?.queueDidUpdateJobs(self.jobs)
-                self.delegate?.queueDidStartExtraction(jobId: jobId)
+                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                self.notifyDelegates { $0.queueDidStartExtraction(jobId: jobId) }
             }
         }
         extractionQueue.async { self.performRip(for: jobId) }
@@ -500,6 +569,7 @@ class ConversionQueue {
         ScriptRunner.shared.runHook(.preProcessing, job: job)
 
         let ripper = MediaRipper()
+        jobsQueue.async(flags: .barrier) { self.activeRipper = ripper }
         let semaphore = DispatchSemaphore(value: 0)
         var ripError: Error?
 
@@ -524,10 +594,11 @@ class ConversionQueue {
                     self.jobs[idx].endTime = Date()
                 }
                 self.isProcessing = false
+                self.activeRipper = nil
                 Logger.shared.logError(error, context: "Rip failed for job \(jobId)")
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidFailExtraction(jobId: jobId, error: error)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidFailExtraction(jobId: jobId, error: error) }
                 }
             }
             processNextJob()
@@ -541,8 +612,8 @@ class ConversionQueue {
                 self.jobs[idx].status = .extracted
                 Logger.shared.logQueue("Disc read complete for job \(jobId), ejecting", level: .info)
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidCompleteExtraction(jobId: jobId)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidCompleteExtraction(jobId: jobId) }
                     self.ejectionDelegate?.queueShouldEjectDisc(sourcePath: sourcePath)
                 }
             }
@@ -553,8 +624,8 @@ class ConversionQueue {
             if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
                 self.jobs[idx].status = .converting
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidStartConversion(jobId: jobId)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidStartConversion(jobId: jobId) }
                 }
             }
         }
@@ -585,10 +656,11 @@ class ConversionQueue {
                     self.jobs[idx].endTime = endTime
                 }
                 self.isProcessing = false
+                self.activeRipper = nil
                 Logger.shared.logError(error, context: "Encoding failed for job \(jobId)")
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidFailConversion(jobId: jobId, error: error)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidFailConversion(jobId: jobId, error: error) }
                 }
             }
         } else {
@@ -599,11 +671,21 @@ class ConversionQueue {
                     self.jobs[idx].endTime = endTime
                     self.jobs[idx].progress = 1.0
                 }
+                // A successful rip supersedes earlier failed/cancelled attempts of the
+                // same disc — prune them so they don't linger in the queue view.
+                self.jobs.removeAll { other in
+                    guard other.id != jobId, other.sourcePath == job.sourcePath else { return false }
+                    switch other.status {
+                    case .failed, .cancelled: return true
+                    default: return false
+                    }
+                }
                 self.isProcessing = false
+                self.activeRipper = nil
                 Logger.shared.logQueue("Job \(jobId) fully complete: \(outputFiles.count) file(s)", level: .info)
                 DispatchQueue.main.async {
-                    self.delegate?.queueDidUpdateJobs(self.jobs)
-                    self.delegate?.queueDidCompleteConversion(jobId: jobId, outputFiles: outputFiles)
+                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidCompleteConversion(jobId: jobId, outputFiles: outputFiles) }
                 }
             }
             ScriptRunner.shared.runHook(.postProcessing, job: scriptJob, outputFiles: outputFiles)
@@ -719,19 +801,20 @@ private class QueueRipperDelegate: MediaRipperDelegate {
 
     func mediaRipperDidStart() {
         DispatchQueue.main.async {
-            self.queue?.delegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: "Reading disc...")
+            self.queue?.notifyDelegates { $0.queueDidUpdateConversionStatus(jobId: self.jobId, status: "Reading disc...") }
         }
     }
 
     func mediaRipperDidUpdateStatus(_ status: String) {
         DispatchQueue.main.async {
-            self.queue?.delegate?.queueDidUpdateConversionStatus(jobId: self.jobId, status: status)
+            self.queue?.notifyDelegates { $0.queueDidUpdateConversionStatus(jobId: self.jobId, status: status) }
         }
     }
 
     func mediaRipperDidUpdateProgress(_ progress: Double, currentItem: MediaRipper.MediaItem?, totalItems: Int) {
+        queue?.setJobProgress(id: jobId, progress: progress)
         DispatchQueue.main.async {
-            self.queue?.delegate?.queueDidUpdateConversionProgress(jobId: self.jobId, progress: progress)
+            self.queue?.notifyDelegates { $0.queueDidUpdateConversionProgress(jobId: self.jobId, progress: progress) }
         }
     }
 

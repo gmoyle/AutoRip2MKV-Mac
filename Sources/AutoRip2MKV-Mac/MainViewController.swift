@@ -20,13 +20,23 @@ class MainViewController: NSViewController {
     internal var activeMediaRipper: MediaRipper?
     internal var scrollView: NSScrollView!
 
+    // Embedded queue table
+    internal var queueTableView: NSTableView!
+    internal var queueScrollView: NSScrollView!
+    internal var queueJobs: [ConversionQueue.ConversionJob] = []
+    internal var queueEncodePhase = false  // false: reading disc, true: background encode
+
+    // Collapsible log
+    internal var logDisclosureButton: NSButton!
+    internal var logDisclosureLabel: NSTextField!
+    internal var logHeightConstraint: NSLayoutConstraint!
+
     // Automation Settings
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
     internal var batchModeCheckbox: NSButton!
     internal var batchDiscListField: NSTextField!
     internal var settingsButton: NSButton!
-    internal var queueButton: NSButton!
 
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
@@ -43,7 +53,6 @@ class MainViewController: NSViewController {
 
     // Settings Windows
     private var detailedSettingsWindowController: DetailedSettingsWindowController?
-    private var queueWindowController: QueueWindowController?
 
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -98,15 +107,16 @@ class MainViewController: NSViewController {
         driveDetector.stopMonitoring()
         dvdRipper?.delegate = nil
         conversionQueue.delegate = nil
+        conversionQueue.mainDelegate = nil
         conversionQueue.ejectionDelegate = nil
 
         // Clean up window controllers
         detailedSettingsWindowController = nil
-        queueWindowController = nil
     }
 
     private func setupConversionQueue() {
         conversionQueue.ejectionDelegate = self
+        conversionQueue.mainDelegate = self
     }
 
     private func setupUI() {
@@ -116,6 +126,7 @@ class MainViewController: NSViewController {
         setupAutomationSettings()
         setupRipButton()
         setupProgressIndicator()
+        setupQueueTable()
         setupLogTextView()
         setupConstraints()
     }
@@ -195,10 +206,6 @@ class MainViewController: NSViewController {
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
-
-        queueButton = NSButton(title: "Queue", target: self, action: #selector(showQueue))
-        queueButton.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(queueButton)
     }
 
     @objc private func batchModeToggled() {
@@ -264,7 +271,52 @@ class MainViewController: NSViewController {
         view.addSubview(progressStatusLabel)
     }
 
+    private func setupQueueTable() {
+        queueTableView = NSTableView()
+        queueTableView.rowHeight = 22
+        queueTableView.allowsMultipleSelection = false
+        queueTableView.usesAlternatingRowBackgroundColors = true
+
+        let columns: [(id: String, title: String, width: CGFloat)] = [
+            ("title", "Disc Title", 220),
+            ("status", "Status", 170),
+            ("progress", "Progress", 120),
+            ("duration", "Duration", 80)
+        ]
+        for spec in columns {
+            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(spec.id))
+            column.title = spec.title
+            column.width = spec.width
+            queueTableView.addTableColumn(column)
+        }
+
+        queueTableView.dataSource = self
+        queueTableView.delegate = self
+        queueTableView.menu = makeQueueContextMenu()
+
+        queueScrollView = NSScrollView()
+        queueScrollView.hasVerticalScroller = true
+        queueScrollView.documentView = queueTableView
+        queueScrollView.borderType = .bezelBorder
+        queueScrollView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(queueScrollView)
+    }
+
     private func setupLogTextView() {
+        logDisclosureButton = NSButton(title: "Show Log", target: self, action: #selector(toggleLogVisibility))
+        logDisclosureButton.bezelStyle = .disclosure
+        logDisclosureButton.setButtonType(.pushOnPushOff)
+        logDisclosureButton.state = .off
+        logDisclosureButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(logDisclosureButton)
+
+        let disclosureLabel = NSTextField(labelWithString: "Log")
+        disclosureLabel.font = NSFont.systemFont(ofSize: 12)
+        disclosureLabel.textColor = .secondaryLabelColor
+        disclosureLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(disclosureLabel)
+        logDisclosureLabel = disclosureLabel
+
         logTextView = NSTextView()
         logTextView.isEditable = false
         logTextView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -274,7 +326,14 @@ class MainViewController: NSViewController {
         scrollView.hasHorizontalScroller = true
         scrollView.documentView = logTextView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.isHidden = true
         view.addSubview(scrollView)
+    }
+
+    @objc private func toggleLogVisibility() {
+        let show = logDisclosureButton.state == .on
+        scrollView.isHidden = !show
+        logHeightConstraint.constant = show ? 180 : 0
     }
 
     private func setupDVDRipper() {
@@ -337,6 +396,13 @@ class MainViewController: NSViewController {
         // Check if we have a detected disc
         guard let currentDrive = detectedDrives.first else {
             showAlert(title: "No Disc Detected", message: "Please insert a DVD or BluRay disc to start ripping.")
+            return
+        }
+
+        guard !conversionQueue.hasActiveJob(forSourcePath: currentDrive.mountPoint) else {
+            appendToLog("A rip for \(currentDrive.displayName) is already queued or in progress.")
+            showAlert(title: "Already Ripping",
+                      message: "A rip for this disc is already in progress or queued. Open the Queue window for details.")
             return
         }
 
@@ -524,16 +590,6 @@ class MainViewController: NSViewController {
         // Show the window
         detailedSettingsWindowController?.showWindow(nil)
         print("[DEBUG] Detailed settings window should be visible now")
-    }
-
-    @objc internal func showQueue() {
-        // Create or reuse the queue window controller
-        if queueWindowController == nil {
-            queueWindowController = QueueWindowController(conversionQueue: conversionQueue)
-        }
-
-        // Show the window
-        queueWindowController?.showWindow(nil)
     }
 
 }
