@@ -88,6 +88,7 @@ class MediaRipper {
     var blurayParser: BluRayStructureParser?
     var dvdDecryptor: DVDDecryptor?
     var blurayDecryptor: BluRayDecryptor?
+    var makemkvBackend: MakeMKVBackend?
     var isRipping = false
     var shouldCancel = false
     /// True while sectors are being read off the disc. While set, ffmpeg's
@@ -254,6 +255,7 @@ class MediaRipper {
         shouldCancel = true
         activeFFmpegProcess?.terminate()
         activeFFmpegProcess = nil
+        makemkvBackend?.terminate()
     }
 
     /// Check if currently ripping
@@ -304,24 +306,35 @@ class MediaRipper {
                 throw lastError ?? MediaRipperError.noTitlesFound
             }
         case .bluray, .bluray4K:
-            var blurayParseSuccess = false
-            for attempt in 1...maxRetries {
-                do {
-                    try performBluRayRipping(blurayPath: mediaPath, configuration: configuration)
-                    blurayParseSuccess = true
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "Blu-ray structure/decryption failed (attempt \(attempt))", category: .blurayRipping)
-                    delegate?.mediaRipperDidUpdateStatus("Blu-ray parse/decryption failed (attempt \(attempt)). Retrying...")
-                    if attempt == maxRetries {
-                        delegate?.mediaRipperDidFail(with: error)
-                        throw error
+            // Prefer MakeMKV for Blu-ray: it handles AACS/BD+ with its own keys.
+            // The built-in libaacs path only works with a user-supplied key
+            // database and is kept as an explicit fallback.
+            if SettingsManager.shared.useMakeMKVForBluRay && MakeMKVBackend.isInstalled {
+                try performBluRayRippingWithMakeMKV(blurayPath: mediaPath, configuration: configuration)
+            } else {
+                if SettingsManager.shared.useMakeMKVForBluRay {
+                    delegate?.mediaRipperDidUpdateStatus(
+                        "MakeMKV not found — falling back to libaacs (needs an AACS key database).")
+                }
+                var blurayParseSuccess = false
+                for attempt in 1...maxRetries {
+                    do {
+                        try performBluRayRipping(blurayPath: mediaPath, configuration: configuration)
+                        blurayParseSuccess = true
+                        break
+                    } catch {
+                        lastError = error
+                        Logger.shared.logError(error, context: "Blu-ray structure/decryption failed (attempt \(attempt))", category: .blurayRipping)
+                        delegate?.mediaRipperDidUpdateStatus("Blu-ray parse/decryption failed (attempt \(attempt)). Retrying...")
+                        if attempt == maxRetries {
+                            delegate?.mediaRipperDidFail(with: error)
+                            throw error
+                        }
                     }
                 }
-            }
-            if !blurayParseSuccess {
-                throw lastError ?? MediaRipperError.noTitlesFound
+                if !blurayParseSuccess {
+                    throw lastError ?? MediaRipperError.noTitlesFound
+                }
             }
         case .hddvd:
             var hddvdParseSuccess = false

@@ -25,6 +25,7 @@ class SettingsManager {
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
         static let autoDeinterlace = "autoDeinterlace"
         static let skipRippedDiscs = "skipRippedDiscs"
+        static let useMakeMKVForBluRay = "useMakeMKVForBluRay"
         
         // Intelligent Title Selection (Phase 2 Task 3)
         static let intelligentTitleSelection = "intelligentTitleSelection"
@@ -139,6 +140,17 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.quality)
+        }
+    }
+
+    /// Use MakeMKV (when installed) to rip Blu-ray discs, instead of the
+    /// built-in libaacs path. MakeMKV handles AACS/BD+ with its own keys.
+    var useMakeMKVForBluRay: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.useMakeMKVForBluRay)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.useMakeMKVForBluRay)
         }
     }
 
@@ -346,6 +358,9 @@ class SettingsManager {
         }
         if userDefaults.object(forKey: Keys.skipRippedDiscs) == nil {
             skipRippedDiscs = true  // Don't re-rip discs already ripped
+        }
+        if userDefaults.object(forKey: Keys.useMakeMKVForBluRay) == nil {
+            useMakeMKVForBluRay = true  // Prefer MakeMKV for Blu-ray when installed
         }
         if userDefaults.object(forKey: Keys.includeSubtitles) == nil {
             includeSubtitles = true

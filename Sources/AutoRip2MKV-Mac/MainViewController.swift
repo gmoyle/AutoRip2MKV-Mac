@@ -655,6 +655,32 @@ extension MainViewController: DriveDetectorDelegate {
         return dir
     }
 
+    /// Blu-ray can be ripped if MakeMKV is available (preferred) or the user has
+    /// supplied a libaacs key database.
+    internal func blurayDecryptionReady() -> Bool {
+        if settingsManager.useMakeMKVForBluRay && MakeMKVBackend.isInstalled { return true }
+        let keydb = NSString(string: "~/.config/aacs/KEYDB.cfg").expandingTildeInPath
+        return FileManager.default.fileExists(atPath: keydb)
+    }
+
+    private func showBluRaySetupAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Blu-ray Ripping Needs MakeMKV"
+        alert.informativeText = """
+            DVDs rip with no setup, but Blu-ray discs use AACS/BD+ protection that \
+            AutoRip2MKV can't decrypt on its own.
+
+            Install MakeMKV (free during beta) from makemkv.com — AutoRip2MKV will \
+            use it automatically to handle Blu-ray decryption. Advanced users can \
+            instead supply a libaacs key database at ~/.config/aacs/KEYDB.cfg.
+
+            The disc has been ejected. Reinsert it after installing MakeMKV.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     internal func autoStartRipping(for drive: OpticalDrive) {
         guard settingsManager.autoRipEnabled else {
             appendToLog("Auto-ripping is disabled. Click 'Start Ripping' to manually start ripping.")
@@ -677,6 +703,17 @@ extension MainViewController: DriveDetectorDelegate {
         // Detect media type
         let mediaRipper = MediaRipper()
         let mediaType = mediaRipper.detectMediaType(path: drive.mountPoint)
+
+        // Blu-ray needs MakeMKV (or a libaacs key database). If neither is set up,
+        // don't start a rip that will fail — tell the user how to fix it.
+        if mediaType == .bluray || mediaType == .bluray4K {
+            guard blurayDecryptionReady() else {
+                appendToLog("Blu-ray detected but no decryption backend is available.")
+                showBluRaySetupAlert()
+                if settingsManager.autoEjectEnabled { ejectCurrentDisk() }
+                return
+            }
+        }
 
         appendToLog("Auto-starting rip of \(drive.displayName)...")
 

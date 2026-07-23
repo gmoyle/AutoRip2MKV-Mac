@@ -4,6 +4,77 @@ import Foundation
 
 extension MediaRipper {
 
+    /// Rip a Blu-ray via MakeMKV. MakeMKV performs AACS/BD+ decryption and
+    /// demuxing itself, writing finished MKVs directly — there is no separate
+    /// ffmpeg encode phase, so this completes synchronously and leaves
+    /// backgroundEncodingProcesses empty.
+    func performBluRayRippingWithMakeMKV(blurayPath: String, configuration: RippingConfiguration) throws {
+        delegate?.mediaRipperDidUpdateStatus("Ripping Blu-ray with MakeMKV...")
+
+        // Output directory: Plex-style when a title was resolved, else by media type.
+        let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
+        let organizedOutputDirectory: String
+        if let plexBase = plexBaseName(from: configuration) {
+            organizedOutputDirectory = configuration.outputDirectory.appending("/\(plexBase)")
+            try? FileManager.default.createDirectory(
+                atPath: organizedOutputDirectory, withIntermediateDirectories: true)
+        } else {
+            organizedOutputDirectory = createOrganizedOutputDirectory(
+                baseDirectory: configuration.outputDirectory,
+                mediaType: currentMediaType,
+                movieName: movieName
+            )
+        }
+        createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,
+                       mediaType: currentMediaType, movieName: movieName)
+
+        delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: 1)
+
+        let minLength = Int(SettingsManager.shared.minMainFeatureDuration)
+        let backend = MakeMKVBackend(isCancelled: { [weak self] in self?.shouldCancel ?? false })
+        self.makemkvBackend = backend
+
+        let outputFiles: [String]
+        do {
+            outputFiles = try backend.rip(
+                discPath: blurayPath,
+                outputDirectory: organizedOutputDirectory,
+                minLengthSeconds: max(minLength, 1),
+                onStatus: { [weak self] status in
+                    self?.delegate?.mediaRipperDidUpdateStatus(status)
+                },
+                onProgress: { [weak self] progress in
+                    DispatchQueue.main.async {
+                        self?.delegate?.mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 1)
+                    }
+                }
+            )
+        } catch {
+            self.makemkvBackend = nil
+            Logger.shared.logError(error, context: "MakeMKV Blu-ray rip failed", category: .blurayRipping)
+            delegate?.mediaRipperDidFail(with: error)
+            throw error
+        }
+
+        self.makemkvBackend = nil
+
+        // Rename MakeMKV's title files to Plex-style names when possible. MakeMKV
+        // writes e.g. "Disc_title_t00.mkv"; the largest is the main feature.
+        if let plexBase = plexBaseName(from: configuration), let main = outputFiles.first {
+            let target = organizedOutputDirectory.appending("/\(plexBase).mkv")
+            if main != target {
+                try? FileManager.default.removeItem(atPath: target)
+                try? FileManager.default.moveItem(atPath: main, toPath: target)
+            }
+        }
+
+        delegate?.mediaRipperDidUpdateStatus("Blu-ray ripping complete (\(outputFiles.count) file(s)).")
+        DispatchQueue.main.async {
+            self.delegate?.mediaRipperDidComplete()
+            self.isRipping = false
+        }
+    }
+
     func performBluRayRipping(blurayPath: String, configuration: RippingConfiguration) throws {
         let maxRetries = 3
         var lastError: Error? = nil

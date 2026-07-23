@@ -41,6 +41,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var twoPassEncodingCheckbox: NSButton!
     private var hardwareAccelerationCheckbox: NSButton!
     private var autoDeinterlaceCheckbox: NSButton!
+    private var useMakeMKVCheckbox: NSButton!
     private var customFFmpegArgsField: NSTextField!
 
     // Output Directory Section (NEW)
@@ -310,6 +311,14 @@ class DetailedSettingsWindowController: NSWindowController {
         sectionStackView.addArrangedSubview(twoPassEncodingCheckbox)
         sectionStackView.addArrangedSubview(hardwareAccelerationCheckbox)
         sectionStackView.addArrangedSubview(autoDeinterlaceCheckbox)
+
+        useMakeMKVCheckbox = NSButton(
+            checkboxWithTitle: "Use MakeMKV for Blu-ray (recommended; requires MakeMKV installed)",
+            target: self,
+            action: nil
+        )
+        useMakeMKVCheckbox.state = .on
+        sectionStackView.addArrangedSubview(useMakeMKVCheckbox)
 
         // Custom FFmpeg arguments
         let customArgsLabel = NSTextField(labelWithString: "Custom FFmpeg Arguments:")
@@ -866,6 +875,7 @@ class DetailedSettingsWindowController: NSWindowController {
         twoPassEncodingCheckbox.state = defaults.bool(forKey: "twoPassEncoding") ? .on : .off
         hardwareAccelerationCheckbox.state = settingsManager.hardwareAcceleration ? .on : .off
         autoDeinterlaceCheckbox.state = settingsManager.autoDeinterlace ? .on : .off
+        useMakeMKVCheckbox.state = settingsManager.useMakeMKVForBluRay ? .on : .off
         if let customArgs = defaults.string(forKey: "customFFmpegArgs") {
             customFFmpegArgsField.stringValue = customArgs
         }
@@ -1080,6 +1090,7 @@ class DetailedSettingsWindowController: NSWindowController {
         twoPassEncodingCheckbox.state = .off
         hardwareAccelerationCheckbox.state = .off
         autoDeinterlaceCheckbox.state = .on
+        useMakeMKVCheckbox.state = .on
         customFFmpegArgsField.stringValue = ""
 
         // Reset Output Directory settings (NEW)
@@ -1179,6 +1190,7 @@ class DetailedSettingsWindowController: NSWindowController {
         defaults.set(twoPassEncodingCheckbox.state == .on, forKey: "twoPassEncoding")
         settingsManager.hardwareAcceleration = hardwareAccelerationCheckbox.state == .on
         settingsManager.autoDeinterlace = autoDeinterlaceCheckbox.state == .on
+        settingsManager.useMakeMKVForBluRay = useMakeMKVCheckbox.state == .on
         defaults.set(customFFmpegArgsField.stringValue, forKey: "customFFmpegArgs")
 
         // Output Directory settings (NEW)
