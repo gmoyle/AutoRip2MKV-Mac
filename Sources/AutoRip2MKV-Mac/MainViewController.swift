@@ -670,15 +670,67 @@ extension MainViewController: DriveDetectorDelegate {
             DVDs rip with no setup, but Blu-ray discs use AACS/BD+ protection that \
             AutoRip2MKV can't decrypt on its own.
 
-            Install MakeMKV (free during beta) from makemkv.com — AutoRip2MKV will \
-            use it automatically to handle Blu-ray decryption. Advanced users can \
+            MakeMKV (free during beta) handles Blu-ray decryption, and AutoRip2MKV \
+            will use it automatically once it's installed. Advanced users can \
             instead supply a libaacs key database at ~/.config/aacs/KEYDB.cfg.
 
             The disc has been ejected. Reinsert it after installing MakeMKV.
             """
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+
+        // Track each button's action by index so the branching stays unambiguous
+        // regardless of whether the Homebrew option is present.
+        var actions: [() -> Void] = []
+        let brew = homebrewPath()
+        if let brew = brew {
+            alert.addButton(withTitle: "Install with Homebrew")
+            actions.append { [weak self] in self?.installMakeMKVWithHomebrew(brewPath: brew) }
+        }
+        alert.addButton(withTitle: "Open Download Page")
+        actions.append {
+            if let url = URL(string: "https://www.makemkv.com/download/") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        alert.addButton(withTitle: "Cancel")
+        actions.append { }
+
+        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        if index >= 0 && index < actions.count {
+            actions[index]()
+        }
+    }
+
+    /// Path to the Homebrew binary if installed (Apple Silicon or Intel location).
+    private func homebrewPath() -> String? {
+        ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    /// Install MakeMKV via `brew install --cask makemkv` in Terminal, so the user
+    /// can watch progress and enter their password if prompted. We don't run
+    /// privileged installs silently on the user's behalf.
+    private func installMakeMKVWithHomebrew(brewPath: String) {
+        appendToLog("Opening Terminal to install MakeMKV via Homebrew...")
+        let command = "\(brewPath) install --cask makemkv"
+        let script = """
+            tell application "Terminal"
+                activate
+                do script "\(command)"
+            end tell
+            """
+        let osa = Process()
+        osa.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        osa.arguments = ["-e", script]
+        do {
+            try osa.run()
+            appendToLog("MakeMKV install started in Terminal. Reinsert the disc when it finishes.")
+        } catch {
+            appendToLog("Couldn't open Terminal automatically. Run: \(command)")
+            if let url = URL(string: "https://www.makemkv.com/download/") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 
     internal func autoStartRipping(for drive: OpticalDrive) {
