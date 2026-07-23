@@ -13,6 +13,8 @@ jobs:
   build-and-release:
     name: Build, Sign, Notarize & Release
     runs-on: macos-latest
+    # Backstop so a wedged step can never run to GitHub's 6h default.
+    timeout-minutes: 60
 
     steps:
     - name: Checkout
@@ -123,11 +125,14 @@ jobs:
         APP_PASSWORD: ${{ secrets.NOTARIZE_APP_PASSWORD }}
       run: |
         VERSION=${{ steps.version.outputs.VERSION }}
+        # --timeout bounds the wait for Apple's notary verdict so a stalled
+        # submission fails this step instead of hanging until the 6h job cap.
         xcrun notarytool submit "AutoRip2MKV-${VERSION}.dmg" \
           --apple-id "$APPLE_ID" \
           --team-id "$TEAM_ID" \
           --password "$APP_PASSWORD" \
-          --wait
+          --wait \
+          --timeout 30m
         xcrun stapler staple "AutoRip2MKV-${VERSION}.dmg"
 
     - name: Generate checksum
