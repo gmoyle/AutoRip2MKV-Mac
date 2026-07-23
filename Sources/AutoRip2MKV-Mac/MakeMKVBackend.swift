@@ -129,7 +129,8 @@ final class MakeMKVBackend {
         let preexisting = Set((try? FileManager.default.contentsOfDirectory(atPath: outputDirectory))?
             .filter { $0.hasSuffix(".mkv") } ?? [])
 
-        let discSpec = makemkvDiscSpec(for: discPath)
+        let discSpec = try resolveDiscSpec(for: discPath, makemkvcon: exe)
+        onStatus("Opening disc (\(discSpec))...")
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: exe)
@@ -252,13 +253,52 @@ final class MakeMKVBackend {
         return fields
     }
 
-    /// MakeMKV addresses discs as `disc:N` or `dev:/path`. A mounted BDMV path
-    /// or /dev node maps to a dev spec; a bare index would be `disc:0`.
-    private func makemkvDiscSpec(for discPath: String) -> String {
+    /// Resolve the disc identifier MakeMKV expects. MakeMKV addresses optical
+    /// drives by its own enumeration index (`disc:N`) or by device node
+    /// (`dev:/dev/rdiskN`) — NOT by mount path. We ask makemkvcon to enumerate
+    /// drives (`info disc:9999` prints DRV: lines) and match ours by mount
+    /// volume name or device node, returning `disc:<index>`.
+    ///
+    /// DRV line format: DRV:index,visible,enabled,flags,"drive name","disc name","device path"
+    private func resolveDiscSpec(for discPath: String, makemkvcon exe: String) throws -> String {
+        // If we were handed a raw device node directly, use it.
         if discPath.hasPrefix("/dev/") {
             return "dev:\(discPath)"
         }
-        // Mounted volume — hand MakeMKV the mount path; it resolves the device.
-        return "dev:\(discPath)"
+
+        let volumeName = (discPath as NSString).lastPathComponent
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: exe)
+        task.arguments = ["-r", "--cache=1", "info", "disc:9999"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        try task.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        let output = String(data: data, encoding: .utf8) ?? ""
+
+        for line in output.split(separator: "\n") where line.hasPrefix("DRV:") {
+            // index is the first field after "DRV:"
+            let fields = parseRobotCSV(String(line.dropFirst(4)))
+            guard fields.count >= 7, let index = Int(fields[0]) else { continue }
+            let discName = fields[5]
+            let devicePath = fields[6]
+            // Match by disc/volume name or by resolving the mount to the device.
+            if discName == volumeName || devicePath.contains(volumeName) {
+                return "disc:\(index)"
+            }
+        }
+
+        // Fall back to the first enumerated drive that has a disc loaded.
+        for line in output.split(separator: "\n") where line.hasPrefix("DRV:") {
+            let fields = parseRobotCSV(String(line.dropFirst(4)))
+            if fields.count >= 7, let index = Int(fields[0]), !fields[6].isEmpty {
+                return "disc:\(index)"
+            }
+        }
+
+        throw MakeMKVError.discOpenFailed("No MakeMKV drive matched \(volumeName)")
     }
 }
