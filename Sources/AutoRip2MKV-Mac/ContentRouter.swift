@@ -107,7 +107,32 @@ enum ContentRouter {
         } catch {
             throw RouteError.moveFailed(error.localizedDescription)
         }
+
+        // Record where this folder went. The rip registry may be written before
+        // OR after routing depending on the path (for Blu-ray, routing runs first),
+        // so we both update any existing entry now and remember the move so a
+        // later registry write can resolve the staging path to its final home.
+        recordMove(from: folderPath, to: destination)
+        RipHistoryStore.shared.updateOutputLocation(from: folderPath, to: destination)
+
         return destination
+    }
+
+    /// Maps a just-routed staging folder path → its final library location, so a
+    /// registry write that happens after the move can record the real path.
+    private static var recentMoves: [String: String] = [:]
+    private static let recentMovesLock = NSLock()
+
+    private static func recordMove(from source: String, to destination: String) {
+        recentMovesLock.lock(); defer { recentMovesLock.unlock() }
+        recentMoves[source] = destination
+    }
+
+    /// Final location a staging path was routed to, if routing moved it. Consumed
+    /// (removed) on read so the map doesn't grow unbounded.
+    static func finalLocation(forStagingPath path: String) -> String? {
+        recentMovesLock.lock(); defer { recentMovesLock.unlock() }
+        return recentMoves.removeValue(forKey: path)
     }
 
     /// Append " (2)", " (3)", … until the path is free.
