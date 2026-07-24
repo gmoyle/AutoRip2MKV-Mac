@@ -161,7 +161,7 @@ extension MainViewController {
         }
     }
 
-    private func ejectDisk(at devicePath: String) -> Bool {
+    func ejectDisk(at devicePath: String) -> Bool {
         // Unmount first so the physical eject isn't blocked by the mounted volume
         _ = runEjectTool("/usr/sbin/diskutil", ["unmountDisk", devicePath])
         // drutil performs the physical eject (opens the tray/clamshell);

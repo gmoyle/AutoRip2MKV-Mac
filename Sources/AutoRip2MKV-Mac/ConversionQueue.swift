@@ -347,20 +347,43 @@ class ConversionQueue {
         ]
     }
 
-    /// Write rip_complete.json next to the output files. Its presence (plus a
-    /// matching settings fingerprint) lets auto-rip skip discs already ripped.
+    /// Record a completed rip: to the central registry (source of truth for
+    /// skip-already-ripped) and as a per-folder rip_complete.json breadcrumb.
+    ///
+    /// The registry is keyed by disc identity (computed from the source disc), so
+    /// it stays valid regardless of where the output ends up — including after
+    /// content routing moves the folder into a Plex library root.
     private func writeRipCompleteMarker(job: ConversionJob, outputFiles: [String]) {
         guard let firstOutput = outputFiles.first else { return }
-        let dir = (firstOutput as NSString).deletingLastPathComponent
+        let stagingDir = (firstOutput as NSString).deletingLastPathComponent
+        let fingerprint = Self.settingsFingerprint(of: job.configuration)
+
+        // If content routing already moved this folder to a Plex library root,
+        // record that final location; otherwise the staging dir it still lives in.
+        let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) ?? stagingDir
+
+        // Central registry (source of truth), keyed by disc identity so detection
+        // is independent of where the files live.
+        let identity = DiscIdentity.compute(forDiscAt: job.sourcePath)
+        RipHistoryStore.shared.record(RipHistoryEntry(
+            discIdentity: identity,
+            volumeName: (job.sourcePath as NSString).lastPathComponent,
+            title: job.discTitle,
+            settingsFingerprint: fingerprint,
+            outputLocation: finalDir,
+            completedAt: Date()))
+
+        // Per-folder breadcrumb (human-readable; also read by legacy detection).
+        // Written into whichever directory still exists (routed folder if moved).
         let marker: [String: Any] = [
             "disc_title": job.discTitle,
             "volume_name": (job.sourcePath as NSString).lastPathComponent,
             "completed": ISO8601DateFormatter().string(from: Date()),
             "output_files": outputFiles.map { ($0 as NSString).lastPathComponent },
-            "settings": Self.settingsFingerprint(of: job.configuration)
+            "settings": fingerprint
         ]
         if let data = try? JSONSerialization.data(withJSONObject: marker, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: URL(fileURLWithPath: dir).appendingPathComponent("rip_complete.json"))
+            try? data.write(to: URL(fileURLWithPath: finalDir).appendingPathComponent("rip_complete.json"))
         }
     }
 

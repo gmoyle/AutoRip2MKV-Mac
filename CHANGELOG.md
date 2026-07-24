@@ -5,6 +5,13 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-07-24
+
+### 🐛 Fixed
+- **Already-ripped discs weren't recognized after routing**: the "skip already-ripped" check looked for a marker in the output directory, but content routing moves finished rips into the Movies / TV Shows library roots — so a re-inserted disc would rip again. Rip history is now tracked in a central registry (`~/Library/Application Support/AutoRip2MKV-Mac/rip_history.json`) keyed by disc identity (volume label + a content fingerprint), independent of where the files live. Legacy per-folder markers are still read so earlier rips are recognized.
+- **Auto-eject didn't physically eject on skip**: two `ejectDisk` implementations existed; the one used by auto-eject called a nonexistent `/usr/bin/diskutil` path and only unmounted. Removed the broken duplicate so all paths use the working `drutil` eject, and the skip path now ejects the disc that was actually inserted (not whatever the drive dropdown pointed at).
+- **Recorded rip location now follows routing**: the registry (and the `rip_complete.json` breadcrumb) records the final Plex library location a rip was routed to, so "reveal in Finder" points at the real files.
+
 ## [2.0.0] - 2026-07-24
 
 ### 🎬 Automatic Movies / TV Shows library routing
