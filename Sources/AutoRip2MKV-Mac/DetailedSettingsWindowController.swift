@@ -51,6 +51,12 @@ class DetailedSettingsWindowController: NSWindowController {
     private var createDateDirectoriesCheckbox: NSButton!
     private var outputPathTemplateField: NSTextField!
 
+    // Content Routing (Movies vs. TV Shows)
+    private var contentRoutingCheckbox: NSButton!
+    private var autoRouteCheckbox: NSButton!
+    private var moviesRootField: NSTextField!
+    private var tvShowsRootField: NSTextField!
+
     // Quality Presets Section (NEW)
     private var qualityPresetsBox: NSBox!
     private var presetPopup: NSPopUpButton!
@@ -140,104 +146,139 @@ class DetailedSettingsWindowController: NSWindowController {
 
     private func setupUI() {
         guard let contentView = window?.contentView else { return }
-        
+
         setupContentView(contentView)
-        let scrollView = createScrollView(in: contentView)
-        let mainStackView = createMainStackView(in: scrollView)
-        let titleLabel = createTitleLabel(in: mainStackView)
-        
-        setupAllSections(in: mainStackView)
-        configureWidthConstraints(for: mainStackView, excluding: titleLabel)
+
+        // Tabbed layout: each tab is its own scrolling section list, so the
+        // settings are grouped instead of one long scroll. Sections are the same
+        // NSBox builders as before — only which tab's stack they're added to changes.
+        let tabView = NSTabView()
+        tabView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(tabView)
+
+        addTab(to: tabView, label: "Output & Routing") { stack in
+            self.setupOutputDirectorySection(in: stack)
+            self.setupFileStorageSection(in: stack)
+        }
+        addTab(to: tabView, label: "Organization") { stack in
+            self.setupFileOrganizationSection(in: stack)
+            self.setupBonusContentSection(in: stack)
+        }
+        addTab(to: tabView, label: "Naming") { stack in
+            self.setupFileNamingSection(in: stack)
+        }
+        addTab(to: tabView, label: "Encoding") { stack in
+            self.setupAdvancedEncodingSection(in: stack)
+            self.setupQualityPresetsSection(in: stack)
+            self.setupQualitySection(in: stack)
+        }
+        addTab(to: tabView, label: "Advanced") { stack in
+            self.setupAdvancedSection(in: stack)
+        }
+
         setupDialogButtons(in: contentView)
-        setupLayoutConstraints(
-            scrollView: scrollView,
-            mainStackView: mainStackView,
-            titleLabel: titleLabel,
-            contentView: contentView
-        )
+
+        NSLayoutConstraint.activate([
+            tabView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            tabView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            tabView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            tabView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -60),
+        ])
+    }
+
+    /// Add a tab whose content is a vertical scroll of section boxes. `build`
+    /// receives the tab's stack view and adds the same section boxes as before.
+    private func addTab(to tabView: NSTabView, label: String,
+                        build: (NSStackView) -> Void) {
+        let item = NSTabViewItem(identifier: label)
+        item.label = label
+
+        // A flipped document view so content lays out top-down and its height is
+        // driven by the pinned stack — this is what keeps non-selected tabs from
+        // rendering empty (NSTabView lays those out lazily, so their content
+        // height must be fully constraint-defined, not dependent on a layout pass
+        // that only happens for the visible tab).
+        let documentView = FlippedView()
+        documentView.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.spacing = 16
+        stack.alignment = .leading
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        documentView.addSubview(stack)
+
+        build(stack)
+
+        // Make each section box span the tab width, and ensure its contentView is
+        // pinned so the box self-sizes. Some sections build with `box.contentView =
+        // stack` (which does NOT auto-pin when the box uses autolayout), so those
+        // boxes collapsed to zero height on lazily-laid-out tabs and rendered blank.
+        // Pinning here fixes every such section in one place.
+        for case let box as NSBox in stack.arrangedSubviews {
+            box.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            if let cv = box.contentView, cv.superview === box {
+                cv.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    cv.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 8),
+                    cv.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -8),
+                    cv.topAnchor.constraint(equalTo: box.topAnchor, constant: 24),
+                    cv.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -8),
+                ])
+            }
+        }
+
+        // Left-justify everything: the per-section inner stacks default to
+        // center-X alignment (which made checkboxes and rows float in the middle).
+        // Force leading alignment throughout for a clean left-aligned column.
+        leftAlignStacks(in: stack)
+
+        // Use the scrollView itself as the tab's view. NSTabView stretches
+        // item.view to fill the tab's content rect, so the scroll gets full
+        // height — a wrapper NSView does NOT get auto-stretched and collapsed to
+        // zero height (which was blanking every non-initial tab).
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+        scrollView.translatesAutoresizingMaskIntoConstraints = true
+        scrollView.autoresizingMask = [.width, .height]
+        scrollView.drawsBackground = false
+        scrollView.documentView = documentView
+
+        NSLayoutConstraint.activate([
+            // Document view matches the scroll's width; its height grows with the
+            // stack (all four stack edges pinned → explicit content height).
+            documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
+
+            stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 12),
+            stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -12),
+            stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -12),
+        ])
+
+        item.view = scrollView
+        tabView.addTabViewItem(item)
     }
     
     private func setupContentView(_ contentView: NSView) {
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
     }
-    
-    private func createScrollView(in contentView: NSView) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.borderType = .noBorder
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(scrollView)
-        return scrollView
-    }
-    
-    private func createMainStackView(in scrollView: NSScrollView) -> NSStackView {
-        let mainStackView = NSStackView()
-        mainStackView.orientation = .vertical
-        mainStackView.spacing = 20
-        mainStackView.alignment = .leading
-        mainStackView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.documentView = mainStackView
-        return mainStackView
-    }
-    
-    private func createTitleLabel(in mainStackView: NSStackView) -> NSTextField {
-        let titleLabel = NSTextField(labelWithString: "AutoRip2MKV Detailed Settings")
-        titleLabel.font = NSFont.boldSystemFont(ofSize: 18)
-        titleLabel.alignment = .center
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        mainStackView.addArrangedSubview(titleLabel)
-        return titleLabel
-    }
-    
-    private func setupAllSections(in mainStackView: NSStackView) {
-        setupFileOrganizationSection(in: mainStackView)
-        setupAdvancedEncodingSection(in: mainStackView)
-        setupOutputDirectorySection(in: mainStackView)
-        setupQualityPresetsSection(in: mainStackView)
-        setupFileStorageSection(in: mainStackView)
-        setupBonusContentSection(in: mainStackView)
-        setupFileNamingSection(in: mainStackView)
-        setupQualitySection(in: mainStackView)
-        setupAdvancedSection(in: mainStackView)
-    }
-    
-    private func configureWidthConstraints(for mainStackView: NSStackView, excluding titleLabel: NSTextField) {
-        for arrangedSubview in mainStackView.arrangedSubviews {
-            if arrangedSubview != titleLabel {
-                arrangedSubview.widthAnchor.constraint(
-                    equalTo: mainStackView.widthAnchor,
-                    constant: -40
-                ).isActive = true
-            }
+
+    /// Recursively set every vertical NSStackView to leading (left) alignment, so
+    /// section content is left-justified instead of floating center.
+    private func leftAlignStacks(in view: NSView) {
+        if let stack = view as? NSStackView, stack.orientation == .vertical {
+            stack.alignment = .leading
+        }
+        for sub in view.subviews { leftAlignStacks(in: sub) }
+        // NSBox content lives in its contentView, which may not be in `subviews`.
+        if let box = view as? NSBox, let cv = box.contentView {
+            leftAlignStacks(in: cv)
         }
     }
     
-    private func setupLayoutConstraints(
-        scrollView: NSScrollView,
-        mainStackView: NSStackView,
-        titleLabel: NSTextField,
-        contentView: NSView
-    ) {
-        NSLayoutConstraint.activate([
-            // Title width constraint
-            titleLabel.widthAnchor.constraint(equalTo: mainStackView.widthAnchor),
-
-            // Scroll view
-            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
-            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -70),
-
-            // Main stack view
-            mainStackView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            mainStackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            mainStackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            mainStackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
-        ])
-    }
-
     // MARK: - New Settings Sections
 
 
@@ -372,12 +413,61 @@ class DetailedSettingsWindowController: NSWindowController {
         let templateRow = createLabelControlRow(label: templateLabel, control: outputPathTemplateField)
         sectionStackView.addArrangedSubview(templateRow)
 
+        // --- Content Routing: sort finished rips into Movies / TV Shows roots ---
+        let routingHeader = NSTextField(labelWithString: "Content Routing (Plex libraries):")
+        routingHeader.font = NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        sectionStackView.addArrangedSubview(routingHeader)
+
+        contentRoutingCheckbox = NSButton(
+            checkboxWithTitle: "Sort rips into Movies / TV Shows folders by content",
+            target: self, action: nil)
+        sectionStackView.addArrangedSubview(contentRoutingCheckbox)
+
+        autoRouteCheckbox = NSButton(
+            checkboxWithTitle: "Auto-route confident guesses (only ambiguous rips wait for review)",
+            target: self, action: nil)
+        sectionStackView.addArrangedSubview(autoRouteCheckbox)
+
+        let moviesLabel = NSTextField(labelWithString: "Movies Folder:")
+        moviesRootField = NSTextField()
+        moviesRootField.placeholderString = "~/Plex/Movies"
+        let moviesBrowse = NSButton(title: "Browse...", target: self,
+                                    action: #selector(browseForMoviesRoot))
+        sectionStackView.addArrangedSubview(
+            createLabelControlButtonRow(label: moviesLabel, control: moviesRootField, button: moviesBrowse))
+
+        let tvLabel = NSTextField(labelWithString: "TV Shows Folder:")
+        tvShowsRootField = NSTextField()
+        tvShowsRootField.placeholderString = "~/Plex/TVShows"
+        let tvBrowse = NSButton(title: "Browse...", target: self,
+                                action: #selector(browseForTVShowsRoot))
+        sectionStackView.addArrangedSubview(
+            createLabelControlButtonRow(label: tvLabel, control: tvShowsRootField, button: tvBrowse))
+
         NSLayoutConstraint.activate([
             sectionStackView.topAnchor.constraint(equalTo: outputDirectoryBox.topAnchor, constant: 25),
             sectionStackView.leadingAnchor.constraint(equalTo: outputDirectoryBox.leadingAnchor, constant: 10),
             sectionStackView.trailingAnchor.constraint(equalTo: outputDirectoryBox.trailingAnchor, constant: -10),
             sectionStackView.bottomAnchor.constraint(equalTo: outputDirectoryBox.bottomAnchor, constant: -10)
         ])
+    }
+
+    @objc private func browseForMoviesRoot() {
+        browseForFolder(into: moviesRootField)
+    }
+
+    @objc private func browseForTVShowsRoot() {
+        browseForFolder(into: tvShowsRootField)
+    }
+
+    private func browseForFolder(into field: NSTextField) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            field.stringValue = url.path
+        }
     }
 
     private func setupQualityPresetsSection(in stackView: NSStackView) {
@@ -771,6 +861,7 @@ class DetailedSettingsWindowController: NSWindowController {
         container.translatesAutoresizingMaskIntoConstraints = false
 
         label.translatesAutoresizingMaskIntoConstraints = false
+        label.alignment = .left
         control.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(label)
@@ -779,7 +870,7 @@ class DetailedSettingsWindowController: NSWindowController {
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.widthAnchor.constraint(equalToConstant: 200),
+            label.widthAnchor.constraint(equalToConstant: 180),
 
             control.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 10),
             control.trailingAnchor.constraint(equalTo: container.trailingAnchor),
@@ -885,6 +976,13 @@ class DetailedSettingsWindowController: NSWindowController {
             defaultOutputPathField.stringValue = defaultPath
         }
         createDateDirectoriesCheckbox.state = defaults.bool(forKey: "createDateDirectories") ? .on : .off
+
+        // Content Routing settings
+        contentRoutingCheckbox.state = settingsManager.contentRoutingEnabled ? .on : .off
+        autoRouteCheckbox.state = settingsManager.autoRouteHighConfidence ? .on : .off
+        moviesRootField.stringValue = settingsManager.moviesRootDirectory
+        tvShowsRootField.stringValue = settingsManager.tvShowsRootDirectory
+
         if let pathTemplate = defaults.string(forKey: "outputPathTemplate"), !pathTemplate.isEmpty {
             outputPathTemplateField.stringValue = pathTemplate
         }
@@ -1198,6 +1296,18 @@ class DetailedSettingsWindowController: NSWindowController {
         defaults.set(createDateDirectoriesCheckbox.state == .on, forKey: "createDateDirectories")
         defaults.set(outputPathTemplateField.stringValue, forKey: "outputPathTemplate")
 
+        // Content Routing settings
+        settingsManager.contentRoutingEnabled = contentRoutingCheckbox.state == .on
+        settingsManager.autoRouteHighConfidence = autoRouteCheckbox.state == .on
+        if !moviesRootField.stringValue.isEmpty {
+            settingsManager.moviesRootDirectory =
+                NSString(string: moviesRootField.stringValue).expandingTildeInPath
+        }
+        if !tvShowsRootField.stringValue.isEmpty {
+            settingsManager.tvShowsRootDirectory =
+                NSString(string: tvShowsRootField.stringValue).expandingTildeInPath
+        }
+
         // Quality Presets settings (NEW)
         defaults.set(presetPopup.indexOfSelectedItem, forKey: "selectedQualityPreset")
         defaults.set(customPresetNameField.stringValue, forKey: "customPresetName")
@@ -1236,4 +1346,10 @@ class DetailedSettingsWindowController: NSWindowController {
 
         defaults.synchronize()
     }
+}
+
+/// A top-down document view for scroll views, so content starts at the top and
+/// grows downward (AppKit's default is bottom-left origin).
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
