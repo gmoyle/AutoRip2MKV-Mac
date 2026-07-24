@@ -5,6 +5,29 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-24
+
+### 🎬 Automatic Movies / TV Shows library routing
+- **Content-aware sorting into Plex libraries**: after a rip, the disc is classified as a movie or a TV season from its title-duration structure (a cluster of similar-length titles reads as episodes; one dominant feature reads as a movie) and the finished folder is routed to the matching library root.
+- **Separate Movies and TV Shows destinations**: configure a Movies folder and a TV Shows folder in Settings → Output & Routing (defaults `~/Plex/Movies` and `~/Plex/TVShows`).
+- **Non-blocking review queue**: ripping never waits on a routing decision. Confident guesses auto-route via an atomic move; ambiguous ones are added to a persistent queue and surfaced under a **Review Rips** button when you return, each pre-set to the guess with a Movie/TV override. The queue survives app restarts so a rip is never orphaned.
+
+### 🖥️ Redesigned settings
+- **Tabbed settings window**: the long-scroll preferences are reorganized into five tabs — Output & Routing, Organization, Naming, Encoding, Advanced — with the routing fields front-and-center on the first tab.
+- **Left-aligned throughout** for readability.
+
+### ⏹️ Cancel Rip
+- **Cancel a rip in progress from the UI**: Blu-ray (queue-driven) rips previously had no cancel control — the button was disabled mid-rip. It now stays live as **Cancel Rip** and cleanly stops MakeMKV without leaving an orphaned background process.
+
+### 💿 MakeMKV reliability
+- **License-key handling**: when MakeMKV reports it needs a key (expired trial, expired beta build, or expired/invalid key), the app offers to buy a license, fetch and register the current free beta key, or enter a key — instead of failing opaquely.
+- **Disk-space preflight**: a Blu-ray rip now checks free space against the disc's largest title up front and fails fast with a clear message, instead of filling the disk over 30+ minutes and producing nothing.
+- **Access-mode retry**: transient UHD drive-contention failures ("Failed to open disc" / no output when the drive only opens in OS access mode) are retried once after the drive settles.
+
+### 🐛 Fixed
+- **Orphaned rips on deploy/quit**: killing the app left its `makemkvcon` child running, holding the drive. `deploy.sh` now refuses to run while a rip is active (override with `--force`), and the in-app Cancel Rip terminates the child cleanly.
+- **Blank settings tabs**: a wrapper view set as an `NSTabView` item collapsed non-selected tabs to zero height; the scroll view is now the tab item directly.
+
 ## [1.5.0] - 2026-07-22
 
 ### ✨ Hands-free ripping straight into Plex

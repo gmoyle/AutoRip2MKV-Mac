@@ -2,7 +2,7 @@
   <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
   <h1>AutoRip2MKV for Mac</h1>
   <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
-  <p><sub>v1.5.0 - Hands-free disc-after-disc ripping straight into Plex</sub></p>
+  <p><sub>v2.0.0 - Automatic Movies / TV Shows routing into Plex libraries</sub></p>
   
   [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
   [![Latest Release](https://img.shields.io/github/v/release/gmoyle/AutoRip2MKV-Mac?sort=semver)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
@@ -89,8 +89,10 @@ percentage). The app handles everything automatically:
 - ✅ Auto-deinterlace of interlaced (NTSC) sources
 - ✅ All audio and subtitle tracks captured, with language labels
 - ✅ Conversion to MKV, with Plex-style `Movie (Year)` naming
+- ✅ Automatic Movies / TV Shows routing into separate Plex library folders
 - ✅ Auto-eject when the read completes; already-ripped discs are skipped
 - ✅ Optional hardware acceleration (VideoToolbox)
+- ✅ Cancel a rip in progress from the main window
 
 **Overrides**: a disc already ripped with the current settings is skipped and
 ejected. Change any rip setting, hold **⌥ Option** while inserting, or click
@@ -255,7 +257,7 @@ This project represents a groundbreaking experiment in AI-powered software devel
 - **Code written by human**: 0 lines — 100% AI-generated
 - **Development method**: 100% AI-assisted (Warp 2.0, then Claude Code)
 - **Codebase**: ~13,000 lines of Swift across the app and tests
-- **Latest release**: v1.5.0 - Hands-free ripping into Plex (Jul 2026)
+- **Latest release**: v2.0.0 - Automatic Movies / TV Shows routing into Plex libraries (Jul 2026)
 - **Features**: DVD/Blu-ray ripping, libdvdcss/libaacs decryption, hands-free auto-rip, all-track capture, Plex-ready output
 
 **[📖 Read the full experiment documentation](./WARP_AI_EXPERIMENT.md)** to see how AI democratizes software development.
