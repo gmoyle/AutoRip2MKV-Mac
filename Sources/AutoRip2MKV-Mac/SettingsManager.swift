@@ -40,6 +40,12 @@ class SettingsManager {
 
         static let preProcessingScript = "preProcessingScript"
         static let postProcessingScript = "postProcessingScript"
+
+        // Plex-style content routing (Movies vs. TV Shows destinations)
+        static let moviesRootDirectory = "moviesRootDirectory"
+        static let tvShowsRootDirectory = "tvShowsRootDirectory"
+        static let contentRoutingEnabled = "contentRoutingEnabled"
+        static let autoRouteHighConfidence = "autoRouteHighConfidence"
     }
 
     private init() {}
@@ -53,6 +59,45 @@ class SettingsManager {
         set {
             userDefaults.set(newValue, forKey: Keys.lastSourcePath)
         }
+    }
+
+    // MARK: - Content Routing (Movies vs. TV Shows destinations)
+
+    /// When enabled, completed rips are classified movie/TV and routed to the
+    /// appropriate root (directly for high-confidence guesses if
+    /// `autoRouteHighConfidence`, otherwise via the pending-routing review queue).
+    var contentRoutingEnabled: Bool {
+        get { userDefaults.bool(forKey: Keys.contentRoutingEnabled) }
+        set { userDefaults.set(newValue, forKey: Keys.contentRoutingEnabled) }
+    }
+
+    /// Destination root for movies (Plex "Movies" library).
+    var moviesRootDirectory: String {
+        get { userDefaults.string(forKey: Keys.moviesRootDirectory) ?? Self.defaultMoviesRoot }
+        set { userDefaults.set(newValue, forKey: Keys.moviesRootDirectory) }
+    }
+
+    /// Destination root for TV shows (Plex "TV Shows" library).
+    var tvShowsRootDirectory: String {
+        get { userDefaults.string(forKey: Keys.tvShowsRootDirectory) ?? Self.defaultTVShowsRoot }
+        set { userDefaults.set(newValue, forKey: Keys.tvShowsRootDirectory) }
+    }
+
+    /// Auto-route rips the classifier is confident about, so only ambiguous ones
+    /// wait in the review queue. Default true keeps the queue short.
+    var autoRouteHighConfidence: Bool {
+        get {
+            if userDefaults.object(forKey: Keys.autoRouteHighConfidence) == nil { return true }
+            return userDefaults.bool(forKey: Keys.autoRouteHighConfidence)
+        }
+        set { userDefaults.set(newValue, forKey: Keys.autoRouteHighConfidence) }
+    }
+
+    private static var defaultMoviesRoot: String {
+        NSString(string: "~/Plex/Movies").expandingTildeInPath
+    }
+    private static var defaultTVShowsRoot: String {
+        NSString(string: "~/Plex/TVShows").expandingTildeInPath
     }
 
     // MARK: - Output Path

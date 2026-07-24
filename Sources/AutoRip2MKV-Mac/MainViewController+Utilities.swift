@@ -6,6 +6,14 @@ import UserNotifications
 extension MainViewController {
 
     func appendToLog(_ message: String) {
+        // Touches an NSTextView (AppKit layout), so it must run on the main
+        // thread. Callers include background contexts — URLSession completions,
+        // ripper delegate callbacks — so marshal here rather than at every call
+        // site. Off-main UI mutation aborts the AppKit layout engine (SIGABRT).
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.appendToLog(message) }
+            return
+        }
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let logMessage = "[\(timestamp)] \(message)\n"
 

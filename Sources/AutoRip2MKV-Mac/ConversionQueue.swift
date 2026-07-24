@@ -433,6 +433,29 @@ class ConversionQueue {
         }
     }
 
+    /// Cancel the job that is currently extracting from disc, terminating its
+    /// active ripper (which cleanly stops makemkvcon/ffmpeg — no orphaned child).
+    /// Returns true if an extracting job was found and cancelled.
+    @discardableResult
+    func cancelActiveJob() -> Bool {
+        var cancelled = false
+        jobsQueue.sync {
+            if let index = self.jobs.firstIndex(where: {
+                if case .extracting = $0.status { return true } else { return false }
+            }) {
+                self.activeRipper?.cancelRipping()
+                self.jobs[index].status = .cancelled
+                cancelled = true
+                Logger.shared.logQueue("Cancelled active job \(self.jobs[index].id)", level: .info)
+                let snapshot = self.jobs
+                DispatchQueue.main.async {
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
+                }
+            }
+        }
+        return cancelled
+    }
+
     /// Clear completed and failed jobs
     func clearCompletedJobs() {
         jobsQueue.async(flags: .barrier) {
