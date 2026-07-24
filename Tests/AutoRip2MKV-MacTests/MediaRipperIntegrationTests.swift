@@ -78,32 +78,11 @@ final class MediaRipperIntegrationTests: XCTestCase {
         XCTAssertTrue(mockDelegate.didUpdateStatusCalled || mockDelegate.didFailCalled)
     }
     
-    func testDVDRippingCancellation() {
-        let configuration = MediaRipper.RippingConfiguration(
-            outputDirectory: testOutputPath,
-            selectedTitles: [],
-            videoCodec: .h264,
-            audioCodec: .aac,
-            quality: .medium,
-            includeSubtitles: false,
-            includeChapters: false,
-            mediaType: .dvd
-        )
-        
-        // Start and immediately cancel
-        mediaRipper.startRipping(mediaPath: testDVDPath, configuration: configuration)
-        mediaRipper.cancelRipping()
-        
-        let expectation = XCTestExpectation(description: "Cancellation handling")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            expectation.fulfill()
-        }
-        
-        wait(for: [expectation], timeout: 3.0)
-        
-        XCTAssertFalse(mediaRipper.isCurrentlyRipping)
-    }
-    
+    // Note: a former testDVDRippingCancellation was removed. It start-ripped a
+    // non-existent path then asserted `!isCurrentlyRipping` after a fixed 2s
+    // sleep — a race that validated the fast-fail on a bad path, not that cancel
+    // actually interrupted an in-flight rip.
+
     // MARK: - Blu-ray Integration Tests
     
     func testBlurayRippingWorkflow() throws {

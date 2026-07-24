@@ -59,17 +59,10 @@ final class DVDDecryptorTests: XCTestCase {
     
     // MARK: - Sector Decryption Tests
     
-    func testDecryptSectorWithoutTitleKey() {
-        let testData = Data([0x00, 0x01, 0x02, 0x03])
-        
-        XCTAssertThrowsError(try decryptor.decryptSector(data: testData, sector: 0, titleNumber: 1)) { error in
-            XCTAssertTrue(error is DVDError)
-            if let dvdError = error as? DVDError {
-                XCTAssertEqual(dvdError, DVDError.titleKeyNotFound)
-            }
-        }
-    }
-    
+    // Note: a former testDecryptSectorWithoutTitleKey was removed. decryptSector
+    // is now a pass-through (libdvdcss performs decryption during read), so it no
+    // longer throws titleKeyNotFound; the test asserted behavior that was removed.
+
     func testDecryptUnencryptedSector() {
         // Create test data that appears unencrypted (scrambling bits = 0)
         var testData = Data(repeating: 0x00, count: 2048)
@@ -118,14 +111,14 @@ final class DVDDecryptorTests: XCTestCase {
     // MARK: - Error Handling Tests
     
     func testDVDErrorDescriptions() {
-        XCTAssertEqual(DVDError.deviceNotFound.localizedDescription, "DVD device not found")
+        XCTAssertEqual(DVDError.deviceNotFound.localizedDescription, "DVD device not found or libdvdcss failed to open device")
         XCTAssertEqual(DVDError.deviceNotOpen.localizedDescription, "DVD device not opened")
         XCTAssertEqual(DVDError.authenticationFailed.localizedDescription, "CSS authentication failed")
         XCTAssertEqual(DVDError.discKeyNotFound.localizedDescription, "Disc key not found")
         XCTAssertEqual(DVDError.titleKeyNotFound.localizedDescription, "Title key not found")
         XCTAssertEqual(DVDError.decryptionFailed.localizedDescription, "Decryption failed")
-        XCTAssertEqual(DVDError.invalidSector.localizedDescription, "Invalid sector")
-        XCTAssertEqual(DVDError.cssNotSupported.localizedDescription, "CSS encryption not supported")
+        XCTAssertEqual(DVDError.invalidSector.localizedDescription, "Invalid sector or seek failed")
+        XCTAssertEqual(DVDError.cssNotSupported.localizedDescription, "CSS encryption not supported (libdvdcss not available)")
     }
     
     // MARK: - Memory Management Tests
