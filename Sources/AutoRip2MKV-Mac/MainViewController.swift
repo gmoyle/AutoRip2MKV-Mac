@@ -36,6 +36,11 @@ class MainViewController: NSViewController {
     internal var autoEjectCheckbox: NSButton!
     internal var skipRippedCheckbox: NSButton!
     internal var settingsButton: NSButton!
+    internal var reviewRipsButton: NSButton!
+    private var routingReviewWindowController: RoutingReviewWindowController?
+    /// True while a queue-driven rip (e.g. Blu-ray) is extracting, so the rip
+    /// button acts as a Cancel control.
+    internal var queueRipInProgress = false
 
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
@@ -203,6 +208,39 @@ class MainViewController: NSViewController {
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
+
+        // Opens the non-blocking Movie/TV routing review. Title carries a badge
+        // count so pending decisions are visible without blocking rips.
+        reviewRipsButton = NSButton(title: "Review Rips", target: self, action: #selector(showRoutingReview))
+        reviewRipsButton.translatesAutoresizingMaskIntoConstraints = false
+        reviewRipsButton.isHidden = true  // shown only when items are pending
+        view.addSubview(reviewRipsButton)
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(pendingRoutingsChanged),
+            name: PendingRoutingQueue.didChangeNotification, object: nil)
+        updateReviewRipsButton()
+    }
+
+    /// Reflect the pending-routing count in the Review Rips button (shown only
+    /// when there's something to review).
+    @objc internal func pendingRoutingsChanged() {
+        DispatchQueue.main.async { [weak self] in self?.updateReviewRipsButton() }
+    }
+
+    private func updateReviewRipsButton() {
+        let count = PendingRoutingQueue.shared.count
+        reviewRipsButton?.isHidden = count == 0
+        reviewRipsButton?.title = count > 0 ? "Review Rips (\(count))" : "Review Rips"
+    }
+
+    @objc private func showRoutingReview() {
+        if routingReviewWindowController == nil {
+            routingReviewWindowController = RoutingReviewWindowController()
+        }
+        routingReviewWindowController?.showWindow(nil)
+        routingReviewWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func setupRipButton() {
@@ -213,11 +251,26 @@ class MainViewController: NSViewController {
     }
 
     @objc private func ripButtonPressed() {
-        if activeMediaRipper != nil {
+        if queueRipInProgress {
+            cancelQueueRip()
+        } else if activeMediaRipper != nil {
             cancelRipping()
         } else {
             startRipping()
         }
+    }
+
+    /// Cancel a queue-driven rip in progress (Blu-ray and any queued job). Cleanly
+    /// terminates the active ripper — no orphaned makemkvcon — and resets the UI.
+    @objc private func cancelQueueRip() {
+        appendToLog("Cancelling rip...")
+        if conversionQueue.cancelActiveJob() {
+            appendToLog("Rip cancelled.")
+        } else {
+            appendToLog("No active rip to cancel.")
+        }
+        queueRipInProgress = false
+        resetRipUI()
     }
 
     @objc private func cancelRipping() {
@@ -235,6 +288,7 @@ class MainViewController: NSViewController {
     }
 
     internal func resetRipUI() {
+        queueRipInProgress = false
         ripButton.title = "Start Ripping"
         ripButton.isEnabled = true
         progressIndicator.doubleValue = 0
@@ -702,6 +756,12 @@ extension MainViewController: DriveDetectorDelegate {
                     return false
                 }
             }
+            // No key on file means MakeMKV is in its 30-day trial (or has an
+            // expired one). Don't block — the trial works — just set expectations.
+            if !MakeMKVBackend.hasLicenseKey() {
+                appendToLog("MakeMKV has no license key yet — running in free trial mode. "
+                    + "If MakeMKV asks for a key, AutoRip2MKV will help you get the free beta key.")
+            }
             return true
         }
         let keydb = NSString(string: "~/.config/aacs/KEYDB.cfg").expandingTildeInPath
@@ -791,6 +851,164 @@ extension MainViewController: DriveDetectorDelegate {
             if let url = URL(string: "https://www.makemkv.com/download/") {
                 NSWorkspace.shared.open(url)
             }
+        }
+    }
+
+    /// Shown when makemkvcon refused to rip for licensing reasons (expired
+    /// 30-day trial, expired beta build, or expired/invalid beta key). Offers
+    /// the free beta key (fetched from the MakeMKV forum, where the developer
+    /// publishes it for this purpose), manual key entry, or purchase.
+    func presentMakeMKVRegistrationOptions(detail: String) {
+        let alert = NSAlert()
+        alert.messageText = "MakeMKV Needs a License Key"
+        alert.informativeText = """
+            MakeMKV reported: \(detail)
+
+            Blu-ray decryption requires a MakeMKV license key. A lifetime license \
+            ($60) never expires and supports MakeMKV's developer, who single-handedly \
+            keeps Blu-ray and UHD decryption working. While MakeMKV is in beta, a \
+            free key is also published on the forum, but it rotates every couple of \
+            months, so you'll need to refresh it periodically.
+
+            DVD ripping is unaffected — this only applies to Blu-ray.
+            """
+        alert.alertStyle = .warning
+        // Buy first so it's the highlighted default — we nudge toward supporting
+        // the developer, with the free key still one click away for those who need it.
+        alert.addButton(withTitle: "Buy a License")
+        alert.addButton(withTitle: "Get Free Beta Key")
+        alert.addButton(withTitle: "Enter Key…")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.open(MakeMKVBackend.purchaseURL)
+            appendToLog("Opened the MakeMKV purchase page (\(MakeMKVBackend.purchaseURL.absoluteString)). "
+                + "After buying, use Enter Key to register your license.")
+        case .alertSecondButtonReturn:
+            fetchAndApplyBetaKey()
+        case .alertThirdButtonReturn:
+            promptForMakeMKVKey()
+        default:
+            appendToLog("Blu-ray rip needs a MakeMKV key — skipped for now.")
+        }
+    }
+
+    /// Fetch the current free beta key from the MakeMKV forum, show it to the
+    /// user for confirmation, and register it only if they approve. Falls back
+    /// to opening the forum thread in the browser if the key can't be found
+    /// automatically (layout change, no network).
+    private func fetchAndApplyBetaKey() {
+        appendToLog("Fetching the current MakeMKV beta key from forum.makemkv.com...")
+        MakeMKVBackend.fetchBetaKey { [weak self] key in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard let key = key else {
+                    self.appendToLog("Couldn't find the beta key automatically — opening the forum thread. "
+                        + "Copy the key from the first post, then use Enter Key.")
+                    NSWorkspace.shared.open(MakeMKVBackend.betaKeyForumURL)
+                    self.promptForMakeMKVKey()
+                    return
+                }
+                self.confirmAndApplyBetaKey(key)
+            }
+        }
+    }
+
+    /// Show the fetched beta key and register it only on explicit confirmation,
+    /// so the network fetch + `makemkvcon reg` never happen invisibly. The key
+    /// is pre-filled but editable, in case the user wants to paste a different
+    /// one instead.
+    ///
+    /// This dialog is also where we encourage buying a license: the free beta
+    /// key is generously provided by MakeMKV's developer, and a one-time
+    /// purchase both removes the every-couple-of-months key rotation and
+    /// supports the work that makes Blu-ray ripping possible at all.
+    private func confirmAndApplyBetaKey(_ key: String) {
+        let alert = NSAlert()
+        alert.messageText = "Register This Free MakeMKV Beta Key?"
+        alert.informativeText = """
+            Fetched the current free beta key from the MakeMKV forum. Review it \
+            below and register it, or cancel.
+
+            This key is provided free by MakeMKV's developer and rotates every \
+            couple of months, so you'll need a fresh one periodically. If you rip \
+            Blu-rays regularly, please consider buying a lifetime license — it \
+            never expires and directly supports the person who single-handedly \
+            keeps Blu-ray/UHD decryption working.
+            """
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 380, height: 24))
+        field.stringValue = key
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Register Free Key")
+        alert.addButton(withTitle: "Buy a License Instead")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            let confirmed = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !confirmed.isEmpty else { return }
+            applyMakeMKVKey(confirmed, source: "beta key from the MakeMKV forum")
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(MakeMKVBackend.purchaseURL)
+            appendToLog("Opened the MakeMKV purchase page (\(MakeMKVBackend.purchaseURL.absoluteString)). "
+                + "After buying, use Enter Key to register your license.")
+        default:
+            appendToLog("Beta key registration cancelled.")
+        }
+    }
+
+    /// Modal prompt to paste a MakeMKV key (purchased or copied from the forum).
+    /// Offers a direct path to buy a license, so purchasing is always one click
+    /// away from the place a key is entered.
+    private func promptForMakeMKVKey() {
+        let alert = NSAlert()
+        alert.messageText = "Enter MakeMKV License Key"
+        alert.informativeText = """
+            Paste the key (starts with "T-"). It is stored by MakeMKV itself.
+
+            Don't have one? A lifetime license never expires and supports \
+            MakeMKV's developer — or grab the current free beta key from the forum.
+            """
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.placeholderString = "T-..."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Register")
+        alert.addButton(withTitle: "Buy a License")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { return }
+            applyMakeMKVKey(key, source: "entered key")
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(MakeMKVBackend.purchaseURL)
+            appendToLog("Opened the MakeMKV purchase page. Return here with your key to register it.")
+        default:
+            break
+        }
+    }
+
+    /// Register a key with makemkvcon and, on success, offer to restart the rip
+    /// (the disc is normally still in the drive after a licensing failure).
+    private func applyMakeMKVKey(_ key: String, source: String) {
+        if MakeMKVBackend.register(key: key) {
+            appendToLog("MakeMKV \(source) registered successfully.")
+            let alert = NSAlert()
+            alert.messageText = "MakeMKV Key Registered"
+            alert.informativeText = "Blu-ray ripping is unlocked. Start the rip again now?"
+            alert.addButton(withTitle: "Rip Now")
+            alert.addButton(withTitle: "Later")
+            if alert.runModal() == .alertFirstButtonReturn {
+                startRipping()
+            }
+        } else {
+            appendToLog("MakeMKV rejected the \(source). It may have expired — "
+                + "check for a newer key or a MakeMKV update.")
+            showAlert(title: "Key Not Accepted",
+                      message: "MakeMKV rejected the key. Beta keys expire every couple of months — "
+                        + "make sure you have the current one, or update MakeMKV itself.")
         }
     }
 

@@ -62,6 +62,9 @@ extension MainViewController {
             settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             settingsButton.widthAnchor.constraint(equalToConstant: 80),
 
+            reviewRipsButton.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
+            reviewRipsButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor, constant: -8),
+
             // Rip Button
             ripButton.topAnchor.constraint(equalTo: skipRippedCheckbox.bottomAnchor, constant: 20),
             ripButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),

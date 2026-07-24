@@ -134,6 +134,13 @@ extension MainViewController: MediaRipperDelegate {
             // Show error notification
             self.showErrorNotification("Ripping failed: \(error.localizedDescription)")
 
+            // A licensing refusal is recoverable — walk the user through getting
+            // a key instead of showing a dead-end error alert.
+            if case MakeMKVBackend.MakeMKVError.registrationRequired(let detail) = error {
+                self.presentMakeMKVRegistrationOptions(detail: detail)
+                return
+            }
+
             self.showAlert(title: "Ripping Failed", message: error.localizedDescription)
         }
     }
@@ -155,17 +162,25 @@ extension MainViewController: ConversionQueueDelegate {
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Reading disc..."
         totalRipSizeBytes = 0
-        ripButton.isEnabled = false
-        ripButton.title = "Ripping..."
+        // Keep the button live as a Cancel control so the user can stop a rip in
+        // progress (queue-driven rips, i.e. all Blu-ray, had no cancel before).
+        ripButton.isEnabled = true
+        ripButton.title = "Cancel Rip"
+        queueRipInProgress = true
     }
 
     func queueDidCompleteExtraction(jobId: UUID) {
+        // The disc read (the cancellable part) is done; encoding is background and
+        // safe to eject. Clear the cancel state and reset the button label.
+        queueRipInProgress = false
         appendToLog("Disc read complete — safe to eject. Encoding continues in background.")
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Disc read complete — encoding in background..."
+        ripButton.title = "Start Ripping"
     }
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
+        queueRipInProgress = false
         appendToLog("Rip failed: \(error.localizedDescription)")
         showErrorNotification("Ripping failed: \(error.localizedDescription)")
         resetRipUI()
