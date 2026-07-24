@@ -126,11 +126,16 @@ final class RoutingReviewWindowController: NSWindowController {
             : "\(n) rip\(n == 1 ? "" : "s") awaiting a Movie/TV Show decision."
     }
 
+    /// Accept every row's guess and route them now. Sets each choice to its guess
+    /// (falling back to .movie for an unknown guess, matching the row toggle's
+    /// default) and then applies — so the button actually drains the queue rather
+    /// than only re-selecting toggles the user hadn't touched.
     @objc private func acceptAllGuesses() {
         for item in items {
             choices[item.id] = item.guessedType == .unknown ? .movie : item.guessedType
         }
         tableView.reloadData()
+        applyChoices()
     }
 
     @objc private func applyChoices() {

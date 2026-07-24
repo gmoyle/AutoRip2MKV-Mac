@@ -275,6 +275,7 @@ class MainViewController: NSViewController {
 
     @objc private func cancelRipping() {
         appendToLog("Cancelling rip...")
+        setDiscStatus("Cancelling…")
         activeMediaRipper?.cancelRipping()
         activeMediaRipper = nil
         // Clean up any temp VOB files left behind
@@ -350,10 +351,12 @@ class MainViewController: NSViewController {
     }
 
     private func setupLogTextView() {
-        logDisclosureButton = NSButton(title: "Show Log", target: self, action: #selector(toggleLogVisibility))
+        // Log is shown by default so rip status and errors are visible without the
+        // user having to expand a collapsed panel.
+        logDisclosureButton = NSButton(title: "Hide Log", target: self, action: #selector(toggleLogVisibility))
         logDisclosureButton.bezelStyle = .disclosure
         logDisclosureButton.setButtonType(.pushOnPushOff)
-        logDisclosureButton.state = .off
+        logDisclosureButton.state = .on
         logDisclosureButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(logDisclosureButton)
 
@@ -373,7 +376,7 @@ class MainViewController: NSViewController {
         scrollView.hasHorizontalScroller = true
         scrollView.documentView = logTextView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.isHidden = true
+        scrollView.isHidden = false
         view.addSubview(scrollView)
     }
 
@@ -381,6 +384,7 @@ class MainViewController: NSViewController {
         let show = logDisclosureButton.state == .on
         scrollView.isHidden = !show
         logHeightConstraint.constant = show ? 180 : 0
+        logDisclosureButton.title = show ? "Hide Log" : "Show Log"
     }
 
     private func setupDVDRipper() {
@@ -549,6 +553,18 @@ class MainViewController: NSViewController {
         }
     }
 
+    /// Set the disc status line ("<Title> (<Type>) - <status>") shown above the
+    /// output field. `status` is the current phase — "Ready to rip", "Ripping…",
+    /// "Cancelling…", etc. No-op when no disc is present (the empty-state message
+    /// is handled by updateDriveDropdown).
+    internal func setDiscStatus(_ status: String) {
+        guard let drive = detectedDrives.first else { return }
+        let driveTypeString = drive.type == .dvd ? "DVD"
+            : drive.type == .bluray ? "Blu-ray" : "Unknown"
+        let displayTitle = resolvedDiscTitle ?? drive.name
+        sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - \(status)"
+    }
+
     private func updateDriveDropdown() {
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
@@ -556,10 +572,7 @@ class MainViewController: NSViewController {
             sourceLabel.stringValue = "No disc detected - Please insert a DVD or BluRay"
             ripButton.isEnabled = false
         } else {
-            let drive = detectedDrives.first!
-            let driveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
-            let displayTitle = resolvedDiscTitle ?? drive.name
-            sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - Ready to rip"
+            setDiscStatus(queueRipInProgress ? "Ripping…" : "Ready to rip")
             ripButton.isEnabled = true
         }
         
@@ -690,8 +703,18 @@ extension MainViewController: DriveDetectorDelegate {
         let identity = DiscIdentity.compute(forDiscAt: drive.mountPoint)
         let fingerprint = ConversionQueue.settingsFingerprint(of: configuration)
 
-        // Primary: the central registry.
-        if let entry = RipHistoryStore.shared.entry(forIdentity: identity) {
+        // A rip still awaiting a Movie/TV routing decision counts as done: the disc
+        // has been ripped, it's just sitting in the Review Rips queue. Skip it (no
+        // settings comparison — the queued rip already reflects the current library
+        // layout the user is about to decide on) so re-inserting it doesn't re-rip.
+        if PendingRoutingQueue.shared.containsDisc(identity: identity) {
+            return "awaiting review in the Review Rips queue"
+        }
+
+        // Primary: the central registry. Match on the content fingerprint rather
+        // than the exact identity so a volume-label drift on remount (e.g. macOS
+        // mounting the same disc as "/Volumes/FIREFLY 1") still recognizes the disc.
+        if let entry = RipHistoryStore.shared.entry(matchingFingerprintOf: identity) {
             if entry.settingsFingerprint == fingerprint {
                 return entry.outputLocation
             }

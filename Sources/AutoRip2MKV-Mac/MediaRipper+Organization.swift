@@ -288,6 +288,25 @@ extension MediaRipper {
 
     // MARK: - Directory Organization
 
+    /// The organized output directory for a rip, honoring the user's "Directory
+    /// Structure" setting via [[OutputOrganizer]]. Prefers the resolved Plex title
+    /// ("Movie (Year)") when available, otherwise the extracted disc name. This is
+    /// the single choke point the DVD / Blu-ray / HD DVD paths share, replacing the
+    /// duplicated plex-vs-media-type branches they used to each carry.
+    func organizedDirectory(for configuration: RippingConfiguration,
+                            mediaType: MediaType,
+                            fallbackName: String) -> String {
+        // Content type isn't classified until after the rip (ContentRouter), so at
+        // this point it's unknown — the By-Media-Type default then uses the
+        // media-type folder, preserving the pre-existing layout.
+        let displayName = plexBaseName(from: configuration) ?? fallbackName
+        let info = OutputOrganizer.parse(displayName: displayName, contentType: .unknown)
+        return OutputOrganizer.directory(
+            baseDirectory: configuration.outputDirectory,
+            info: info,
+            mediaTypeFolderName: mediaType.folderName)
+    }
+
     /// Create organized output directory structure
     func createOrganizedOutputDirectory(baseDirectory: String, mediaType: MediaType, movieName: String) -> String {
         let typeDirectory = baseDirectory.appending("/\(mediaType.folderName)")

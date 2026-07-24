@@ -71,6 +71,34 @@ final class RipHistoryTests: XCTestCase {
         XCTAssertEqual(store.entry(forIdentity: "D#1")?.outputLocation, "/Plex/Movies/Film")
     }
 
+    // MARK: - Fingerprint-tolerant lookup (survives volume-label drift on remount)
+
+    func testEntryMatchingFingerprintPrefersExactKey() {
+        let store = makeStore()
+        store.record(entry(identity: "FIREFLY#abc", fingerprint: [:], location: "/exact"))
+        store.record(entry(identity: "FIREFLY 1#abc", fingerprint: [:], location: "/drifted"))
+        XCTAssertEqual(store.entry(matchingFingerprintOf: "FIREFLY#abc")?.outputLocation, "/exact")
+    }
+
+    func testEntryMatchingFingerprintToleratesLabelDrift() {
+        let store = makeStore()
+        // Ripped as "FIREFLY", re-inserted and remounted as "FIREFLY 1".
+        store.record(entry(identity: "FIREFLY#abc", fingerprint: [:], location: "/out"))
+        XCTAssertEqual(store.entry(matchingFingerprintOf: "FIREFLY 1#abc")?.outputLocation, "/out")
+    }
+
+    func testEntryMatchingFingerprintRejectsDifferentDisc() {
+        let store = makeStore()
+        store.record(entry(identity: "FIREFLY#abc", fingerprint: [:]))
+        XCTAssertNil(store.entry(matchingFingerprintOf: "SERENITY#zzz"))
+    }
+
+    func testFingerprintComponentExtraction() {
+        XCTAssertEqual(DiscIdentity.fingerprintComponent(of: "FIREFLY#abc123"), "abc123")
+        // No "#": label-only fallback identity matches only itself.
+        XCTAssertEqual(DiscIdentity.fingerprintComponent(of: "LABELONLY"), "LABELONLY")
+    }
+
     // MARK: - Routing records the final location (via ContentRouter's move map)
 
     func testRouterRecordsFinalLocationAfterMove() throws {

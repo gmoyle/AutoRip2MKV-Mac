@@ -7,6 +7,11 @@ struct PendingRouting: Codable, Equatable, Identifiable {
     let id: UUID
     /// Disc volume label at rip time (e.g. "FIREFLYUS_D1"), for display.
     let discName: String
+    /// Stable disc identity ("<label>#<fingerprint>", see [[DiscIdentity]]) of the
+    /// disc this rip came from. Lets the skip-already-ripped check recognize a disc
+    /// that's still awaiting a routing decision, so re-inserting it doesn't re-rip.
+    /// Optional so queue entries persisted before this field decode without loss.
+    let discIdentity: String?
     /// Absolute path to the organized rip folder currently on disk (in the
     /// original output location) that still needs to be moved to a library root.
     let folderPath: String
@@ -17,10 +22,12 @@ struct PendingRouting: Codable, Equatable, Identifiable {
     /// When the rip completed.
     let createdAt: Date
 
-    init(id: UUID = UUID(), discName: String, folderPath: String,
-         guessedType: ContentType, confidence: Double, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), discName: String, discIdentity: String? = nil,
+         folderPath: String, guessedType: ContentType, confidence: Double,
+         createdAt: Date = Date()) {
         self.id = id
         self.discName = discName
+        self.discIdentity = discIdentity
         self.folderPath = folderPath
         self.guessedType = guessedType
         self.confidence = confidence
@@ -58,6 +65,21 @@ final class PendingRoutingQueue {
     }
 
     var count: Int { items.count }
+
+    /// True if a rip of the disc with `identity` is already awaiting a routing
+    /// decision. Matching is tolerant of volume-label drift: macOS may remount the
+    /// same disc under a suffixed path (e.g. "/Volumes/FIREFLY 1"), which changes
+    /// the label portion of the identity but not its content fingerprint — so we
+    /// compare on the fingerprint after the "#" when present. This is what lets a
+    /// disc that's still in the Review Rips queue be recognized on re-insert instead
+    /// of being ripped again.
+    func containsDisc(identity: String) -> Bool {
+        let target = DiscIdentity.fingerprintComponent(of: identity)
+        return items.contains { item in
+            guard let stored = item.discIdentity else { return false }
+            return DiscIdentity.fingerprintComponent(of: stored) == target
+        }
+    }
 
     /// Append a rip awaiting a decision.
     func enqueue(_ item: PendingRouting) {

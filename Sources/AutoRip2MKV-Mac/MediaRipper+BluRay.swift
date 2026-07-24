@@ -11,20 +11,10 @@ extension MediaRipper {
     func performBluRayRippingWithMakeMKV(blurayPath: String, configuration: RippingConfiguration) throws {
         delegate?.mediaRipperDidUpdateStatus("Ripping Blu-ray with MakeMKV...")
 
-        // Output directory: Plex-style when a title was resolved, else by media type.
+        // Output directory: honors the user's "Directory Structure" setting.
         let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
-        let organizedOutputDirectory: String
-        if let plexBase = plexBaseName(from: configuration) {
-            organizedOutputDirectory = configuration.outputDirectory.appending("/\(plexBase)")
-            try? FileManager.default.createDirectory(
-                atPath: organizedOutputDirectory, withIntermediateDirectories: true)
-        } else {
-            organizedOutputDirectory = createOrganizedOutputDirectory(
-                baseDirectory: configuration.outputDirectory,
-                mediaType: currentMediaType,
-                movieName: movieName
-            )
-        }
+        let organizedOutputDirectory = organizedDirectory(
+            for: configuration, mediaType: currentMediaType, fallbackName: movieName)
         createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,
                        mediaType: currentMediaType, movieName: movieName)
 
@@ -94,6 +84,7 @@ extension MediaRipper {
         let routeStatus = ContentRouter.handleCompletedRip(
             folderPath: organizedOutputDirectory,
             discName: discName,
+            discIdentity: DiscIdentity.compute(forDiscAt: blurayPath),
             titleDurationsSeconds: titleDurations)
         delegate?.mediaRipperDidUpdateStatus(routeStatus)
         Logger.shared.log(routeStatus, level: .info, category: .blurayRipping)
@@ -124,11 +115,8 @@ extension MediaRipper {
         // Step 2: Extract movie name and create organized directory
         delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
-        let organizedOutputDirectory = createOrganizedOutputDirectory(
-            baseDirectory: configuration.outputDirectory,
-            mediaType: currentMediaType,
-            movieName: movieName
-        )
+        let organizedOutputDirectory = organizedDirectory(
+            for: configuration, mediaType: currentMediaType, fallbackName: movieName)
 
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,

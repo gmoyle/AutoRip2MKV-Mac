@@ -70,11 +70,8 @@ extension MediaRipper {
         // Step 2: Extract movie name and create organized directory
         delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: hddvdPath, mediaType: .hddvd)
-        let organizedOutputDirectory = createOrganizedOutputDirectory(
-            baseDirectory: configuration.outputDirectory,
-            mediaType: .hddvd,
-            movieName: movieName
-        )
+        let organizedOutputDirectory = organizedDirectory(
+            for: configuration, mediaType: .hddvd, fallbackName: movieName)
 
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: hddvdPath,

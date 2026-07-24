@@ -5,7 +5,7 @@ import Cocoa
 extension MainViewController {
 
     func setupConstraints() {
-        logHeightConstraint = scrollView.heightAnchor.constraint(equalToConstant: 0)
+        logHeightConstraint = scrollView.heightAnchor.constraint(equalToConstant: 180)
 
         NSLayoutConstraint.activate([
             // Title
