@@ -62,15 +62,19 @@ final class DVDStructureParserTests: XCTestCase {
         data.setUInt16(at: titleTableOffset, value: 1) // Number of titles
         data.setUInt32(at: titleTableOffset + 4, value: 20) // Table end address
         
-        // Title entry at offset 2048 + 8
+        // Title entry at offset 2048 + 8. Layout must match the 12-byte TT_SRPT
+        // entry the parser reads (DVD spec):
+        //   [0] title_category  [1] angles  [2-3] num_ptts (chapters)
+        //   [4-5] parental_mask [6] vts_number (byte) [7] vts_title_number (byte)
+        //   [8-11] title_start_sector (UInt32)
         let titleEntryOffset = titleTableOffset + 8
-        data[titleEntryOffset] = 0x01 // Playback type
+        data[titleEntryOffset] = 0x01 // Playback / title category
         data[titleEntryOffset + 1] = 0x01 // Number of angles
-        data.setUInt16(at: titleEntryOffset + 2, value: 5) // Number of chapters
+        data.setUInt16(at: titleEntryOffset + 2, value: 5) // Number of chapters (PTTs)
         data.setUInt16(at: titleEntryOffset + 4, value: 0x0000) // Parental mask
-        data.setUInt16(at: titleEntryOffset + 6, value: 1) // VTS number
-        data.setUInt16(at: titleEntryOffset + 8, value: 1) // VTS title number
-        data.setUInt32(at: titleEntryOffset + 10, value: 100) // Start sector
+        data[titleEntryOffset + 6] = 0x01 // VTS number (single byte)
+        data[titleEntryOffset + 7] = 0x01 // VTS title number (single byte)
+        data.setUInt32(at: titleEntryOffset + 8, value: 100) // Start sector
         
         return data
     }

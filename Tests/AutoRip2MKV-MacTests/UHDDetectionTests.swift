@@ -20,22 +20,12 @@ class UHDDetectionTests: XCTestCase {
     }
 
     // MARK: - UHD Detection Tests
-
-    func testDetectUHDBluRayMedia() {
-        // Test that UHD Blu-ray is correctly identified
-        let mediaType = mediaRipper.detectMediaType(path: "/Volumes/TestBluray4K")
-
-        // Note: In real testing, would use actual mounted media
-        // This tests the detection logic exists
-        XCTAssertNotEqual(mediaType, .unknown)
-    }
-
-    func testDetectStandardBluRayMedia() {
-        // Test that standard HD Blu-ray is distinguished from UHD
-        let mediaType = mediaRipper.detectMediaType(path: "/Volumes/TestBluray")
-
-        XCTAssertNotEqual(mediaType, .unknown)
-    }
+    //
+    // Note: detectMediaType(path:) is exercised via real disc fixtures in
+    // DVDStructureParserTests and the media-type enum test below. Tests that
+    // called it on non-existent /Volumes paths were removed: a path with no
+    // BDMV/VIDEO_TS correctly returns .unknown, so asserting `!= .unknown`
+    // only ever passed when unrelated media happened to be mounted.
 
     func testMediaTypeEnumValues() {
         // Test that MediaType enum has required cases
@@ -91,14 +81,15 @@ class UHDDetectionTests: XCTestCase {
         // Create mock CLPI data with resolution marker
         var mockData = Data()
 
-        // Add CLPI signature (4 bytes)
+        // Add CLPI signature (4 bytes: indices 0-3)
         mockData.append(contentsOf: "CLPI".utf8)
 
-        // Add padding (68 bytes to reach byte 0x50)
-        let padding = Data(count: 64)
+        // Pad indices 4-0x4F so the stream-coding byte lands at index 0x50,
+        // where parseClipResolution reads it (76 bytes: 0x50 - 4).
+        let padding = Data(count: 0x50 - 4)
         mockData.append(padding)
 
-        // Add stream coding byte with resolution=2 (fullHD)
+        // Add stream coding byte with resolution=2 (fullHD) at index 0x50
         mockData.append(UInt8(2))
 
         let resolution = mediaRipper.parseClipResolution(from: mockData)
@@ -108,9 +99,9 @@ class UHDDetectionTests: XCTestCase {
     func testParseClipResolution720p() {
         var mockData = Data()
         mockData.append(contentsOf: "CLPI".utf8)
-        let padding = Data(count: 64)
+        let padding = Data(count: 0x50 - 4)
         mockData.append(padding)
-        mockData.append(UInt8(1)) // Resolution = 1 (720p)
+        mockData.append(UInt8(1)) // Resolution = 1 (720p) at index 0x50
 
         let resolution = mediaRipper.parseClipResolution(from: mockData)
         XCTAssertEqual(resolution, .hd720p)
@@ -119,9 +110,9 @@ class UHDDetectionTests: XCTestCase {
     func testParseClipResolution4K() {
         var mockData = Data()
         mockData.append(contentsOf: "CLPI".utf8)
-        let padding = Data(count: 64)
+        let padding = Data(count: 0x50 - 4)
         mockData.append(padding)
-        mockData.append(UInt8(4)) // Resolution = 4 (4K)
+        mockData.append(UInt8(4)) // Resolution = 4 (4K) at index 0x50
 
         let resolution = mediaRipper.parseClipResolution(from: mockData)
         XCTAssertEqual(resolution, .uhd2160p)
