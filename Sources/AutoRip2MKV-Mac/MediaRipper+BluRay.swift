@@ -30,9 +30,28 @@ extension MediaRipper {
 
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: 1)
 
+        // Preflight: refuse fast if the output volume can't hold the rip, rather
+        // than filling the disk over 30+ minutes and failing with "no output".
+        do {
+            try MakeMKVBackend.preflightDiskSpace(
+                discPath: blurayPath, outputDirectory: organizedOutputDirectory)
+        } catch {
+            Logger.shared.logError(error, context: "Insufficient disk space for Blu-ray rip",
+                                   category: .blurayRipping)
+            delegate?.mediaRipperDidFail(with: error)
+            throw error
+        }
+
         let minLength = Int(SettingsManager.shared.minMainFeatureDuration)
         let backend = MakeMKVBackend(isCancelled: { [weak self] in self?.shouldCancel ?? false })
         self.makemkvBackend = backend
+
+        // Capture the disc's title durations up front (drive is idle here) to
+        // classify movie vs. TV for content routing after the rip. Best-effort:
+        // an empty result just yields an "unknown" guess routed to review.
+        let titleDurations: [Int] = SettingsManager.shared.contentRoutingEnabled
+            ? backend.scanTitleDurations(for: blurayPath)
+            : []
 
         let outputFiles: [String]
         do {
@@ -67,6 +86,17 @@ extension MediaRipper {
                 try? FileManager.default.moveItem(atPath: main, toPath: target)
             }
         }
+
+        // Route the finished folder to the correct Plex library root (or queue it
+        // for the user's Movie/TV review). Non-blocking: this never stops the next
+        // disc from ripping.
+        let discName = (blurayPath as NSString).lastPathComponent
+        let routeStatus = ContentRouter.handleCompletedRip(
+            folderPath: organizedOutputDirectory,
+            discName: discName,
+            titleDurationsSeconds: titleDurations)
+        delegate?.mediaRipperDidUpdateStatus(routeStatus)
+        Logger.shared.log(routeStatus, level: .info, category: .blurayRipping)
 
         delegate?.mediaRipperDidUpdateStatus("Blu-ray ripping complete (\(outputFiles.count) file(s)).")
         DispatchQueue.main.async {
