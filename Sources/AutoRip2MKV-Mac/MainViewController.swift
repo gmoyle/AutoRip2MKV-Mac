@@ -676,37 +676,73 @@ extension MainViewController: DriveDetectorDelegate {
         }
     }
 
-    /// If the disc was already ripped into the current output directory with the
-    /// same settings, returns the existing rip's directory; otherwise nil.
+    /// If the disc was already ripped with the same settings, returns a short
+    /// description of the existing rip (its output location); otherwise nil.
+    ///
+    /// Uses the central rip registry ([[RipHistoryStore]]) keyed by disc identity,
+    /// which is independent of where the output files live — so it stays correct
+    /// even after content routing moves a rip into a Plex library root or the
+    /// user reorganizes their library. Falls back to legacy per-folder
+    /// rip_complete.json markers so rips made before the registry are recognized.
     internal func findCompletedRip(for drive: OpticalDrive,
                                    mediaType: MediaRipper.MediaType,
                                    configuration: MediaRipper.RippingConfiguration) -> String? {
-        let ripper = MediaRipper()
-        let dir: String
-        if let plexBase = ripper.plexBaseName(from: configuration) {
-            dir = outputPathField.stringValue.appending("/\(plexBase)")
-        } else {
-            let movieName = ripper.extractMovieName(from: drive.mountPoint, mediaType: mediaType)
-            dir = outputPathField.stringValue.appending("/\(mediaType.folderName)/\(movieName)")
-        }
-        let markerPath = dir.appending("/rip_complete.json")
+        let identity = DiscIdentity.compute(forDiscAt: drive.mountPoint)
+        let fingerprint = ConversionQueue.settingsFingerprint(of: configuration)
 
-        guard FileManager.default.fileExists(atPath: markerPath),
-              let contents = try? FileManager.default.contentsOfDirectory(atPath: dir),
-              contents.contains(where: { $0.hasSuffix(".mkv") }) else {
-            return nil
-        }
-
-        // Settings changed since that rip? Treat as not ripped so it re-rips.
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: markerPath)),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let savedSettings = json["settings"] as? [String: String],
-           savedSettings != ConversionQueue.settingsFingerprint(of: configuration) {
+        // Primary: the central registry.
+        if let entry = RipHistoryStore.shared.entry(forIdentity: identity) {
+            if entry.settingsFingerprint == fingerprint {
+                return entry.outputLocation
+            }
             appendToLog("Settings changed since the last rip of \(drive.displayName) — re-ripping.")
             return nil
         }
 
-        return dir
+        // Fallback: legacy per-folder marker (rips made before the registry).
+        return legacyCompletedRip(for: drive, mediaType: mediaType, configuration: configuration)
+    }
+
+    /// Legacy detection: look for a rip_complete.json in the output directory (and
+    /// Plex roots, in case a routed rip predates the registry). Kept for migration
+    /// of rips made before the central registry existed.
+    private func legacyCompletedRip(for drive: OpticalDrive,
+                                    mediaType: MediaRipper.MediaType,
+                                    configuration: MediaRipper.RippingConfiguration) -> String? {
+        let ripper = MediaRipper()
+        let folderName: String
+        let mediaTypedRelative: String
+        if let plexBase = ripper.plexBaseName(from: configuration) {
+            folderName = plexBase
+            mediaTypedRelative = plexBase
+        } else {
+            let movieName = ripper.extractMovieName(from: drive.mountPoint, mediaType: mediaType)
+            folderName = movieName
+            mediaTypedRelative = "\(mediaType.folderName)/\(movieName)"
+        }
+
+        var candidates = [outputPathField.stringValue.appending("/\(mediaTypedRelative)")]
+        if settingsManager.contentRoutingEnabled {
+            candidates.append(settingsManager.moviesRootDirectory.appending("/\(folderName)"))
+            candidates.append(settingsManager.tvShowsRootDirectory.appending("/\(folderName)"))
+        }
+
+        for dir in candidates {
+            let markerPath = dir.appending("/rip_complete.json")
+            guard FileManager.default.fileExists(atPath: markerPath),
+                  let contents = try? FileManager.default.contentsOfDirectory(atPath: dir),
+                  contents.contains(where: { $0.hasSuffix(".mkv") }) else { continue }
+
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: markerPath)),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let savedSettings = json["settings"] as? [String: String],
+               savedSettings != ConversionQueue.settingsFingerprint(of: configuration) {
+                appendToLog("Settings changed since the last rip of \(drive.displayName) — re-ripping.")
+                return nil
+            }
+            return dir
+        }
+        return nil
     }
 
     /// One-time, first-run prompt offering to set up MakeMKV for Blu-ray. Runs
@@ -1080,7 +1116,20 @@ extension MainViewController: DriveDetectorDelegate {
                 appendToLog("Already ripped with current settings — skipping: \(existingDir)")
                 appendToLog("Hold ⌥ while inserting, or click Start Ripping, to rip again.")
                 if settingsManager.autoEjectEnabled {
-                    ejectCurrentDisk()
+                    // Eject the disc that was just inserted — not whatever the
+                    // drive dropdown happens to point at (ejectCurrentDisk uses
+                    // the dropdown selection, which may differ).
+                    appendToLog("Auto-ejecting \(drive.displayName)...")
+                    let devicePath = drive.devicePath
+                    let name = drive.displayName
+                    DispatchQueue.global(qos: .background).async { [weak self] in
+                        let ok = self?.ejectDisk(at: devicePath) ?? false
+                        DispatchQueue.main.async {
+                            self?.appendToLog(ok
+                                ? "\(name) ejected — ready for next disc."
+                                : "Failed to eject \(name) — manual ejection may be required.")
+                        }
+                    }
                 }
                 return
             }
@@ -1132,17 +1181,4 @@ extension MainViewController: ConversionQueueEjectionDelegate {
         }
     }
 
-    private func ejectDisk(at devicePath: String) -> Bool {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/diskutil")
-        task.arguments = ["eject", devicePath]
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-            return task.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
 }
