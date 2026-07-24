@@ -464,43 +464,20 @@ class SettingsManager {
 
     private func setExtendedDefaultsIfNeeded() {
         setFileStorageDefaults()
-        setBonusContentDefaults()
-        setFileNamingDefaults()
         setAdvancedDefaults()
     }
 
     private func setFileStorageDefaults() {
+        // Directory-structure settings consumed by OutputOrganizer. (Bonus-content
+        // and file-naming defaults were removed with their never-consumed controls;
+        // see SETTINGS_AUDIT.md.)
         setDefaultIfNeeded("outputStructureType", value: 1) // By Media Type
-        setDefaultIfNeeded("createSeriesDirectory", value: true)
-        setDefaultIfNeeded("createSeasonDirectory", value: true)
         setDefaultIfNeeded("movieDirectoryFormat", value: "Movies/{title} ({year})")
-        setDefaultIfNeeded("tvShowDirectoryFormat", value: "TV Shows/{series}/Season {season}")
-    }
-
-    private func setBonusContentDefaults() {
-        setDefaultIfNeeded("includeBonusFeatures", value: false)
-        setDefaultIfNeeded("includeCommentaries", value: false)
-        setDefaultIfNeeded("includeDeletedScenes", value: false)
-        setDefaultIfNeeded("includeMakingOf", value: false)
-        setDefaultIfNeeded("includeTrailers", value: false)
-        setDefaultIfNeeded("bonusContentStructure", value: 1) // Separate 'Bonus' subdirectory
-        setDefaultIfNeeded("bonusContentDirectory", value: "Bonus")
-    }
-
-    private func setFileNamingDefaults() {
-        setDefaultIfNeeded("movieFileFormat", value: "{title} ({year}).mkv")
-        setDefaultIfNeeded("tvShowFileFormat", value: "{series} - S{season:02d}E{episode:02d} - {title}.mkv")
-        setDefaultIfNeeded("seasonEpisodeFormat", value: "S{season:02d}E{episode:02d}")
-        setDefaultIfNeeded("includeYearInFilename", value: true)
-        setDefaultIfNeeded("includeResolutionInFilename", value: false)
-        setDefaultIfNeeded("includeCodecInFilename", value: false)
+        setDefaultIfNeeded("tvShowDirectoryFormat", value: "TV Shows/{series}")
     }
 
     private func setAdvancedDefaults() {
-        setDefaultIfNeeded("preserveOriginalTimestamps", value: false)
-        setDefaultIfNeeded("createBackups", value: false)
-        setDefaultIfNeeded("autoRetryOnFailure", value: true)
-        setDefaultIfNeeded("maxRetryAttempts", value: 3)
+        // Only the pre/post-processing scripts are consumed (by ScriptRunner).
         setDefaultIfNeeded("preProcessingScript", value: "")
         setDefaultIfNeeded("postProcessingScript", value: "")
     }
@@ -511,53 +488,29 @@ class SettingsManager {
         }
     }
 
-    // MARK: - Extended Settings Getters
+    // MARK: - Extended Settings (Directory Structure)
+    //
+    // These feed [[OutputOrganizer]], the choke point all three rippers use to
+    // decide a rip's output folder. Read/write so the Settings UI and tests set
+    // them through the same API. (Getters that only fed the removed, never-consumed
+    // Organization/Naming controls were deleted — see SETTINGS_AUDIT.md.)
 
+    /// 0 Flat · 1 By Media Type (default) · 2 By Year · 3 By Genre · 4 Custom.
     var outputStructureType: Int {
-        return userDefaults.integer(forKey: "outputStructureType")
+        get { userDefaults.integer(forKey: "outputStructureType") }
+        set { userDefaults.set(newValue, forKey: "outputStructureType") }
     }
 
-    var createSeriesDirectory: Bool {
-        return userDefaults.bool(forKey: "createSeriesDirectory")
-    }
-
-    var createSeasonDirectory: Bool {
-        return userDefaults.bool(forKey: "createSeasonDirectory")
-    }
-
+    /// Custom-structure template for movies (and unknown content). Tokens: {title},
+    /// {year}. Unknown tokens are dropped rather than substituted with placeholders.
     var movieDirectoryFormat: String {
-        return userDefaults.string(forKey: "movieDirectoryFormat") ?? "Movies/{title} ({year})"
+        get { userDefaults.string(forKey: "movieDirectoryFormat") ?? "Movies/{title} ({year})" }
+        set { userDefaults.set(newValue, forKey: "movieDirectoryFormat") }
     }
 
+    /// Custom-structure template for TV shows. Tokens: {series}/{title}, {year}.
     var tvShowDirectoryFormat: String {
-        return userDefaults.string(forKey: "tvShowDirectoryFormat") ?? "TV Shows/{series}/Season {season}"
-    }
-
-    var includeBonusFeatures: Bool {
-        return userDefaults.bool(forKey: "includeBonusFeatures")
-    }
-
-    var includeCommentaries: Bool {
-        return userDefaults.bool(forKey: "includeCommentaries")
-    }
-
-    var includeDeletedScenes: Bool {
-        return userDefaults.bool(forKey: "includeDeletedScenes")
-    }
-
-    var includeMakingOf: Bool {
-        return userDefaults.bool(forKey: "includeMakingOf")
-    }
-
-    var includeTrailers: Bool {
-        return userDefaults.bool(forKey: "includeTrailers")
-    }
-
-    var bonusContentStructure: Int {
-        return userDefaults.integer(forKey: "bonusContentStructure")
-    }
-
-    var bonusContentDirectory: String {
-        return userDefaults.string(forKey: "bonusContentDirectory") ?? "Bonus"
+        get { userDefaults.string(forKey: "tvShowDirectoryFormat") ?? "TV Shows/{series}" }
+        set { userDefaults.set(newValue, forKey: "tvShowDirectoryFormat") }
     }
 }

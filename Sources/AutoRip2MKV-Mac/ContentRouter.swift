@@ -35,10 +35,14 @@ enum ContentRouter {
     /// - Parameters:
     ///   - folderPath: the organized rip folder to route.
     ///   - discName: volume label for display in the review queue.
+    ///   - discIdentity: stable disc identity (see [[DiscIdentity]]); stored on any
+    ///     queued item so the skip-already-ripped check recognizes a disc that's
+    ///     still awaiting review and doesn't re-rip it on re-insert.
     ///   - titleDurationsSeconds: enumerated title durations for classification.
     @discardableResult
     static func handleCompletedRip(folderPath: String,
                                    discName: String,
+                                   discIdentity: String? = nil,
                                    titleDurationsSeconds: [Int],
                                    settings: SettingsManager = .shared,
                                    queue: PendingRoutingQueue = .shared) -> String {
@@ -58,7 +62,7 @@ enum ContentRouter {
             } catch {
                 // Fall through to queueing so a misconfigured root doesn't lose the rip.
                 queue.enqueue(PendingRouting(
-                    discName: discName, folderPath: folderPath,
+                    discName: discName, discIdentity: discIdentity, folderPath: folderPath,
                     guessedType: classification.type, confidence: classification.confidence))
                 return "Couldn't auto-route \(discName) (\(error.localizedDescription)) — queued for review."
             }
@@ -66,7 +70,7 @@ enum ContentRouter {
 
         // Ambiguous or auto-route disabled → defer to the user's review queue.
         queue.enqueue(PendingRouting(
-            discName: discName, folderPath: folderPath,
+            discName: discName, discIdentity: discIdentity, folderPath: folderPath,
             guessedType: classification.type, confidence: classification.confidence))
         return "Queued \(discName) for Movie/TV review (guess: \(classification.type.displayName), "
             + "confidence \(Int(classification.confidence * 100))%)."

@@ -128,6 +128,39 @@ final class ContentRoutingTests: XCTestCase {
         XCTAssertEqual(q.items.first?.discName, "real")
     }
 
+    // MARK: - Already-in-queue detection (skip re-rip while awaiting review)
+
+    func testContainsDiscMatchesExactIdentity() {
+        let q = makeQueue()
+        q.enqueue(PendingRouting(discName: "FIREFLY", discIdentity: "FIREFLY#abc123",
+                                 folderPath: "/tmp/x", guessedType: .tvShow, confidence: 0.7))
+        XCTAssertTrue(q.containsDisc(identity: "FIREFLY#abc123"))
+    }
+
+    func testContainsDiscToleratesLabelDrift() {
+        // Same disc remounted as "FIREFLY 1" keeps the fingerprint after "#".
+        let q = makeQueue()
+        q.enqueue(PendingRouting(discName: "FIREFLY", discIdentity: "FIREFLY#abc123",
+                                 folderPath: "/tmp/x", guessedType: .tvShow, confidence: 0.7))
+        XCTAssertTrue(q.containsDisc(identity: "FIREFLY 1#abc123"))
+    }
+
+    func testContainsDiscRejectsDifferentDisc() {
+        let q = makeQueue()
+        q.enqueue(PendingRouting(discName: "FIREFLY", discIdentity: "FIREFLY#abc123",
+                                 folderPath: "/tmp/x", guessedType: .tvShow, confidence: 0.7))
+        XCTAssertFalse(q.containsDisc(identity: "SERENITY#zzz999"))
+    }
+
+    func testContainsDiscFalseForLegacyEntryWithoutIdentity() {
+        // Items persisted before discIdentity existed decode with a nil identity and
+        // simply don't participate in matching (they still show in the review UI).
+        let q = makeQueue()
+        q.enqueue(PendingRouting(discName: "OLD", folderPath: "/tmp/x",
+                                 guessedType: .movie, confidence: 0.9))
+        XCTAssertFalse(q.containsDisc(identity: "OLD#abc123"))
+    }
+
     // MARK: - Atomic move routing
 
     func testRouteMovesFolderToMoviesRoot() throws {

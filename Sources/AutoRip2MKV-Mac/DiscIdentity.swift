@@ -67,6 +67,16 @@ enum DiscIdentity {
             .filter { $0 > 0 }
     }
 
+    /// The content-fingerprint portion of an identity string (everything after the
+    /// first "#"). Two identities for the same physical disc share this even when
+    /// the volume-label portion drifts on remount (e.g. "FIREFLY" → "FIREFLY 1").
+    /// Returns the whole string when there's no "#" (a label-only fallback identity),
+    /// so a label-only identity still only matches itself.
+    static func fingerprintComponent(of identity: String) -> String {
+        guard let hashIndex = identity.firstIndex(of: "#") else { return identity }
+        return String(identity[identity.index(after: hashIndex)...])
+    }
+
     static func sha256Hex(_ s: String) -> String {
         let digest = SHA256.hash(data: Data(s.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()

@@ -167,6 +167,7 @@ extension MainViewController: ConversionQueueDelegate {
         ripButton.isEnabled = true
         ripButton.title = "Cancel Rip"
         queueRipInProgress = true
+        setDiscStatus("Reading disc…")
     }
 
     func queueDidCompleteExtraction(jobId: UUID) {
@@ -176,6 +177,7 @@ extension MainViewController: ConversionQueueDelegate {
         appendToLog("Disc read complete — safe to eject. Encoding continues in background.")
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Disc read complete — encoding in background..."
+        setDiscStatus("Encoding…")
         ripButton.title = "Start Ripping"
     }
 
@@ -191,6 +193,7 @@ extension MainViewController: ConversionQueueDelegate {
         progressIndicator.doubleValue = 0
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Encoding to MKV..."
+        setDiscStatus("Encoding…")
     }
 
     func queueDidCompleteConversion(jobId: UUID, outputFiles: [String]) {

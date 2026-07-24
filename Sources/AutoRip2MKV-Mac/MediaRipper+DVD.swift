@@ -21,18 +21,8 @@ extension MediaRipper {
         // Plex-style "<output>/<Movie (Year)>/"; otherwise the media-type layout.
         delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
         let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
-        let organizedOutputDirectory: String
-        if let plexBase = plexBaseName(from: configuration) {
-            organizedOutputDirectory = configuration.outputDirectory.appending("/\(plexBase)")
-            try? FileManager.default.createDirectory(
-                atPath: organizedOutputDirectory, withIntermediateDirectories: true)
-        } else {
-            organizedOutputDirectory = createOrganizedOutputDirectory(
-                baseDirectory: configuration.outputDirectory,
-                mediaType: currentMediaType,
-                movieName: movieName
-            )
-        }
+        let organizedOutputDirectory = organizedDirectory(
+            for: configuration, mediaType: currentMediaType, fallbackName: movieName)
 
         // Create disc info file
         createDiscInfo(in: organizedOutputDirectory, mediaPath: dvdPath,

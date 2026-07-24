@@ -72,6 +72,20 @@ final class RipHistoryStore {
         return load()[identity]
     }
 
+    /// The recorded rip for a disc, matched on the content fingerprint rather than
+    /// the exact identity string. macOS can remount the same physical disc under a
+    /// suffixed volume path (e.g. "/Volumes/FIREFLY 1"), which changes the label
+    /// portion of the identity but not the fingerprint after "#". Prefers an exact
+    /// key hit, then falls back to any entry sharing the fingerprint. See
+    /// [[DiscIdentity]].fingerprintComponent.
+    func entry(matchingFingerprintOf identity: String) -> RipHistoryEntry? {
+        lock.lock(); defer { lock.unlock() }
+        let all = load()
+        if let exact = all[identity] { return exact }
+        let target = DiscIdentity.fingerprintComponent(of: identity)
+        return all.first { DiscIdentity.fingerprintComponent(of: $0.key) == target }?.value
+    }
+
     /// True if this disc was ripped with settings matching `settingsFingerprint`.
     /// A settings change (different fingerprint) reports false so the disc re-rips.
     func isAlreadyRipped(identity: String, settingsFingerprint: [String: String]) -> Bool {
