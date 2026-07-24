@@ -4,7 +4,6 @@
   <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
   <p><sub>v2.0.0 - Automatic Movies / TV Shows routing into Plex libraries</sub></p>
   
-  [![Release](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml/badge.svg)](https://github.com/gmoyle/AutoRip2MKV-Mac/actions/workflows/release.yml)
   [![Latest Release](https://img.shields.io/github/v/release/gmoyle/AutoRip2MKV-Mac?sort=semver)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
   [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-blue)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
 </div>
