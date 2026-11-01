@@ -378,7 +378,7 @@ protocol DVDRipperDelegate: AnyObject {
 
 // MARK: - Error Types
 
-enum RipperError: Error {
+enum RipperError: LocalizedError {
     case alreadyRipping
     case noTitlesFound
     case failedToCreateTempFile
@@ -386,7 +386,7 @@ enum RipperError: Error {
     case ffmpegFailed
     case cancelled
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .alreadyRipping:
             return "Already ripping"

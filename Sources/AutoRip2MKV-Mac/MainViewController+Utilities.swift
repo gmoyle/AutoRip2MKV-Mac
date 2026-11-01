@@ -66,9 +66,9 @@ extension MainViewController {
         do {
             appendToLog("Installing FFmpeg via Homebrew...")
             try installProcess.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             installProcess.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 appendToLog("Homebrew output: \(output)")
             }
@@ -116,14 +116,14 @@ extension MainViewController {
                           + "WHERE ls.section_type = 1 ORDER BY sl.id;"]
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.standardError = Pipe()
+        task.standardError = FileHandle.nullDevice
 
         do {
             try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting
             task.waitUntilExit()
             guard task.terminationStatus == 0 else { return nil }
-            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(),
-                                encoding: .utf8) ?? ""
+            let output = String(data: data, encoding: .utf8) ?? ""
             for line in output.split(separator: "\n") {
                 let path = line.trimmingCharacters(in: .whitespaces)
                 var isDirectory: ObjCBool = false
@@ -162,22 +162,72 @@ extension MainViewController {
     }
 
     func ejectDisk(at devicePath: String) -> Bool {
+        // Only ever eject removable/optical media — a wrong device path must not
+        // unmount an internal or system disk.
+        guard isEjectableDevice(devicePath) else {
+            Logger.shared.log("Refusing to eject non-removable device \(devicePath)",
+                              level: .error, category: .general)
+            return false
+        }
         // Unmount first so the physical eject isn't blocked by the mounted volume
         _ = runEjectTool("/usr/sbin/diskutil", ["unmountDisk", devicePath])
-        // drutil performs the physical eject (opens the tray/clamshell);
-        // diskutil eject alone often only unmounts on optical drives
-        if runEjectTool("/usr/bin/drutil", ["eject"]) {
+        let ejected = runEjectTool("/usr/sbin/diskutil", ["eject", devicePath])
+        // diskutil eject sometimes only unmounts optical media without opening the
+        // tray. drutil can force the physical eject, but it addresses drives by
+        // index, not device — so only use it when a single drive makes that unambiguous.
+        if ejected, !devicePath.hasPrefix("/dev/") || !FileManager.default.fileExists(atPath: devicePath) {
             return true
         }
-        return runEjectTool("/usr/sbin/diskutil", ["eject", devicePath])
+        if opticalDriveCount() == 1, runEjectTool("/usr/bin/drutil", ["eject"]) {
+            return true
+        }
+        return ejected
+    }
+
+    /// True if diskutil reports `device` (a /dev node or mount point) as
+    /// ejectable/removable or optical media.
+    private func isEjectableDevice(_ device: String) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        task.arguments = ["info", "-plist", device]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return false }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        guard task.terminationStatus == 0,
+              let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return false }
+        if info.keys.contains(where: { $0.hasPrefix("Optical") }) { return true }
+        return ["Ejectable", "RemovableMedia", "Removable"].contains { info[$0] as? Bool == true }
+    }
+
+    /// Number of optical drives `drutil list` reports (0 if it can't be determined).
+    private func opticalDriveCount() -> Int {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/drutil")
+        task.arguments = ["list"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return 0 }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        // Header line, then one line per drive starting with its index.
+        let output = String(data: data, encoding: .utf8) ?? ""
+        return output.split(separator: "\n").filter {
+            $0.trimmingCharacters(in: .whitespaces).first?.isNumber == true
+        }.count
     }
 
     private func runEjectTool(_ toolPath: String, _ arguments: [String]) -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: toolPath)
         task.arguments = arguments
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        // Discard output: an unread Pipe can fill and block the tool forever.
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
 
         do {
             try task.run()

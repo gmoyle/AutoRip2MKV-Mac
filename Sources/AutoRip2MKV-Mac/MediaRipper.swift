@@ -4,61 +4,6 @@ import AVFoundation
 /// Unified media ripper that handles both DVD and Blu-ray formats with native decryption
 /// Implementation details are in separate extension files for better organization
 class MediaRipper {
-    /// Performs HD DVD ripping workflow with error recovery and notifications
-    func performHDDVDRipping(hddvdPath: String, configuration: RippingConfiguration) {
-        Logger.shared.log("Starting HD DVD ripping for path: \(hddvdPath)", level: .info, category: .general)
-        delegate?.mediaRipperDidUpdateStatus("Parsing HD DVD structure...")
-        let maxRetries = 3
-        var parser: HDDVDStructureParser? = nil
-        var structure: HDDVDStructure? = nil
-        var lastError: Error? = nil
-        for attempt in 1...maxRetries {
-            do {
-                parser = HDDVDStructureParser()
-                structure = try parser?.parseStructure(at: hddvdPath)
-                break
-            } catch {
-                lastError = error
-                Logger.shared.logError(error, context: "HD DVD structure parse failed (attempt \(attempt))")
-                delegate?.mediaRipperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.mediaRipperDidFail(with: error)
-                    return
-                }
-            }
-        }
-        guard let structureUnwrapped = structure, let mainTitleIndex = structureUnwrapped.mainTitleIndex, structureUnwrapped.titles.indices.contains(mainTitleIndex) else {
-            let error = MediaRipperError.noTitlesFound
-            Logger.shared.logError(error, context: "No main title found in HD DVD")
-            delegate?.mediaRipperDidFail(with: error)
-            return
-        }
-        let mainTitle = structureUnwrapped.titles[mainTitleIndex]
-        Logger.shared.log("HD DVD main title: \(mainTitle.name), duration: \(mainTitle.durationSeconds)s, chapters: \(mainTitle.chapters)", level: .info, category: .general)
-        delegate?.mediaRipperDidUpdateStatus("Ripping HD DVD: \(mainTitle.name)")
-        // Simulate ripping process with retry
-        var ripSuccess = false
-        for attempt in 1...maxRetries {
-            do {
-                // ...actual ripping logic would go here...
-                ripSuccess = true
-                break
-            } catch {
-                lastError = error
-                Logger.shared.logError(error, context: "HD DVD ripping failed (attempt \(attempt))")
-                delegate?.mediaRipperDidUpdateStatus("Ripping failed (attempt \(attempt)). Retrying...")
-                if attempt == maxRetries {
-                    delegate?.mediaRipperDidFail(with: error)
-                    return
-                }
-            }
-        }
-        if ripSuccess {
-            Logger.shared.log("HD DVD ripping completed for \(mainTitle.name)", level: .info, category: .general)
-            delegate?.mediaRipperDidUpdateStatus("HD DVD ripping completed.")
-        }
-    }
-
     // Media type detection
     enum MediaType {
     case dvd
@@ -97,9 +42,61 @@ class MediaRipper {
     var isFeedingDisc = false
     var currentMediaType: MediaType = .unknown
     var activeFFmpegProcess: Process?
-    /// All ffmpeg processes launched for the current rip, still encoding after disc eject.
-    /// The queue waits on these before marking a job complete.
-    var backgroundEncodingProcesses: [(process: Process, outputPath: String, stagingPath: String, titleNumber: Int)] = []
+    /// Encodes prepared while the disc was read, run by the queue after eject.
+    /// Each reads a decrypted title from local staging, so the drive is freed as
+    /// soon as reading finishes and the next disc can rip while these encode.
+    var pendingEncodes: [PendingEncode] = []
+    /// Finished files written directly by a backend with no separate encode phase
+    /// (MakeMKV). The queue records these the same way it records finished encodes.
+    var directOutputFiles: [String] = []
+
+    /// Stop any running encode and discard all staging files (decrypted titles
+    /// and partial encodes). Used before a retry re-reads the disc and when a job
+    /// is abandoned, so nothing is left running or filling the staging folder.
+    func discardPendingEncodes() {
+        for encode in pendingEncodes {
+            if let process = encode.process, process.isRunning {
+                process.terminate()
+                process.waitUntilExit()
+            }
+            try? FileManager.default.removeItem(atPath: encode.sourcePath)
+            try? FileManager.default.removeItem(atPath: encode.stagingPath)
+        }
+        pendingEncodes.removeAll()
+    }
+
+    /// Run one prepared encode to completion (blocking). Returns true when ffmpeg
+    /// exits cleanly. The decrypted source is deleted either way; on success the
+    /// encoded file is left at `encode.stagingPath` for the caller to move.
+    func runEncode(_ encode: PendingEncode) -> Bool {
+        defer { try? FileManager.default.removeItem(atPath: encode.sourcePath) }
+        guard !shouldCancel else { return false }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: encode.ffmpegPath)
+        process.arguments = encode.arguments
+        let stderrPipe = Pipe()
+        process.standardError = stderrPipe
+        process.standardOutput = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            Logger.shared.logError(error, context: "Failed to launch ffmpeg for title \(encode.titleNumber)")
+            return false
+        }
+        encode.process = process
+        activeFFmpegProcess = process
+        delegate?.mediaRipperDidUpdateStatus("Encoding title \(encode.titleNumber) (\(encode.itemIndex + 1) of \(encode.totalItems))...")
+
+        // Drains stderr (progress lines) until ffmpeg exits and closes it.
+        monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
+                              itemIndex: encode.itemIndex, totalItems: encode.totalItems)
+        process.waitUntilExit()
+        activeFFmpegProcess = nil
+        encode.process = nil
+        return process.terminationStatus == 0
+    }
 
     /// Local (non-iCloud-synced) staging path for an in-progress encode. Encoding
     /// directly into the output directory corrupts rips when that directory is
@@ -128,6 +125,9 @@ class MediaRipper {
     // Resolved "Movie (Year)" title; when set, output uses Plex-style naming:
     // <output>/<Movie (Year)>/<Movie (Year)>.mkv
     var plexName: String? = nil
+    // Encode H.264/HEVC with Apple VideoToolbox instead of the software encoder
+    // (much faster; falls back to software where VT can't honor the settings)
+    var hardwareAcceleration: Bool = false
 
         enum VideoCodec {
             case h264, h265, av1, vp9
@@ -160,49 +160,6 @@ class MediaRipper {
     }
 
     // MARK: - Public Interface
-    /// Start unattended batch ripping for a list of media paths
-    func startBatchRipping(mediaPaths: [String], configuration: RippingConfiguration) {
-        guard !isRipping else {
-            Logger.shared.logError(MediaRipperError.alreadyRipping, context: "Attempted to start batch ripping while already in progress")
-            delegate?.mediaRipperDidFail(with: MediaRipperError.alreadyRipping)
-            return
-        }
-        isRipping = true
-        shouldCancel = false
-        DispatchQueue.global(qos: .userInitiated).async {
-            for (index, mediaPath) in mediaPaths.enumerated() {
-                if self.shouldCancel {
-                    Logger.shared.log("Batch ripping cancelled by user", level: .warning, category: .general)
-                    break
-                }
-                DispatchQueue.main.async {
-                    self.delegate?.mediaRipperDidUpdateStatus("Batch: Processing disc \(index+1) of \(mediaPaths.count)...")
-                }
-                do {
-                    try self.performRipping(mediaPath: mediaPath, configuration: configuration)
-                } catch {
-                    Logger.shared.logError(error, context: "Batch: Failed to rip disc \(index+1)")
-                    DispatchQueue.main.async {
-                        self.delegate?.mediaRipperDidFail(with: error)
-                    }
-                    // Continue to next disc in batch
-                }
-                // Optionally: Insert delay or prompt for next disc
-                if index < mediaPaths.count - 1 {
-                    DispatchQueue.main.async {
-                        self.delegate?.mediaRipperDidUpdateStatus("Please insert next disc (")
-                    }
-                    // Simulate wait for user to insert next disc (could poll for mount, etc.)
-                    Thread.sleep(forTimeInterval: 5.0) // Replace with smarter disc detection
-                }
-            }
-            DispatchQueue.main.async {
-                self.delegate?.mediaRipperDidComplete()
-                self.isRipping = false
-            }
-        }
-    }
-
     /// Detect media type from directory structure
     func detectMediaType(path: String) -> MediaType {
         let videoTSPath = path.appending("/VIDEO_TS")
@@ -256,6 +213,10 @@ class MediaRipper {
         activeFFmpegProcess?.terminate()
         activeFFmpegProcess = nil
         makemkvBackend?.terminate()
+        // The queue checks shouldCancel before starting each remaining encode.
+        for encode in pendingEncodes where encode.process?.isRunning == true {
+            encode.process?.terminate()
+        }
     }
 
     /// Check if currently ripping
@@ -265,11 +226,13 @@ class MediaRipper {
 
     // MARK: - Private Implementation
 
+    /// Runs the rip for one disc. Failures are reported to the delegate exactly
+    /// once, by the caller (startRipping), after all retries are
+    /// exhausted — the queue treats the first mediaRipperDidFail as "this ripper is
+    /// done with the drive", so an early report would let the next job start while
+    /// retries are still reading the disc.
     private func performRipping(mediaPath: String, configuration: RippingConfiguration) throws {
         delegate?.mediaRipperDidStart()
-
-        let maxRetries = 3
-        var lastError: Error? = nil
 
         // Step 1: Detect media type
         currentMediaType = configuration.mediaType ?? detectMediaType(path: mediaPath)
@@ -278,32 +241,8 @@ class MediaRipper {
 
         switch currentMediaType {
         case .dvd, .ultraHDDVD:
-            var dvdParseSuccess = false
-            for attempt in 1...maxRetries {
-                do {
-                    try performDVDRipping(dvdPath: mediaPath, configuration: configuration)
-                    dvdParseSuccess = true
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "DVD structure/decryption failed (attempt \(attempt))", category: .dvdRipping)
-                    if attempt == maxRetries {
-                        delegate?.mediaRipperDidFail(with: error)
-                        throw error
-                    }
-                    // Give transient contention (e.g. another process grabbing the
-                    // drive, a volume remount) a chance to clear before retrying.
-                    delegate?.mediaRipperDidUpdateStatus("DVD parse/decryption failed (attempt \(attempt)). Retrying in 5s...")
-                    Thread.sleep(forTimeInterval: 5)
-                    if shouldCancel {
-                        let cancelError = MediaRipperError.cancelled
-                        delegate?.mediaRipperDidFail(with: cancelError)
-                        throw cancelError
-                    }
-                }
-            }
-            if !dvdParseSuccess {
-                throw lastError ?? MediaRipperError.noTitlesFound
+            try withRetries(label: "DVD", category: .dvdRipping, delaySeconds: 5) {
+                try performDVDRipping(dvdPath: mediaPath, configuration: configuration)
             }
         case .bluray, .bluray4K:
             // Prefer MakeMKV for Blu-ray: it handles AACS/BD+ with its own keys.
@@ -316,45 +255,13 @@ class MediaRipper {
                     delegate?.mediaRipperDidUpdateStatus(
                         "MakeMKV not found — falling back to libaacs (needs an AACS key database).")
                 }
-                var blurayParseSuccess = false
-                for attempt in 1...maxRetries {
-                    do {
-                        try performBluRayRipping(blurayPath: mediaPath, configuration: configuration)
-                        blurayParseSuccess = true
-                        break
-                    } catch {
-                        lastError = error
-                        Logger.shared.logError(error, context: "Blu-ray structure/decryption failed (attempt \(attempt))", category: .blurayRipping)
-                        delegate?.mediaRipperDidUpdateStatus("Blu-ray parse/decryption failed (attempt \(attempt)). Retrying...")
-                        if attempt == maxRetries {
-                            delegate?.mediaRipperDidFail(with: error)
-                            throw error
-                        }
-                    }
-                }
-                if !blurayParseSuccess {
-                    throw lastError ?? MediaRipperError.noTitlesFound
+                try withRetries(label: "Blu-ray", category: .blurayRipping, delaySeconds: 0) {
+                    try performBluRayRipping(blurayPath: mediaPath, configuration: configuration)
                 }
             }
         case .hddvd:
-            var hddvdParseSuccess = false
-            for attempt in 1...maxRetries {
-                do {
-                    try performHDDVDRippingWorkflow(hddvdPath: mediaPath, configuration: configuration)
-                    hddvdParseSuccess = true
-                    break
-                } catch {
-                    lastError = error
-                    Logger.shared.logError(error, context: "HD DVD structure/decryption failed (attempt \(attempt))", category: .general)
-                    delegate?.mediaRipperDidUpdateStatus("HD DVD parse/decryption failed (attempt \(attempt)). Retrying...")
-                    if attempt == maxRetries {
-                        delegate?.mediaRipperDidFail(with: error)
-                        throw error
-                    }
-                }
-            }
-            if !hddvdParseSuccess {
-                throw lastError ?? MediaRipperError.noTitlesFound
+            try withRetries(label: "HD DVD", category: .general, delaySeconds: 0) {
+                try performHDDVDRippingWorkflow(hddvdPath: mediaPath, configuration: configuration)
             }
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
@@ -373,6 +280,70 @@ class MediaRipper {
     }
 }
 
+extension MediaRipper {
+    /// Run `attempt` up to 3 times. Cancellation is never retried, and a pause
+    /// between attempts gives transient drive contention (another process
+    /// grabbing the drive, a volume remount) a chance to clear.
+    func withRetries(label: String, category: Logger.Category, delaySeconds: TimeInterval,
+                     _ attempt: () throws -> Void) throws {
+        let maxRetries = 3
+        for attemptNumber in 1...maxRetries {
+            do {
+                try attempt()
+                return
+            } catch {
+                Logger.shared.logError(error, context: "\(label) structure/decryption failed (attempt \(attemptNumber))",
+                                       category: category)
+                if shouldCancel || isCancellation(error) { throw MediaRipperError.cancelled }
+                if attemptNumber == maxRetries { throw error }
+                let pause = delaySeconds > 0 ? " Retrying in \(Int(delaySeconds))s..." : " Retrying..."
+                delegate?.mediaRipperDidUpdateStatus("\(label) parse/decryption failed (attempt \(attemptNumber)).\(pause)")
+                if delaySeconds > 0 { Thread.sleep(forTimeInterval: delaySeconds) }
+                if shouldCancel { throw MediaRipperError.cancelled }
+            }
+        }
+    }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        if case MediaRipperError.cancelled = error { return true }
+        if case MakeMKVBackend.MakeMKVError.cancelled = error { return true }
+        return false
+    }
+}
+
+/// An ffmpeg encode of one decrypted title, prepared while the disc is read and
+/// run after it is ejected.
+final class PendingEncode {
+    let ffmpegPath: String
+    let arguments: [String]
+    /// Decrypted title read off the disc into local staging (ffmpeg's input).
+    let sourcePath: String
+    /// Final location; the queue moves the finished encode here.
+    let outputPath: String
+    /// Where ffmpeg writes the encode (local, never cloud-synced).
+    let stagingPath: String
+    let titleNumber: Int
+    let mediaItem: MediaRipper.MediaItem
+    let itemIndex: Int
+    let totalItems: Int
+    /// Set while the encode runs, for cancellation.
+    var process: Process?
+
+    init(ffmpegPath: String, arguments: [String], sourcePath: String, outputPath: String,
+         stagingPath: String, titleNumber: Int, mediaItem: MediaRipper.MediaItem,
+         itemIndex: Int, totalItems: Int) {
+        self.ffmpegPath = ffmpegPath
+        self.arguments = arguments
+        self.sourcePath = sourcePath
+        self.outputPath = outputPath
+        self.stagingPath = stagingPath
+        self.titleNumber = titleNumber
+        self.mediaItem = mediaItem
+        self.itemIndex = itemIndex
+        self.totalItems = totalItems
+    }
+}
+
 // MARK: - Delegate Protocol
 
 protocol MediaRipperDelegate: AnyObject {
@@ -385,7 +356,7 @@ protocol MediaRipperDelegate: AnyObject {
 
 // MARK: - Error Types
 
-enum MediaRipperError: Error {
+enum MediaRipperError: LocalizedError {
     case alreadyRipping
     case unsupportedMediaType
     case noTitlesFound
@@ -396,7 +367,7 @@ enum MediaRipperError: Error {
     case cancelled
     case deviceNotFound
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .alreadyRipping:
             return "A ripping operation is already in progress"

@@ -41,6 +41,9 @@ class MainViewController: NSViewController {
     /// True while a queue-driven rip (e.g. Blu-ray) is extracting, so the rip
     /// button acts as a Cancel control.
     internal var queueRipInProgress = false
+    /// Job currently reading a disc. The queue reads the next disc while earlier
+    /// jobs encode, so encode events from other jobs must not reset the rip UI.
+    internal var extractingJobId: UUID?
 
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
@@ -498,7 +501,8 @@ class MainViewController: NSViewController {
             includeChapters: true,
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: resolvedDiscTitle
+            plexName: resolvedDiscTitle,
+            hardwareAcceleration: settingsManager.hardwareAcceleration
         )
 
         saveCurrentSettings()
@@ -1125,7 +1129,8 @@ extension MainViewController: DriveDetectorDelegate {
             includeChapters: true,
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: resolvedDiscTitle
+            plexName: resolvedDiscTitle,
+            hardwareAcceleration: settingsManager.hardwareAcceleration
         )
 
         // Skip discs already ripped with the same settings; a settings change

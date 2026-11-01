@@ -93,6 +93,13 @@ final class MakeMKVRegistrationTests: XCTestCase {
         XCTAssertEqual(MakeMKVBackend.estimatedRipSize(forDiscAt: disc), 5_000)
     }
 
+    func testEstimatedRipSizeCountsEverySignificantClip() throws {
+        // e.g. a TV disc: several episode-sized clips plus a small menu clip.
+        let disc = try makeFakeBluRay(streamSizes: [4_000, 4_500, 5_000, 300])
+        XCTAssertEqual(MakeMKVBackend.estimatedRipSize(forDiscAt: disc, significantClipBytes: 1_000),
+                       13_500)
+    }
+
     func testEstimatedRipSizeZeroWhenNoStreams() throws {
         let disc = try makeFakeBluRay(streamSizes: [])
         XCTAssertEqual(MakeMKVBackend.estimatedRipSize(forDiscAt: disc), 0)
@@ -150,5 +157,42 @@ final class MakeMKVRegistrationTests: XCTestCase {
 
     func testHasLicenseKeyFalseWhenFileMissing() {
         XCTAssertFalse(MakeMKVBackend.hasLicenseKey(settingsPath: "/nonexistent/settings.conf"))
+    }
+
+    // MARK: - Drive matching
+
+    private let twoDriveInfo = """
+    DRV:0,2,999,1,"BD-RE HL-DT-ST BD-RE  WH16NS60","FIREFLY","/dev/rdisk4"
+    DRV:1,2,999,1,"BD-RE ASUS BW-16D1HT","DISC","/dev/rdisk6"
+    DRV:2,256,999,0,"","",""
+    """
+
+    func testParseDrivesSkipsEmptySlots() {
+        let drives = MakeMKVBackend.parseDrives(fromInfoOutput: twoDriveInfo)
+        XCTAssertEqual(drives.map(\.index), [0, 1])
+        XCTAssertEqual(drives[1].devicePath, "/dev/rdisk6")
+    }
+
+    func testMatchDrivePrefersBSDDeviceOverName() {
+        let drives = MakeMKVBackend.parseDrives(fromInfoOutput: twoDriveInfo)
+        // Volume label matches drive 0, but the mount's device is disk6 → drive 1.
+        XCTAssertEqual(MakeMKVBackend.matchDrive(drives, bsdName: "disk6", volumeName: "FIREFLY"), 1)
+    }
+
+    func testMatchDriveFallsBackToVolumeName() {
+        let drives = MakeMKVBackend.parseDrives(fromInfoOutput: twoDriveInfo)
+        XCTAssertEqual(MakeMKVBackend.matchDrive(drives, bsdName: nil, volumeName: "FIREFLY"), 0)
+    }
+
+    func testMatchDriveDoesNotGuessAmongSeveralDrives() {
+        let drives = MakeMKVBackend.parseDrives(fromInfoOutput: twoDriveInfo)
+        XCTAssertNil(MakeMKVBackend.matchDrive(drives, bsdName: "disk9", volumeName: "OTHER"))
+        XCTAssertEqual(MakeMKVBackend.matchDrive(Array(drives.prefix(1)), bsdName: nil, volumeName: "OTHER"), 0)
+    }
+
+    func testBSDNameFromDevicePath() {
+        XCTAssertEqual(MakeMKVBackend.bsdName(forDevicePath: "/dev/rdisk4"), "disk4")
+        XCTAssertEqual(MakeMKVBackend.bsdName(forDevicePath: "/dev/disk12s1"), "disk12")
+        XCTAssertNil(MakeMKVBackend.bsdName(forDevicePath: ""))
     }
 }

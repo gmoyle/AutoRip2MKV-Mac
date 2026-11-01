@@ -7,7 +7,7 @@ extension MediaRipper {
     /// Rip a Blu-ray via MakeMKV. MakeMKV performs AACS/BD+ decryption and
     /// demuxing itself, writing finished MKVs directly — there is no separate
     /// ffmpeg encode phase, so this completes synchronously and leaves
-    /// backgroundEncodingProcesses empty.
+    /// pendingEncodes empty (finished files go in directOutputFiles).
     func performBluRayRippingWithMakeMKV(blurayPath: String, configuration: RippingConfiguration) throws {
         delegate?.mediaRipperDidUpdateStatus("Ripping Blu-ray with MakeMKV...")
 
@@ -28,7 +28,6 @@ extension MediaRipper {
         } catch {
             Logger.shared.logError(error, context: "Insufficient disk space for Blu-ray rip",
                                    category: .blurayRipping)
-            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -61,7 +60,6 @@ extension MediaRipper {
         } catch {
             self.makemkvBackend = nil
             Logger.shared.logError(error, context: "MakeMKV Blu-ray rip failed", category: .blurayRipping)
-            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -69,13 +67,20 @@ extension MediaRipper {
 
         // Rename MakeMKV's title files to Plex-style names when possible. MakeMKV
         // writes e.g. "Disc_title_t00.mkv"; the largest is the main feature.
+        var finishedFiles = outputFiles
         if let plexBase = plexBaseName(from: configuration), let main = outputFiles.first {
             let target = organizedOutputDirectory.appending("/\(plexBase).mkv")
             if main != target {
                 try? FileManager.default.removeItem(atPath: target)
-                try? FileManager.default.moveItem(atPath: main, toPath: target)
+                if (try? FileManager.default.moveItem(atPath: main, toPath: target)) != nil {
+                    finishedFiles[0] = target
+                }
             }
         }
+        // Hand the finished files to the queue so it records the rip (registry +
+        // rip_complete.json) and passes them to post-processing hooks. Paths are
+        // pre-routing; the queue resolves them to the routed folder.
+        directOutputFiles = finishedFiles
 
         // Route the finished folder to the correct Plex library root (or queue it
         // for the user's Movie/TV review). Non-blocking: this never stops the next
@@ -108,7 +113,6 @@ extension MediaRipper {
         guard !playlists.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No playlists found in Blu-ray")
-            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -152,19 +156,11 @@ extension MediaRipper {
         // Log quality report
         Logger.shared.log(MediaRipper.generateQualityReport(qualityAssessment), level: .info, category: .general)
 
-        // Update configuration with recommended settings
-        var optimizedConfig = configuration
-        optimizedConfig = RippingConfiguration(
-            outputDirectory: configuration.outputDirectory,
-            selectedTitles: configuration.selectedTitles,
-            videoCodec: qualityAssessment.recommendedCodec,
-            audioCodec: configuration.audioCodec,
-            quality: .high, // Use high for best CRF mapping
-            includeSubtitles: configuration.includeSubtitles,
-            includeChapters: configuration.includeChapters,
-            mediaType: configuration.mediaType
-        )
-        // ...existing code...
+        // The assessment is advisory (logged above). Encode with the user's own
+        // settings: rebuilding the configuration from its heuristic recommendation
+        // silently overrode their codec/quality and dropped the Plex name,
+        // deinterlace and hardware-acceleration settings.
+        let optimizedConfig = configuration
 
         // Step 3: Extract cover art if available
         delegate?.mediaRipperDidUpdateStatus("Extracting cover art...")
@@ -184,7 +180,6 @@ extension MediaRipper {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 

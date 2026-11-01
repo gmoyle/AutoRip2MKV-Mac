@@ -54,7 +54,6 @@ extension MediaRipper {
                 Logger.shared.logError(error, context: "HD DVD structure parse failed (attempt \(attempt))")
                 delegate?.mediaRipperDidUpdateStatus("Structure parse failed (attempt \(attempt)). Retrying...")
                 if attempt == maxRetries {
-                    delegate?.mediaRipperDidFail(with: error)
                     throw error
                 }
             }
@@ -63,7 +62,6 @@ extension MediaRipper {
         guard let structureUnwrapped = structure, !structureUnwrapped.titles.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No titles found in HD DVD")
-            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -102,7 +100,6 @@ extension MediaRipper {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 
@@ -245,12 +242,9 @@ extension MediaRipper {
         // Build FFmpeg command
         let ffmpegPath = try getFFmpegPathForHDDVD()
 
-        var arguments = [
-            "-i", inputFile,
-            "-c:v", videoCodecArgumentForHDDVD(for: configuration.videoCodec),
-            "-crf", "\(configuration.quality.crf)",
-            "-c:a", audioCodecArgumentForHDDVD(for: configuration.audioCodec)
-        ]
+        var arguments = ["-i", inputFile]
+        arguments.append(contentsOf: videoEncoderArguments(for: configuration))
+        arguments.append(contentsOf: audioEncoderArguments(for: configuration.audioCodec))
 
         // Add subtitle handling if requested
         if configuration.includeSubtitles {
@@ -312,9 +306,9 @@ extension MediaRipper {
 
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
             if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !path.isEmpty {
                     return path
@@ -325,24 +319,6 @@ extension MediaRipper {
         }
 
         throw MediaRipperError.ffmpegNotFound
-    }
-
-    private func videoCodecArgumentForHDDVD(for codec: RippingConfiguration.VideoCodec) -> String {
-        switch codec {
-        case .h264: return "libx264"
-        case .h265: return "libx265"
-        case .av1: return "libaom-av1"
-        case .vp9: return "libvpx-vp9"
-        }
-    }
-
-    private func audioCodecArgumentForHDDVD(for codec: RippingConfiguration.AudioCodec) -> String {
-        switch codec {
-        case .aac: return "aac"
-        case .ac3: return "ac3"
-        case .dts: return "dca"
-        case .flac: return "flac"
-        }
     }
 
     private func runHDDVDConversion(
