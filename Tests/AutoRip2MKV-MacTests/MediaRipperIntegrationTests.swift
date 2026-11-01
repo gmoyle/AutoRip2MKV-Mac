@@ -151,14 +151,13 @@ final class MediaRipperIntegrationTests: XCTestCase {
         )
         
         mediaRipper.startRipping(mediaPath: testDVDPath, configuration: configuration)
-        
-        let expectation = XCTestExpectation(description: "Invalid output path error")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            expectation.fulfill()
-        }
-        
-        wait(for: [expectation], timeout: 3.0)
-        
+
+        // Failure is reported once, after the DVD retries (3 attempts, 5s apart)
+        // are exhausted — not on the first failed attempt.
+        let failed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in self.mockDelegate.didFailCalled }, object: nil)
+        wait(for: [failed], timeout: 20.0)
+
         XCTAssertTrue(mockDelegate.didFailCalled)
     }
     

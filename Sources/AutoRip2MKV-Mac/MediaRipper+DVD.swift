@@ -13,7 +13,6 @@ extension MediaRipper {
         guard !titles.isEmpty else {
             let error = MediaRipperError.noTitlesFound
             Logger.shared.logError(error, context: "No titles found in DVD")
-            delegate?.mediaRipperDidFail(with: error)
             throw error
         }
 
@@ -43,10 +42,15 @@ extension MediaRipper {
         delegate?.mediaRipperDidUpdateStatus("Titles to rip: \(titlesToRip.map({ $0.number }))")
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
-        // Step 5: Feed each title's decrypted sectors into its ffmpeg stdin pipe.
-        // Processes are collected in backgroundEncodingProcesses so the ConversionQueue
-        // can wait on them (serialised) after the disc is ejected.
-        backgroundEncodingProcesses.removeAll()
+        // Step 5: Read each title's decrypted sectors into local staging at full
+        // drive speed, then queue its encode. Encoding straight from the disc
+        // (ffmpeg on a stdin pipe) throttled the drive to encoder speed and kept
+        // the disc — and the next job — waiting for the whole encode.
+        // A retry starts over from the first title; drop anything a failed earlier
+        // attempt staged.
+        discardPendingEncodes()
+        let ffmpegPath = try getFFmpegPath()
+        try preflightStagingSpace(for: titlesToRip)
 
         isFeedingDisc = true
         defer { isFeedingDisc = false }
@@ -55,7 +59,6 @@ extension MediaRipper {
             if shouldCancel {
                 let error = MediaRipperError.cancelled
                 Logger.shared.logError(error, context: "Ripping cancelled by user")
-                delegate?.mediaRipperDidFail(with: error)
                 throw error
             }
 
@@ -75,17 +78,26 @@ extension MediaRipper {
                 try? FileManager.default.removeItem(atPath: outputPath)
             }
             let stagingPath = encodingStagingPath(for: outputPath)
-            if FileManager.default.fileExists(atPath: stagingPath) {
-                try? FileManager.default.removeItem(atPath: stagingPath)
+            let sourcePath = encodingStagingPath(for: outputPath + ".vob")
+            for path in [stagingPath, sourcePath] where FileManager.default.fileExists(atPath: path) {
+                try? FileManager.default.removeItem(atPath: path)
             }
 
             delegate?.mediaRipperDidUpdateStatus("Ripping title \(title.number) (\(title.formattedDuration)) → \(outputFileName)...")
-            let titleKey = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
-            let process = try feedDVDTitleToFFmpeg(title, titleKey: titleKey, outputPath: outputPath,
-                                                   configuration: configuration, titleIndex: index,
-                                                   totalTitles: titlesToRip.count)
-            backgroundEncodingProcesses.append((process: process, outputPath: outputPath,
-                                                stagingPath: stagingPath, titleNumber: title.number))
+            _ = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
+            do {
+                try readDVDTitle(title, to: sourcePath, titleIndex: index, totalTitles: titlesToRip.count)
+            } catch {
+                try? FileManager.default.removeItem(atPath: sourcePath)
+                throw error
+            }
+            pendingEncodes.append(PendingEncode(
+                ffmpegPath: ffmpegPath,
+                arguments: dvdEncodeArguments(for: title, input: sourcePath, output: stagingPath,
+                                              configuration: configuration),
+                sourcePath: sourcePath, outputPath: outputPath, stagingPath: stagingPath,
+                titleNumber: title.number, mediaItem: .dvdTitle(title),
+                itemIndex: index, totalItems: titlesToRip.count))
         }
 
         // Release the raw device before requesting eject — libdvdcss's open file
@@ -93,9 +105,8 @@ extension MediaRipper {
         dvdDecryptor?.closeDevice()
         dvdDecryptor = nil
 
-        // All sectors fed — disc can be ejected.
-        // mediaRipperDidComplete signals the queue/UI to eject and advance the job to .encoding.
-        // The queue's performConversion then waits on backgroundEncodingProcesses serially.
+        // All titles are on local disk — the disc can be ejected. mediaRipperDidComplete
+        // signals the queue to eject and run pendingEncodes; the next disc can rip meanwhile.
         delegate?.mediaRipperDidUpdateStatus("All titles read from disc. Encoding continues in background...")
         DispatchQueue.main.async {
             self.delegate?.mediaRipperDidComplete()
@@ -103,28 +114,114 @@ extension MediaRipper {
         }
     }
 
-    /// Starts an ffmpeg process and feeds all decrypted sectors into its stdin pipe.
-    /// Returns the running Process as soon as the last sector is written — the caller
-    /// is responsible for waiting on it (after the disc is ejected).
-    private func feedDVDTitleToFFmpeg(_ title: DVDTitle, titleKey: DVDDecryptor.CSSKey,
-                                      outputPath: String, configuration: RippingConfiguration,
-                                      titleIndex: Int, totalTitles: Int) throws -> Process {
-        let ffmpegPath = try getFFmpegPath()
+    /// Bytes on disc for `title` (from its VOB sizes when known).
+    private func sectorCount(of title: DVDTitle) -> UInt32 {
+        if !title.vobFiles.isEmpty {
+            let totalBytes = title.vobFiles.reduce(Int64(0)) { acc, path in
+                acc + ((try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0)
+            }
+            if totalBytes > 0 { return UInt32(totalBytes / 2048) }
+        }
+        return max(title.sectors, 1)
+    }
 
-        // Large probe window: audio/subtitle substreams in a piped MPEG-PS appear
+    /// Refuse up front if local staging can't hold the decrypted titles (plus
+    /// headroom for the encodes), rather than failing partway through the disc.
+    private func preflightStagingSpace(for titles: [DVDTitle]) throws {
+        let stagingDir = (encodingStagingPath(for: "probe") as NSString).deletingLastPathComponent
+        let needed = Int64(Double(titles.reduce(Int64(0)) { $0 + Int64(sectorCount(of: $1)) * 2048 }) * 1.25)
+        if let free = MakeMKVBackend.freeSpace(atPath: stagingDir), free < needed {
+            throw ConversionQueueError.insufficientDiskSpace(required: needed, available: free)
+        }
+    }
+
+    /// Most unreadable sectors tolerated per title before giving up (8 MB, a few
+    /// seconds of video). Past that the disc is too damaged for a usable rip.
+    static let maxSkippedSectorsPerTitle = 4096
+
+    /// Read and decrypt every sector of `title` into the file at `path`.
+    /// Unreadable sectors (scratches) are re-read one at a time and, if they
+    /// still fail, written as zeros — ffmpeg resyncs at the next pack header — so
+    /// a small scratch costs a glitch instead of the whole disc.
+    private func readDVDTitle(_ title: DVDTitle, to path: String,
+                              titleIndex: Int, totalTitles: Int) throws {
+        let totalSectors = sectorCount(of: title)
+        delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
+
+        guard FileManager.default.createFile(atPath: path, contents: nil),
+              let output = FileHandle(forWritingAtPath: path) else {
+            throw MediaRipperError.fileCreationFailed
+        }
+        defer { try? output.close() }
+
+        var sectorOffset: UInt32 = 0
+        var skippedSectors = 0
+        while sectorOffset < totalSectors {
+            if shouldCancel { throw MediaRipperError.cancelled }
+
+            let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
+            let startSector = title.startSector + sectorOffset
+
+            var data = (try? dvdDecryptor!.readAndDecryptSectors(
+                startSector: startSector, sectorCount: sectorsToRead)) ?? Data()
+            let readSectors = data.count / DVDCSS_BLOCK_SIZE
+            if readSectors < sectorsToRead {
+                // Failed or short read: recover the rest of the chunk sector by sector.
+                data = data.prefix(readSectors * DVDCSS_BLOCK_SIZE)
+                for sector in readSectors..<sectorsToRead {
+                    if shouldCancel { throw MediaRipperError.cancelled }
+                    let single = try? dvdDecryptor!.readAndDecryptSectors(
+                        startSector: startSector + UInt32(sector), sectorCount: 1)
+                    if let single = single, single.count == DVDCSS_BLOCK_SIZE {
+                        data.append(single)
+                    } else {
+                        skippedSectors += 1
+                        guard skippedSectors <= Self.maxSkippedSectorsPerTitle else {
+                            throw DVDError.invalidSector
+                        }
+                        data.append(Data(count: DVDCSS_BLOCK_SIZE))
+                    }
+                }
+            }
+
+            try output.write(contentsOf: data)
+            sectorOffset += UInt32(sectorsToRead)
+
+            // Report disc-read progress every ~32MB (16 chunks of 1024 sectors)
+            if sectorOffset % 16384 == 0 || sectorOffset >= totalSectors {
+                let titleFraction = Double(sectorOffset) / Double(totalSectors)
+                let overall = (Double(titleIndex) + titleFraction) / Double(max(totalTitles, 1))
+                DispatchQueue.main.async {
+                    self.delegate?.mediaRipperDidUpdateProgress(
+                        overall, currentItem: .dvdTitle(title), totalItems: totalTitles)
+                }
+            }
+        }
+
+        if skippedSectors > 0 {
+            let message = "Title \(title.number): \(skippedSectors) unreadable sector(s) replaced with blanks "
+                + "(expect a brief glitch)."
+            Logger.shared.log(message, level: .warning, category: .dvdRipping)
+            delegate?.mediaRipperDidUpdateStatus(message)
+        }
+    }
+
+    /// ffmpeg arguments to encode a decrypted DVD title file.
+    private func dvdEncodeArguments(for title: DVDTitle, input: String, output: String,
+                                    configuration: RippingConfiguration) -> [String] {
+        // Large probe window: audio/subtitle substreams in MPEG-PS appear
         // sporadically, and ffmpeg's default quick scan misses them entirely.
         var args = ["-probesize", "200M", "-analyzeduration", "120M",
-                    "-i", "-",
+                    "-i", input,
                     "-map", "0:v:0", "-map", "0:a?"]
         if configuration.includeSubtitles { args.append(contentsOf: ["-map", "0:s?"]) }
-        args.append(contentsOf: ["-c:v", videoCodecArgument(for: configuration.videoCodec)])
-        args.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
+        args.append(contentsOf: videoEncoderArguments(for: configuration))
         if configuration.autoDeinterlace {
             // deint=interlaced only touches frames flagged interlaced (NTSC DVDs);
             // progressive content passes through untouched
             args.append(contentsOf: ["-vf", "bwdif=mode=send_frame:parity=auto:deint=interlaced"])
         }
-        args.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
+        args.append(contentsOf: audioEncoderArguments(for: configuration.audioCodec))
         if configuration.includeSubtitles { args.append(contentsOf: ["-c:s", "copy"]) }
         if configuration.includeChapters  { args.append(contentsOf: ["-map_chapters", "0"]) }
 
@@ -139,83 +236,9 @@ extension MediaRipper {
         }
         // Encode into local staging; the queue moves the file into the (possibly
         // cloud-synced) output directory only after ffmpeg exits successfully.
-        args.append(contentsOf: ["-f", "matroska", "-y", encodingStagingPath(for: outputPath)])
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: ffmpegPath)
-        process.arguments = args
-
-        let stdinPipe  = Pipe()
-        let stderrPipe = Pipe()
-        process.standardInput  = stdinPipe
-        process.standardError  = stderrPipe
-        process.standardOutput = Pipe()
-
-        try process.run()
-        activeFFmpegProcess = process
-
-        let progressQueue = DispatchQueue(label: "ffmpeg.progress.\(title.number)")
-        progressQueue.async {
-            self.monitorFFmpegProgress(pipe: stderrPipe, mediaItem: .dvdTitle(title),
-                                       itemIndex: titleIndex, totalItems: totalTitles)
-        }
-
-        let totalSectors: UInt32
-        if !title.vobFiles.isEmpty {
-            let totalBytes = title.vobFiles.reduce(Int64(0)) { acc, path in
-                acc + ((try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0)
-            }
-            totalSectors = totalBytes > 0 ? UInt32(totalBytes / 2048) : max(title.sectors, 1)
-        } else {
-            totalSectors = max(title.sectors, 1)
-        }
-        delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
-
-        var sectorOffset: UInt32 = 0
-        let stdinHandle = stdinPipe.fileHandleForWriting
-
-        do {
-            while sectorOffset < totalSectors {
-                if shouldCancel {
-                    stdinHandle.closeFile()
-                    process.terminate()
-                    activeFFmpegProcess = nil
-                    throw MediaRipperError.cancelled
-                }
-
-                let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
-                let startSector = title.startSector + sectorOffset
-
-                let decryptedData = try dvdDecryptor!.readAndDecryptSectors(
-                    startSector: startSector, sectorCount: sectorsToRead)
-
-                if !decryptedData.isEmpty {
-                    stdinHandle.write(decryptedData)
-                }
-                sectorOffset += UInt32(sectorsToRead)
-
-                // Report disc-read progress every ~32MB (16 chunks of 1024 sectors)
-                if sectorOffset % 16384 == 0 || sectorOffset >= totalSectors {
-                    let titleFraction = Double(sectorOffset) / Double(totalSectors)
-                    let overall = (Double(titleIndex) + titleFraction) / Double(max(totalTitles, 1))
-                    DispatchQueue.main.async {
-                        self.delegate?.mediaRipperDidUpdateProgress(
-                            overall, currentItem: .dvdTitle(title), totalItems: totalTitles)
-                    }
-                }
-            }
-        } catch {
-            stdinHandle.closeFile()
-            process.terminate()
-            activeFFmpegProcess = nil
-            throw error
-        }
-
-        // Close stdin — ffmpeg will finish encoding what it has received and exit cleanly.
-        stdinHandle.closeFile()
-        return process
+        args.append(contentsOf: ["-f", "matroska", "-y", output])
+        return args
     }
-
 
     /// Convert an ISO 639-1 code from the DVD IFO to the ISO 639-2/B code
     /// Matroska and Plex expect. Unknown codes pass through unchanged.
@@ -251,11 +274,11 @@ extension MediaRipper {
         process.arguments = ["info", "-plist", dvdPath]
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
                let deviceNode = plist["DeviceNode"] as? String {
                 // deviceNode is like /dev/disk18 -> convert to /dev/rdisk18
@@ -282,9 +305,9 @@ extension MediaRipper {
 
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 let lines = output.components(separatedBy: .newlines)
                 // Skip header line; last non-empty line is the filesystem entry

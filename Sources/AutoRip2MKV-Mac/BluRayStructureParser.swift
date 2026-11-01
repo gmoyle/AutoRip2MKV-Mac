@@ -389,7 +389,7 @@ class BluRayClip {
 
 // MARK: - Error Types
 
-enum BluRayParseError: Error {
+enum BluRayParseError: LocalizedError {
     case bdmvNotFound
     case indexNotFound
     case invalidIndex
@@ -399,7 +399,7 @@ enum BluRayParseError: Error {
     case invalidClipInfo
     case corruptedStructure
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .bdmvNotFound:
             return "BDMV directory not found"

@@ -31,9 +31,13 @@ if pgrep -x makemkvcon >/dev/null 2>&1; then
     echo "WARNING: --force set; deploying despite an active rip (it will be interrupted)."
 fi
 
-echo "Stopping running instance and any child ffmpeg processes..."
+echo "Stopping running instance and its child ffmpeg processes..."
+# Only the app's own encoders (-P <app pid>): a bare "pkill ffmpeg" would also
+# kill unrelated ffmpeg jobs running on this machine.
+for pid in $(pgrep -x AutoRip2MKV-Mac); do
+    pkill -x -P "$pid" ffmpeg 2>/dev/null || true
+done
 pkill -x AutoRip2MKV-Mac 2>/dev/null || true
-pkill -x ffmpeg 2>/dev/null || true
 sleep 1
 
 echo "Deploying binary and Info.plist..."

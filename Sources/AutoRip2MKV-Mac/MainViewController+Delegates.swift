@@ -156,6 +156,7 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidStartExtraction(jobId: UUID) {
+        extractingJobId = jobId
         queueEncodePhase = false
         progressIndicator.isHidden = false
         progressIndicator.doubleValue = 0
@@ -173,6 +174,7 @@ extension MainViewController: ConversionQueueDelegate {
     func queueDidCompleteExtraction(jobId: UUID) {
         // The disc read (the cancellable part) is done; encoding is background and
         // safe to eject. Clear the cancel state and reset the button label.
+        if extractingJobId == jobId { extractingJobId = nil }
         queueRipInProgress = false
         appendToLog("Disc read complete — safe to eject. Encoding continues in background.")
         progressStatusLabel.isHidden = false
@@ -182,6 +184,7 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
+        if extractingJobId == jobId { extractingJobId = nil }
         queueRipInProgress = false
         appendToLog("Rip failed: \(error.localizedDescription)")
         showErrorNotification("Ripping failed: \(error.localizedDescription)")
@@ -189,6 +192,8 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidStartConversion(jobId: UUID) {
+        // Another disc is being read: its progress owns the UI until it finishes.
+        guard extractingJobId == nil else { return }
         queueEncodePhase = true
         progressIndicator.doubleValue = 0
         progressStatusLabel.isHidden = false
@@ -201,13 +206,13 @@ extension MainViewController: ConversionQueueDelegate {
             appendToLog("Finished: \(file)")
         }
         showCompletionNotification()
-        resetRipUI()
+        if extractingJobId == nil { resetRipUI() }
     }
 
     func queueDidFailConversion(jobId: UUID, error: Error) {
         appendToLog("Encoding failed: \(error.localizedDescription)")
         showErrorNotification("Encoding failed: \(error.localizedDescription)")
-        resetRipUI()
+        if extractingJobId == nil { resetRipUI() }
     }
 
     func queueDidUpdateConversionStatus(jobId: UUID, status: String) {
@@ -216,6 +221,8 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidUpdateConversionProgress(jobId: UUID, progress: Double) {
+        // While a disc is being read, show only its progress (not other jobs' encodes).
+        if let reading = extractingJobId, reading != jobId { return }
         if progressIndicator.isHidden {
             progressIndicator.isHidden = false
             progressStatusLabel.isHidden = false

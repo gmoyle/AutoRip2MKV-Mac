@@ -358,14 +358,14 @@ class DVDChapter {
 
 // MARK: - Error Types
 
-enum DVDParseError: Error {
+enum DVDParseError: LocalizedError {
     case videoTSNotFound
     case vmgiNotFound
     case invalidVMGI
     case invalidVTS
     case corruptedStructure
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .videoTSNotFound:
             return "VIDEO_TS directory not found"

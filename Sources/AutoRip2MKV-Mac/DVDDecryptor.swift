@@ -18,7 +18,7 @@ private let DVDCSS_NOFLAGS: Int32    = 0
 private let DVDCSS_READ_DECRYPT: Int32 = 1
 private let DVDCSS_SEEK_MPEG: Int32  = 1
 private let DVDCSS_SEEK_KEY: Int32   = 2
-private let DVDCSS_BLOCK_SIZE        = 2048
+let DVDCSS_BLOCK_SIZE = 2048  // bytes per DVD sector (also used by MediaRipper+DVD)
 
 /// DVD decryption handler using libdvdcss for real CSS decryption
 class DVDDecryptor {
@@ -121,7 +121,7 @@ class DVDDecryptor {
 
 // MARK: - Error Types
 
-enum DVDError: Error {
+enum DVDError: LocalizedError {
     case deviceNotFound
     case deviceNotOpen
     case authenticationFailed
@@ -131,7 +131,7 @@ enum DVDError: Error {
     case invalidSector
     case cssNotSupported
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .deviceNotFound:
             return "DVD device not found or libdvdcss failed to open device"

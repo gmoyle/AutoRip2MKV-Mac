@@ -78,8 +78,8 @@ final class MakeMKVBackend {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
         task.arguments = ["-p", "com.apple.quarantine", exe]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
         do {
             try task.run()
             task.waitUntilExit()
@@ -98,8 +98,8 @@ final class MakeMKVBackend {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
         task.arguments = ["-dr", "com.apple.quarantine", app]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
         do {
             try task.run()
             task.waitUntilExit()
@@ -144,8 +144,8 @@ final class MakeMKVBackend {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: exe)
         task.arguments = ["reg", key]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
         do {
             try task.run()
             task.waitUntilExit()
@@ -224,18 +224,19 @@ final class MakeMKVBackend {
     }
 
     /// Estimate the bytes a rip of `blurayPath` will write. MakeMKV remuxes
-    /// without re-encoding, so output ≈ the size of the titles it keeps. As a
-    /// robust proxy we sum the STREAM/*.m2ts files; if MakeMKV's minlength filter
-    /// keeps only the main feature the real output is smaller, so this errs on
-    /// the safe (larger) side. Returns 0 if the stream directory can't be read.
-    static func estimatedRipSize(forDiscAt blurayPath: String) -> Int64 {
+    /// without re-encoding, so output ≈ the size of the clips in the titles it
+    /// keeps. We can't map clips to titles without parsing playlists, so the
+    /// estimate is the largest clip plus every other *significant* clip: TV discs
+    /// (one clip per episode) and segmented/branching features split their
+    /// payload across many large .m2ts files, while menus, logos and trailers are
+    /// small and usually fall under MakeMKV's minlength anyway. Returns 0 if the
+    /// stream directory can't be read.
+    static func estimatedRipSize(forDiscAt blurayPath: String,
+                                 significantClipBytes: Int64 = 500_000_000) -> Int64 {
         let streamDir = (blurayPath as NSString).appendingPathComponent("BDMV/STREAM")
         guard let entries = try? FileManager.default.contentsOfDirectory(atPath: streamDir) else {
             return 0
         }
-        // The largest single title is the floor of what we must fit; the full sum
-        // is the ceiling. Require the largest title plus a share of the rest so a
-        // multi-title rip isn't underestimated, without demanding the whole disc.
         let sizes = entries
             .filter { $0.lowercased().hasSuffix(".m2ts") }
             .map { name -> Int64 in
@@ -243,8 +244,9 @@ final class MakeMKVBackend {
                 let attrs = try? FileManager.default.attributesOfItem(atPath: p)
                 return (attrs?[.size] as? Int64) ?? 0
             }
-        guard let largest = sizes.max() else { return 0 }
-        return largest
+            .sorted(by: >)
+        guard let largest = sizes.first else { return 0 }
+        return largest + sizes.dropFirst().filter { $0 >= significantClipBytes }.reduce(0, +)
     }
 
     /// Throw `.insufficientSpace` if the output volume can't hold the estimated
@@ -376,7 +378,7 @@ final class MakeMKVBackend {
         ]
         let outPipe = Pipe()
         task.standardOutput = outPipe
-        task.standardError = Pipe()
+        task.standardError = FileHandle.nullDevice
         self.process = task
 
         var lastMessage = ""
@@ -534,7 +536,7 @@ final class MakeMKVBackend {
         task.arguments = ["-r", "--cache=1", "--minlength=0", "info", discSpec]
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.standardError = Pipe()
+        task.standardError = FileHandle.nullDevice
         guard (try? task.run()) != nil else { return [] }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
@@ -589,6 +591,55 @@ final class MakeMKVBackend {
         return fields
     }
 
+    /// A drive from `makemkvcon info disc:9999`'s DRV lines.
+    struct Drive: Equatable {
+        let index: Int
+        let discName: String
+        let devicePath: String
+    }
+
+    /// Parse DRV lines: DRV:index,visible,enabled,flags,"drive name","disc name","device path".
+    /// Only drives with a device path are returned (empty slots have none).
+    static func parseDrives(fromInfoOutput output: String) -> [Drive] {
+        output.split(separator: "\n").compactMap { line in
+            guard line.hasPrefix("DRV:") else { return nil }
+            let fields = parseRobotCSVStatic(String(line.dropFirst(4)))
+            guard fields.count >= 7, let index = Int(fields[0]), !fields[6].isEmpty else { return nil }
+            return Drive(index: index, discName: fields[5], devicePath: fields[6])
+        }
+    }
+
+    /// Pick the drive holding our disc. The BSD device ("disk4", matching MakeMKV's
+    /// "/dev/rdisk4" or "/dev/disk4") is authoritative; the disc name is a fallback
+    /// (volume labels are often generic or get a " 1" suffix on remount). Guessing
+    /// "the first drive" is only safe when there is exactly one.
+    static func matchDrive(_ drives: [Drive], bsdName: String?, volumeName: String) -> Int? {
+        if let bsd = bsdName,
+           let drive = drives.first(where: { Self.bsdName(forDevicePath: $0.devicePath) == bsd }) {
+            return drive.index
+        }
+        if let drive = drives.first(where: { $0.discName == volumeName }) {
+            return drive.index
+        }
+        return drives.count == 1 ? drives[0].index : nil
+    }
+
+    /// "/dev/rdisk4" or "/dev/disk4s1" → "disk4" (whole-disk BSD name).
+    static func bsdName(forDevicePath path: String) -> String? {
+        guard let range = path.range(of: #"disk[0-9]+"#, options: .regularExpression) else { return nil }
+        return String(path[range])
+    }
+
+    /// Whole-disk BSD name of the device mounted at `mountPoint`, via statfs.
+    static func bsdName(forMountPoint mountPoint: String) -> String? {
+        var stats = statfs()
+        guard statfs(mountPoint, &stats) == 0 else { return nil }
+        let from = withUnsafePointer(to: &stats.f_mntfromname) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+        return bsdName(forDevicePath: from)
+    }
+
     /// Resolve the disc identifier MakeMKV expects. MakeMKV addresses optical
     /// drives by its own enumeration index (`disc:N`) or by device node
     /// (`dev:/dev/rdiskN`) — NOT by mount path. We ask makemkvcon to enumerate
@@ -609,30 +660,16 @@ final class MakeMKVBackend {
         task.arguments = ["-r", "--cache=1", "info", "disc:9999"]
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.standardError = Pipe()
+        task.standardError = FileHandle.nullDevice
         try task.run()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
         let output = String(data: data, encoding: .utf8) ?? ""
 
-        for line in output.split(separator: "\n") where line.hasPrefix("DRV:") {
-            // index is the first field after "DRV:"
-            let fields = parseRobotCSV(String(line.dropFirst(4)))
-            guard fields.count >= 7, let index = Int(fields[0]) else { continue }
-            let discName = fields[5]
-            let devicePath = fields[6]
-            // Match by disc/volume name or by resolving the mount to the device.
-            if discName == volumeName || devicePath.contains(volumeName) {
-                return "disc:\(index)"
-            }
-        }
-
-        // Fall back to the first enumerated drive that has a disc loaded.
-        for line in output.split(separator: "\n") where line.hasPrefix("DRV:") {
-            let fields = parseRobotCSV(String(line.dropFirst(4)))
-            if fields.count >= 7, let index = Int(fields[0]), !fields[6].isEmpty {
-                return "disc:\(index)"
-            }
+        let drives = Self.parseDrives(fromInfoOutput: output)
+        if let index = Self.matchDrive(drives, bsdName: Self.bsdName(forMountPoint: discPath),
+                                       volumeName: volumeName) {
+            return "disc:\(index)"
         }
 
         throw MakeMKVError.discOpenFailed("No MakeMKV drive matched \(volumeName)")

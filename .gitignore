@@ -86,3 +86,5 @@ playground.xcworkspace
 .netrc
 
 .fake
+# Editor extension packages
+*.vsix

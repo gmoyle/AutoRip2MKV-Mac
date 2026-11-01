@@ -154,10 +154,13 @@ class DriveDetector {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
+        let data: Data
         do {
             try process.run()
+            // Drain before waiting: plist output for many disks exceeds the pipe buffer.
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
         } catch {
             return []
@@ -165,43 +168,42 @@ class DriveDetector {
 
         guard process.terminationStatus == 0 else { return [] }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
               let allDisks = plist["AllDisksAndPartitions"] as? [[String: Any]] else {
             return []
         }
 
-        var mountPoints: [String] = []
+        // Collect mount points of whole disks and their partitions (optical media
+        // mounts at one or the other), then keep only those diskutil identifies as
+        // optical. Probing every /Volumes entry for VIDEO_TS/BDMV instead would
+        // touch external drives and trigger TCC removable-volume prompts.
+        var candidates: [String] = []
         for disk in allDisks {
-            // Check if this disk is optical media
-            if let content = disk["Content"] as? String,
-               (content.contains("DVD") || content.contains("CD") || content.contains("optical") || content == "") {
-                // Look for mount point in partitions
-                if let partitions = disk["Partitions"] as? [[String: Any]] {
-                    for partition in partitions {
-                        if let mp = partition["MountPoint"] as? String, !mp.isEmpty {
-                            mountPoints.append(mp)
-                        }
-                    }
-                }
-                if let mp = disk["MountPoint"] as? String, !mp.isEmpty {
-                    mountPoints.append(mp)
-                }
+            if let mp = disk["MountPoint"] as? String, !mp.isEmpty { candidates.append(mp) }
+            for partition in disk["Partitions"] as? [[String: Any]] ?? [] {
+                if let mp = partition["MountPoint"] as? String, !mp.isEmpty { candidates.append(mp) }
             }
         }
-
-        // Also check /Volumes directly for anything that looks like optical media
-        // without touching file attributes — just check for known disc folder names
-        if let volumes = try? FileManager.default.contentsOfDirectory(atPath: "/Volumes") {
-            for vol in volumes {
-                let path = "/Volumes/\(vol)"
-                if !mountPoints.contains(path) {
-                    mountPoints.append(path)
-                }
-            }
-        }
-
+        let mountPoints = candidates.filter { $0.hasPrefix("/Volumes/") && Self.isOpticalMedia(at: $0) }
         return mountPoints
+    }
+
+    /// True if diskutil reports the volume at `mountPoint` as optical media.
+    /// diskutil reads IOKit properties only, so this never touches the volume.
+    static func isOpticalMedia(at mountPoint: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        process.arguments = ["info", "-plist", mountPoint]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return false }
+        return info.keys.contains { $0.hasPrefix("Optical") }
     }
 
     // MARK: - Public API
@@ -244,7 +246,10 @@ class DriveDetector {
         }
         let volumeName = prettifyDiscName(rawName)
 
-        let devicePath = getDevicePath(for: path) ?? "/dev/disk1"
+        // Fall back to the mount point, never a guessed /dev/diskN: diskutil
+        // accepts a mount point, and a guessed node (disk1 is typically a system
+        // disk) would be unmounted/ejected by mistake.
+        let devicePath = getDevicePath(for: path) ?? path
         return OpticalDrive(mountPoint: path, name: volumeName, type: mediaType, devicePath: devicePath)
     }
 
@@ -273,27 +278,9 @@ class DriveDetector {
         return .unknown
     }
 
-    /// Determines if a Blu-ray disc is 4K UHD
+    /// Determines if a Blu-ray disc is 4K UHD (index.bdmv header "INDX0300")
     private func is4KBluRay(at path: String) -> Bool {
-        let fileManager = FileManager.default
-        let bdmvPath = (path as NSString).appendingPathComponent("BDMV")
-        let playlistPath = (bdmvPath as NSString).appendingPathComponent("PLAYLIST")
-
-        if fileManager.fileExists(atPath: playlistPath),
-           let playlists = try? fileManager.contentsOfDirectory(atPath: playlistPath) {
-            for playlist in playlists where playlist.hasSuffix(".mpls") {
-                let filePath = (playlistPath as NSString).appendingPathComponent(playlist)
-                if let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)), data.count > 1000 {
-                    let dataString = String(decoding: data.prefix(2000), as: UTF8.self)
-                    if dataString.contains("3840") || dataString.contains("2160") ||
-                       dataString.contains("hev1") || dataString.contains("hvc1") {
-                        return true
-                    }
-                }
-            }
-        }
-
-        return false
+        MediaRipper.isUHDIndex(atPath: (path as NSString).appendingPathComponent("BDMV/index.bdmv"))
     }
 
     /// Converts DVD volume names like "THE_DARK_KNIGHT" to "The Dark Knight"
@@ -316,14 +303,14 @@ class DriveDetector {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
 
             if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 if let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
                    let deviceIdentifier = plist["DeviceIdentifier"] as? String {
                     return "/dev/\(deviceIdentifier)"

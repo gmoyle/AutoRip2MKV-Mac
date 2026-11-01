@@ -272,10 +272,10 @@ extension MainViewController {
             
             do {
                 try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
                 process.waitUntilExit()
                 
                 if process.terminationStatus == 0 {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
                     if let output = String(data: data, encoding: .utf8) {
                         return output.trimmingCharacters(in: .whitespacesAndNewlines)
                     }
@@ -305,9 +305,9 @@ extension MainViewController {
         
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
             
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 // Check for VideoToolbox (macOS hardware acceleration)
                 return output.contains("videotoolbox")

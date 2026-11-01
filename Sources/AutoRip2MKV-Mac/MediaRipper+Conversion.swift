@@ -16,16 +16,13 @@ extension MediaRipper {
         // Build FFmpeg command
         let ffmpegPath = try getFFmpegPath()
 
-        var arguments = [
-            "-i", inputFile,
-            "-c:v", videoCodecArgument(for: configuration.videoCodec)
-        ]
+        var arguments = ["-i", inputFile]
 
-        // Add codec-specific encoding parameters
-        arguments.append(contentsOf: codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality))
+        // Video encoder (hardware or software) with its rate-control parameters
+        arguments.append(contentsOf: videoEncoderArguments(for: configuration))
 
         // Add audio codec
-        arguments.append(contentsOf: ["-c:a", audioCodecArgument(for: configuration.audioCodec)])
+        arguments.append(contentsOf: audioEncoderArguments(for: configuration.audioCodec))
 
         // Add subtitle handling if requested
         if configuration.includeSubtitles {
@@ -94,10 +91,10 @@ extension MediaRipper {
 
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
             process.waitUntilExit()
 
             if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !path.isEmpty {
                     return path
@@ -138,6 +135,50 @@ extension MediaRipper {
         case .vp9:
             return "libvpx-vp9"
         }
+    }
+
+    /// `-c:v …` plus rate control. Uses Apple VideoToolbox when the rip asks for
+    /// hardware acceleration and VT can encode it; otherwise the software encoder
+    /// with CRF/preset tuning.
+    func videoEncoderArguments(for configuration: RippingConfiguration) -> [String] {
+        if configuration.hardwareAcceleration,
+           let hardware = videoToolboxArguments(for: configuration.videoCodec, quality: configuration.quality) {
+            return hardware
+        }
+        return ["-c:v", videoCodecArgument(for: configuration.videoCodec)]
+            + codecSpecificArguments(for: configuration.videoCodec, quality: configuration.quality)
+    }
+
+    /// VideoToolbox encoder arguments, or nil when VT can't honor the request:
+    /// AV1/VP9 have no VT encoder, lossless needs the software path, and VT's
+    /// constant-quality mode (`-q:v`, 1–100, higher = better) is Apple Silicon only.
+    func videoToolboxArguments(for codec: RippingConfiguration.VideoCodec,
+                               quality: RippingConfiguration.RippingQuality) -> [String]? {
+        #if arch(arm64)
+        let encoder: String
+        switch codec {
+        case .h264: encoder = "h264_videotoolbox"
+        case .h265: encoder = "hevc_videotoolbox"
+        case .av1, .vp9: return nil
+        }
+        let q: Int
+        switch quality {
+        case .low: q = 45
+        case .medium: q = 55
+        case .high: q = 65
+        case .lossless: return nil
+        }
+        return ["-c:v", encoder, "-q:v", "\(q)"]
+        #else
+        return nil
+        #endif
+    }
+
+    /// `-c:a …`; FFmpeg's DTS encoder is experimental and refuses to run without
+    /// `-strict -2`.
+    func audioEncoderArguments(for codec: RippingConfiguration.AudioCodec) -> [String] {
+        let args = ["-c:a", audioCodecArgument(for: codec)]
+        return codec == .dts ? args + ["-strict", "-2"] : args
     }
 
     /// Generates codec-specific FFmpeg arguments for optimal encoding

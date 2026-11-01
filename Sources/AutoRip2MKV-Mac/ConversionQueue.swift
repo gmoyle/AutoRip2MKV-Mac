@@ -146,10 +146,13 @@ class ConversionQueue {
     private var jobs: [ConversionJob] = []
     private let jobsQueue = DispatchQueue(label: "com.autoRip2MKV.conversionQueue", attributes: .concurrent)
     private let extractionQueue = DispatchQueue(label: "com.autoRip2MKV.extraction", qos: .userInitiated)
+    /// Encodes run here, one job at a time, so the next disc can be read while
+    /// the previous one encodes.
+    private let encodingQueue = DispatchQueue(label: "com.autoRip2MKV.encoding", qos: .utility)
     private let conversionQueue = DispatchQueue(label: "com.autoRip2MKV.conversion", qos: .utility)
 
-    private var isProcessing = false  // true while any job is ripping or encoding
-    private var activeRipper: MediaRipper?  // ripper for the currently-extracting job, if any
+    private var isProcessing = false  // true while a job is reading a disc
+    private var activeRippers: [UUID: MediaRipper] = [:]  // rippers of jobs still reading or encoding
 
     weak var delegate: ConversionQueueDelegate?
     /// Secondary observer (main window) — receives the same callbacks as `delegate`,
@@ -322,8 +325,11 @@ class ConversionQueue {
     func cancelJob(id: UUID) {
         jobsQueue.async(flags: .barrier) {
             if let index = self.jobs.firstIndex(where: { $0.id == id }) {
-                if case .extracting = self.jobs[index].status {
-                    self.activeRipper?.cancelRipping()
+                switch self.jobs[index].status {
+                case .extracting, .extracted, .converting:
+                    self.activeRippers[id]?.cancelRipping()
+                default:
+                    break
                 }
                 self.jobs[index].status = .cancelled
                 Logger.shared.logQueue("Cancelled job \(id)", level: .info)
@@ -337,7 +343,7 @@ class ConversionQueue {
     /// Serializable fingerprint of the settings that affect rip output, stored in
     /// the completion marker so a settings change triggers an automatic re-rip.
     static func settingsFingerprint(of cfg: MediaRipper.RippingConfiguration) -> [String: String] {
-        return [
+        var fingerprint = [
             "videoCodec": String(describing: cfg.videoCodec),
             "audioCodec": String(describing: cfg.audioCodec),
             "quality": String(describing: cfg.quality),
@@ -345,6 +351,10 @@ class ConversionQueue {
             "includeSubtitles": String(cfg.includeSubtitles),
             "includeChapters": String(cfg.includeChapters)
         ]
+        // Only present when on, so turning it on doesn't make every earlier rip
+        // (fingerprinted before this key existed) look stale and re-rip.
+        if cfg.hardwareAcceleration { fingerprint["hardwareAcceleration"] = "true" }
+        return fingerprint
     }
 
     /// Record a completed rip: to the central registry (source of truth for
@@ -462,11 +472,11 @@ class ConversionQueue {
     @discardableResult
     func cancelActiveJob() -> Bool {
         var cancelled = false
-        jobsQueue.sync {
+        jobsQueue.sync(flags: .barrier) {
             if let index = self.jobs.firstIndex(where: {
                 if case .extracting = $0.status { return true } else { return false }
             }) {
-                self.activeRipper?.cancelRipping()
+                self.activeRippers[self.jobs[index].id]?.cancelRipping()
                 self.jobs[index].status = .cancelled
                 cancelled = true
                 Logger.shared.logQueue("Cancelled active job \(self.jobs[index].id)", level: .info)
@@ -604,7 +614,9 @@ class ConversionQueue {
     // MARK: - Private Implementation
 
     private func processNextJob() {
-        jobsQueue.async {
+        // Barrier: the isProcessing check and the claim in startRipping must be
+        // atomic, or two near-simultaneous calls (two discs added) both start a job.
+        jobsQueue.async(flags: .barrier) {
             guard !self.isProcessing else { return }
 
             // Pick the highest-priority pending job (FIFO within priority)
@@ -621,35 +633,46 @@ class ConversionQueue {
         }
     }
 
+    /// Must be called inside a jobsQueue barrier block (from processNextJob).
     private func startRipping(for jobId: UUID) {
-        jobsQueue.async(flags: .barrier) {
-            guard let idx = self.jobs.firstIndex(where: { $0.id == jobId }) else { return }
-            self.jobs[idx].status = .extracting
-            self.jobs[idx].startTime = Date()
-            self.isProcessing = true
-            Logger.shared.logQueue("Starting rip for job \(jobId)", level: .info)
-            DispatchQueue.main.async {
-                self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
-                self.notifyDelegates { $0.queueDidStartExtraction(jobId: jobId) }
-            }
+        guard let idx = jobs.firstIndex(where: { $0.id == jobId }) else { return }
+        jobs[idx].status = .extracting
+        jobs[idx].startTime = Date()
+        isProcessing = true
+        Logger.shared.logQueue("Starting rip for job \(jobId)", level: .info)
+        let snapshot = jobs
+        DispatchQueue.main.async {
+            self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
+            self.notifyDelegates { $0.queueDidStartExtraction(jobId: jobId) }
         }
         extractionQueue.async { self.performRip(for: jobId) }
     }
 
+    /// Final status for a job that ended in `error`: a user cancel stays
+    /// .cancelled rather than being overwritten with .failed.
+    private func terminalStatus(forJobAt idx: Int, error: Error) -> JobStatus {
+        if case .cancelled = jobs[idx].status { return .cancelled }
+        return .failed(error)
+    }
+
     /// Drives a full MediaRipper session for one disc job.
-    /// Phase 1 (.extracting): sectors fed into ffmpeg pipes; ends when disc can be ejected.
-    /// Phase 2 (.extracted → .converting): waits on background ffmpeg processes serially.
+    /// Phase 1 (.extracting, here on extractionQueue): the disc is read — DVD titles
+    /// into local staging, Blu-rays fully by MakeMKV — then ejected, and the drive
+    /// is released for the next job.
+    /// Phase 2 (.extracted → .converting, on encodingQueue): the staged titles are
+    /// encoded serially while the next disc is already being read.
     private func performRip(for jobId: UUID) {
         guard let job = getJob(id: jobId) else { return }
 
         ScriptRunner.shared.runHook(.preProcessing, job: job)
 
         let ripper = MediaRipper()
-        jobsQueue.async(flags: .barrier) { self.activeRipper = ripper }
+        jobsQueue.async(flags: .barrier) { self.activeRippers[jobId] = ripper }
         let semaphore = DispatchSemaphore(value: 0)
         var ripError: Error?
 
-        // Delegate bridges MediaRipper callbacks into queue state transitions
+        // Delegate bridges MediaRipper callbacks into queue state transitions.
+        // MediaRipper holds it weakly, so it's kept alive through phase 2 below.
         let bridge = QueueRipperDelegate(
             jobId: jobId,
             queue: self,
@@ -660,20 +683,22 @@ class ConversionQueue {
 
         ripper.startRipping(mediaPath: job.sourcePath, configuration: job.configuration)
 
-        // Wait for mediaRipperDidComplete (all sectors fed, disc can eject)
+        // Wait for mediaRipperDidComplete (disc fully read, can eject)
         semaphore.wait()
 
         if let error = ripError {
+            ripper.discardPendingEncodes()
             jobsQueue.async(flags: .barrier) {
                 if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
-                    self.jobs[idx].status = .failed(error)
+                    self.jobs[idx].status = self.terminalStatus(forJobAt: idx, error: error)
                     self.jobs[idx].endTime = Date()
                 }
                 self.isProcessing = false
-                self.activeRipper = nil
+                self.activeRippers[jobId] = nil
                 Logger.shared.logError(error, context: "Rip failed for job \(jobId)")
+                let snapshot = self.jobs
                 DispatchQueue.main.async {
-                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
                     self.notifyDelegates { $0.queueDidFailExtraction(jobId: jobId, error: error) }
                 }
             }
@@ -681,26 +706,42 @@ class ConversionQueue {
             return
         }
 
-        // Disc is done — transition to .extracted and request eject
+        // Disc is done — transition to .extracted, request eject, and free the
+        // drive so the next queued disc starts reading while this one encodes.
         let sourcePath = job.sourcePath
         jobsQueue.async(flags: .barrier) {
             if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
                 self.jobs[idx].status = .extracted
                 Logger.shared.logQueue("Disc read complete for job \(jobId), ejecting", level: .info)
+                let snapshot = self.jobs
                 DispatchQueue.main.async {
-                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
                     self.notifyDelegates { $0.queueDidCompleteExtraction(jobId: jobId) }
                     self.ejectionDelegate?.queueShouldEjectDisc(sourcePath: sourcePath)
                 }
             }
+            self.isProcessing = false
         }
+        processNextJob()
 
-        // Phase 2: wait for each background ffmpeg process serially
+        encodingQueue.async {
+            withExtendedLifetime(bridge) {
+                self.performEncodes(for: job, ripper: ripper)
+            }
+        }
+    }
+
+    /// Phase 2: run the job's staged encodes one at a time, move each finished
+    /// file into place, then record the job as completed or failed.
+    private func performEncodes(for job: ConversionJob, ripper: MediaRipper) {
+        let jobId = job.id
         jobsQueue.async(flags: .barrier) {
-            if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
+            if let idx = self.jobs.firstIndex(where: { $0.id == jobId }),
+               case .extracted = self.jobs[idx].status {
                 self.jobs[idx].status = .converting
+                let snapshot = self.jobs
                 DispatchQueue.main.async {
-                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
                     self.notifyDelegates { $0.queueDidStartConversion(jobId: jobId) }
                 }
             }
@@ -709,29 +750,42 @@ class ConversionQueue {
         var outputFiles: [String] = []
         var encodeError: Error?
 
-        for entry in ripper.backgroundEncodingProcesses {
-            entry.process.waitUntilExit()
-            if entry.process.terminationStatus == 0 {
-                do {
-                    // Move the finished encode from local staging into the output
-                    // directory in one step, so sync services (iCloud) never see
-                    // a partially written file.
-                    if FileManager.default.fileExists(atPath: entry.outputPath) {
-                        try? FileManager.default.removeItem(atPath: entry.outputPath)
-                    }
-                    try FileManager.default.moveItem(atPath: entry.stagingPath, toPath: entry.outputPath)
-                    outputFiles.append(entry.outputPath)
-                    ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(entry.outputPath)")
-                } catch {
-                    encodeError = error
-                    Logger.shared.logError(error, context: "Failed to move finished encode into place for title \(entry.titleNumber)")
-                    ripper.delegate?.mediaRipperDidUpdateStatus("Failed to move finished file for title \(entry.titleNumber)")
-                }
-            } else {
-                encodeError = MediaRipperError.conversionFailed
-                try? FileManager.default.removeItem(atPath: entry.stagingPath)
-                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for title \(entry.titleNumber)")
+        for encode in ripper.pendingEncodes {
+            if ripper.shouldCancel {
+                encodeError = MediaRipperError.cancelled
+                break
             }
+            guard ripper.runEncode(encode) else {
+                encodeError = ripper.shouldCancel ? MediaRipperError.cancelled : MediaRipperError.conversionFailed
+                try? FileManager.default.removeItem(atPath: encode.stagingPath)
+                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for title \(encode.titleNumber)")
+                continue
+            }
+            do {
+                // Move the finished encode from local staging into the output
+                // directory in one step, so sync services (iCloud) never see
+                // a partially written file.
+                if FileManager.default.fileExists(atPath: encode.outputPath) {
+                    try? FileManager.default.removeItem(atPath: encode.outputPath)
+                }
+                try FileManager.default.moveItem(atPath: encode.stagingPath, toPath: encode.outputPath)
+                outputFiles.append(encode.outputPath)
+                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(encode.outputPath)")
+            } catch {
+                encodeError = error
+                Logger.shared.logError(error, context: "Failed to move finished encode into place for title \(encode.titleNumber)")
+                ripper.delegate?.mediaRipperDidUpdateStatus("Failed to move finished file for title \(encode.titleNumber)")
+            }
+        }
+        if encodeError != nil {
+            // Drop staged titles that never got encoded (cancel / earlier failure).
+            ripper.discardPendingEncodes()
+        }
+
+        // Backends without an encode phase (MakeMKV) write finished files directly.
+        // Content routing may already have moved their folder; record the final paths.
+        if !ripper.directOutputFiles.isEmpty {
+            outputFiles.append(contentsOf: Self.resolveRoutedPaths(ripper.directOutputFiles))
         }
 
         let endTime = Date()
@@ -742,14 +796,14 @@ class ConversionQueue {
         if let error = encodeError {
             jobsQueue.async(flags: .barrier) {
                 if let idx = self.jobs.firstIndex(where: { $0.id == jobId }) {
-                    self.jobs[idx].status = .failed(error)
+                    self.jobs[idx].status = self.terminalStatus(forJobAt: idx, error: error)
                     self.jobs[idx].endTime = endTime
                 }
-                self.isProcessing = false
-                self.activeRipper = nil
+                self.activeRippers[jobId] = nil
                 Logger.shared.logError(error, context: "Encoding failed for job \(jobId)")
+                let snapshot = self.jobs
                 DispatchQueue.main.async {
-                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
                     self.notifyDelegates { $0.queueDidFailConversion(jobId: jobId, error: error) }
                 }
             }
@@ -771,18 +825,28 @@ class ConversionQueue {
                     }
                 }
                 self.writeRipCompleteMarker(job: job, outputFiles: outputFiles)
-                self.isProcessing = false
-                self.activeRipper = nil
+                self.activeRippers[jobId] = nil
                 Logger.shared.logQueue("Job \(jobId) fully complete: \(outputFiles.count) file(s)", level: .info)
+                let snapshot = self.jobs
                 DispatchQueue.main.async {
-                    self.notifyDelegates { $0.queueDidUpdateJobs(self.jobs) }
+                    self.notifyDelegates { $0.queueDidUpdateJobs(snapshot) }
                     self.notifyDelegates { $0.queueDidCompleteConversion(jobId: jobId, outputFiles: outputFiles) }
                 }
             }
             ScriptRunner.shared.runHook(.postProcessing, job: scriptJob, outputFiles: outputFiles)
         }
+    }
 
-        processNextJob()
+    /// Map files to the folder content routing moved them to (if it did).
+    static func resolveRoutedPaths(_ files: [String]) -> [String] {
+        guard let first = files.first else { return files }
+        let stagingDir = (first as NSString).deletingLastPathComponent
+        guard let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) else { return files }
+        return files.map { file in
+            let dir = (file as NSString).deletingLastPathComponent
+            guard dir == stagingDir else { return file }
+            return (finalDir as NSString).appendingPathComponent((file as NSString).lastPathComponent)
+        }
     }
 
     private func getJob(id: UUID) -> ConversionJob? {
@@ -909,11 +973,25 @@ private class QueueRipperDelegate: MediaRipperDelegate {
         }
     }
 
+    /// The queue blocks on the first terminal callback; ignore any later ones so
+    /// a stray duplicate can't be mistaken for a different job's result.
+    private var finished = false
+    private let finishedLock = NSLock()
+
+    private func claimFinish() -> Bool {
+        finishedLock.lock(); defer { finishedLock.unlock() }
+        guard !finished else { return false }
+        finished = true
+        return true
+    }
+
     func mediaRipperDidComplete() {
+        guard claimFinish() else { return }
         onComplete()
     }
 
     func mediaRipperDidFail(with error: Error) {
+        guard claimFinish() else { return }
         onFail(error)
     }
 }
@@ -921,7 +999,7 @@ private class QueueRipperDelegate: MediaRipperDelegate {
 
 // MARK: - Error Types
 
-enum ConversionQueueError: Error {
+enum ConversionQueueError: LocalizedError {
     case unsupportedMediaType
     case sourceNotFound
     case sourceDiscEjected(String)
@@ -931,7 +1009,7 @@ enum ConversionQueueError: Error {
     case diskSpaceCheckFailed
     case insufficientDiskSpace(required: Int64, available: Int64)
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .unsupportedMediaType:
             return "Unsupported media type"

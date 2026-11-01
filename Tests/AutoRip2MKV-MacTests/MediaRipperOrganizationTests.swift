@@ -39,65 +39,39 @@ final class MediaRipperOrganizationTests: XCTestCase {
     
     // MARK: - Ultra HD Detection Tests
     
-    func testIsUltraHDBluRayWithUHDMarkers() {
-        // Create test index.bdmv with UHD markers
-        let bdmvPath = testBlurayPath.appending("/BDMV")
-        let indexPath = bdmvPath.appending("/index.bdmv")
-        
-        // Create data with UHD marker
-        var indexData = Data(repeating: 0x00, count: 1024)
-        let uhdMarker = Data([0x0F, 0x00])
-        indexData.replaceSubrange(100..<102, with: uhdMarker)
-        
-        do {
-            try indexData.write(to: URL(fileURLWithPath: indexPath))
-        } catch {
-            XCTFail("Failed to write test index file: \(error)")
-            return
-        }
-        
-        let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
-        XCTAssertTrue(result, "Should detect UHD Blu-ray with UHD marker")
+    private func writeIndex(header: String, in bdmvPath: String, padding: [UInt8] = []) throws {
+        var data = Data(header.utf8)
+        data.append(Data(repeating: 0x00, count: 1024))
+        data.append(contentsOf: padding)
+        try data.write(to: URL(fileURLWithPath: bdmvPath.appending("/index.bdmv")))
     }
-    
-    func testIsUltraHDBluRayWith4KResolution() {
+
+    func testIsUltraHDBluRayWithUHDIndexHeader() throws {
         let bdmvPath = testBlurayPath.appending("/BDMV")
-        let indexPath = bdmvPath.appending("/index.bdmv")
-        
-        // Create data with 4K resolution markers
-        var indexData = Data(repeating: 0x00, count: 1024)
-        let resolution4K = "3840".data(using: .utf8)!
-        indexData.replaceSubrange(200..<204, with: resolution4K)
-        
-        do {
-            try indexData.write(to: URL(fileURLWithPath: indexPath))
-        } catch {
-            XCTFail("Failed to write test index file: \(error)")
-            return
-        }
-        
-        let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
-        XCTAssertTrue(result, "Should detect UHD Blu-ray with 4K resolution marker")
+        try writeIndex(header: "INDX0300", in: bdmvPath)
+        XCTAssertTrue(mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath),
+                      "INDX0300 header identifies an Ultra HD Blu-ray")
     }
-    
-    func testIsUltraHDBluRayWithCertificate() {
+
+    func testIsUltraHDBluRayIgnoresStrayResolutionBytes() throws {
+        // A regular (INDX0200) index that happens to contain "2160"/"3840"/0x0F00
+        // bytes must not be treated as UHD.
+        let bdmvPath = testBlurayPath.appending("/BDMV")
+        try writeIndex(header: "INDX0200", in: bdmvPath,
+                       padding: Array("3840x2160 UHD".utf8) + [0x0F, 0x00])
+        XCTAssertFalse(mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath))
+    }
+
+    func testIsUltraHDBluRayCertificateAloneIsNotUHD() throws {
+        // CERTIFICATE/id.bdmv exists on every AACS Blu-ray, UHD or not.
         let bdmvPath = testBlurayPath.appending("/BDMV")
         let certificatePath = bdmvPath.appending("/CERTIFICATE")
-        let idPath = certificatePath.appending("/id.bdmv")
-        
-        // Create certificate structure
-        do {
-            try FileManager.default.createDirectory(atPath: certificatePath, withIntermediateDirectories: true)
-            try Data().write(to: URL(fileURLWithPath: idPath))
-        } catch {
-            XCTFail("Failed to create test certificate structure: \(error)")
-            return
-        }
-        
-        let result = mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath)
-        XCTAssertTrue(result, "Should detect UHD Blu-ray with certificate structure")
+        try FileManager.default.createDirectory(atPath: certificatePath, withIntermediateDirectories: true)
+        try Data().write(to: URL(fileURLWithPath: certificatePath.appending("/id.bdmv")))
+        try writeIndex(header: "INDX0200", in: bdmvPath)
+        XCTAssertFalse(mediaRipper.isUltraHDBluRay(bdmvPath: bdmvPath))
     }
-    
+
     func testIsUltraHDBluRayRegularBluRay() {
         let bdmvPath = testBlurayPath.appending("/BDMV")
         
@@ -110,7 +84,7 @@ final class MediaRipperOrganizationTests: XCTestCase {
         XCTAssertFalse(result, "Should return false for invalid path")
     }
     
-    func testIsUltraHDDVDWithHDMarkers() {
+    func testIsUltraHDDVDIgnoresIFOByteMarkers() {
         let videoTSPath = testDVDPath.appending("/VIDEO_TS")
         let vmgiPath = videoTSPath.appending("/VIDEO_TS.IFO")
         
@@ -127,7 +101,7 @@ final class MediaRipperOrganizationTests: XCTestCase {
         }
         
         let result = mediaRipper.isUltraHDDVD(videoTSPath: videoTSPath)
-        XCTAssertTrue(result, "Should detect Ultra HD DVD with HD marker")
+        XCTAssertFalse(result, "0x0400 bytes appear in ordinary IFOs; a VIDEO_TS disc is a regular DVD")
     }
     
     func testIsUltraHDDVDRegularDVD() {

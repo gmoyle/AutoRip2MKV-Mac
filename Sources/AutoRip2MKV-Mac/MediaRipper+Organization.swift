@@ -6,67 +6,32 @@ extension MediaRipper {
 
     // MARK: - Disc Type Detection
 
-    /// Detect if a Blu-ray disc is Ultra HD (4K)
+    /// Detect if a Blu-ray disc is Ultra HD (4K).
+    ///
+    /// The BDMV spec versions index.bdmv in its 8-byte header: "INDX0100"/"INDX0200"
+    /// for Blu-ray, "INDX0300" for Ultra HD Blu-ray. Scanning the file for byte
+    /// patterns ("2160", 0x0F00) or checking for CERTIFICATE/id.bdmv (present on
+    /// every AACS disc) misfires on ordinary Blu-rays.
     func isUltraHDBluRay(bdmvPath: String) -> Bool {
-        // Check for 4K indicators in BDMV structure
-        let indexPath = bdmvPath.appending("/index.bdmv")
-        _ = bdmvPath.appending("/MovieObject.bdmv") // Future use for 4K detection
-
-        guard FileManager.default.fileExists(atPath: indexPath) else { return false }
-
-        do {
-            let indexData = try Data(contentsOf: URL(fileURLWithPath: indexPath))
-
-            // Look for UHD/4K indicators in the index file
-            // UHD Blu-rays typically have specific resolution markers
-            let searchPatterns: [Data] = [
-                Data("UHD".utf8),
-                Data("3840".utf8), // 4K width
-                Data("2160".utf8), // 4K height
-                Data([0x0F, 0x00]), // UHD resolution marker
-            ]
-
-            for pattern in searchPatterns {
-                if indexData.range(of: pattern) != nil {
-                    return true
-                }
-            }
-        } catch {
-            // If we can't read the file, fall back to directory structure
-        }
-
-        // Check for UHD-specific directory structure
-        let certificatePath = bdmvPath.appending("/CERTIFICATE/id.bdmv")
-        return FileManager.default.fileExists(atPath: certificatePath)
+        MediaRipper.isUHDIndex(atPath: bdmvPath.appending("/index.bdmv"))
     }
 
-    /// Detect if a DVD is Ultra HD DVD (rare format)
+    /// True when the index.bdmv at `indexPath` carries the UHD ("INDX0300") header.
+    static func isUHDIndex(atPath indexPath: String) -> Bool {
+        guard let handle = FileHandle(forReadingAtPath: indexPath) else { return false }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 8) else { return false }
+        return header == Data("INDX0300".utf8)
+    }
+
+    /// Detect if a DVD is "Ultra HD DVD".
+    ///
+    /// No such standard exists for VIDEO_TS discs (HD DVD uses HVDVD_TS and is
+    /// detected separately), so this always returns false. The previous heuristic
+    /// matched the bytes 0x0400/0x0500 anywhere in VIDEO_TS.IFO, which is true
+    /// of almost every DVD and filed ordinary rips under "Ultra_HD_DVD".
     func isUltraHDDVD(videoTSPath: String) -> Bool {
-        // Ultra HD DVD is a rare format, check for HD indicators
-        let vmgiPath = videoTSPath.appending("/VIDEO_TS.IFO")
-
-        guard FileManager.default.fileExists(atPath: vmgiPath) else { return false }
-
-        do {
-            let vmgiData = try Data(contentsOf: URL(fileURLWithPath: vmgiPath))
-
-            // Look for HD resolution indicators
-            // Ultra HD DVDs would have higher resolution markers
-            let hdPatterns: [Data] = [
-                Data([0x04, 0x00]), // HD resolution marker
-                Data([0x05, 0x00]), // Enhanced resolution marker
-            ]
-
-            for pattern in hdPatterns {
-                if vmgiData.range(of: pattern) != nil {
-                    return true
-                }
-            }
-        } catch {
-            return false
-        }
-
-        return false
+        false
     }
 
     // MARK: - Movie Name Extraction

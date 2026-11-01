@@ -132,7 +132,7 @@ private func aacs_get_disc_id(_ aacs: OpaquePointer?, _ id: UnsafeMutablePointer
 
 // MARK: - Error Types
 
-enum BluRayError: Error {
+enum BluRayError: LocalizedError {
     case deviceNotFound
     case deviceNotOpen
     case authenticationFailed
@@ -140,7 +140,7 @@ enum BluRayError: Error {
     case aacsNotSupported
     case invalidData
 
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .deviceNotFound:
             return "Blu-ray device not found or libaacs failed to open device"
