@@ -666,6 +666,15 @@ class ConversionQueue {
 
         ScriptRunner.shared.runHook(.preProcessing, job: job)
 
+        // Keep the Mac from idle-sleeping for the whole job (disc read + encode).
+        // Sleep cuts power to USB optical drives, so a read in progress fails on
+        // wake and the rip restarts from scratch. Ended on failure below, or after
+        // performEncodes.
+        let sleepActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "Ripping \(job.discTitle)"
+        )
+
         let ripper = MediaRipper()
         jobsQueue.async(flags: .barrier) { self.activeRippers[jobId] = ripper }
         let semaphore = DispatchSemaphore(value: 0)
@@ -702,6 +711,7 @@ class ConversionQueue {
                     self.notifyDelegates { $0.queueDidFailExtraction(jobId: jobId, error: error) }
                 }
             }
+            ProcessInfo.processInfo.endActivity(sleepActivity)
             processNextJob()
             return
         }
@@ -728,6 +738,7 @@ class ConversionQueue {
             withExtendedLifetime(bridge) {
                 self.performEncodes(for: job, ripper: ripper)
             }
+            ProcessInfo.processInfo.endActivity(sleepActivity)
         }
     }
 
