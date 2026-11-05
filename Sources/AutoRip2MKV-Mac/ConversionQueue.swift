@@ -59,6 +59,10 @@ class ConversionQueue {
         let configuration: MediaRipper.RippingConfiguration
         let mediaType: MediaRipper.MediaType
         let discTitle: String
+        /// Disc identity, computed when the job is added while the disc is still
+        /// mounted. The rip-history record is written after encoding, by which
+        /// point the disc has been ejected and can't be fingerprinted any more.
+        let discIdentity: String
         var priority: JobPriority
         var status: JobStatus
         var progress: Double
@@ -76,6 +80,7 @@ class ConversionQueue {
             self.configuration = configuration
             self.mediaType = mediaType
             self.discTitle = discTitle
+            self.discIdentity = DiscIdentity.compute(forDiscAt: sourcePath)
             self.priority = priority
             self.status = .pending
             self.progress = 0.0
@@ -373,10 +378,11 @@ class ConversionQueue {
         let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) ?? stagingDir
 
         // Central registry (source of truth), keyed by disc identity so detection
-        // is independent of where the files live.
-        let identity = DiscIdentity.compute(forDiscAt: job.sourcePath)
+        // is independent of where the files live. Uses the identity captured at
+        // insert time: the disc is ejected by now, so recomputing it here would
+        // fall back to the bare volume label and never match on re-insert.
         RipHistoryStore.shared.record(RipHistoryEntry(
-            discIdentity: identity,
+            discIdentity: job.discIdentity,
             volumeName: (job.sourcePath as NSString).lastPathComponent,
             title: job.discTitle,
             settingsFingerprint: fingerprint,

@@ -121,7 +121,7 @@ class DVDDecryptor {
 
 // MARK: - Error Types
 
-enum DVDError: LocalizedError {
+enum DVDError: LocalizedError, Equatable {
     case deviceNotFound
     case deviceNotOpen
     case authenticationFailed
@@ -129,6 +129,8 @@ enum DVDError: LocalizedError {
     case titleKeyNotFound
     case decryptionFailed
     case invalidSector
+    case titleLocationUnknown
+    case notVideoData(sector: UInt32)
     case cssNotSupported
 
     var errorDescription: String? {
@@ -147,6 +149,10 @@ enum DVDError: LocalizedError {
             return "Decryption failed"
         case .invalidSector:
             return "Invalid sector or seek failed"
+        case .titleLocationUnknown:
+            return "Couldn't find where the title's VOB files are on the disc"
+        case .notVideoData(let sector):
+            return "Disc sector \(sector) isn't DVD video data; refusing to rip the wrong part of the disc"
         case .cssNotSupported:
             return "CSS encryption not supported (libdvdcss not available)"
         }

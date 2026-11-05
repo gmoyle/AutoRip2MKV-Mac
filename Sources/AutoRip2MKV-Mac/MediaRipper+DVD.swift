@@ -84,9 +84,11 @@ extension MediaRipper {
             }
 
             delegate?.mediaRipperDidUpdateStatus("Ripping title \(title.number) (\(title.formattedDuration)) → \(outputFileName)...")
-            _ = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: title.startSector)
+            let discStart = try discStartSector(of: title)
+            _ = try dvdDecryptor!.getTitleKey(titleNumber: title.number, startSector: discStart)
             do {
-                try readDVDTitle(title, to: sourcePath, titleIndex: index, totalTitles: titlesToRip.count)
+                try readDVDTitle(title, from: discStart, to: sourcePath,
+                                 titleIndex: index, totalTitles: titlesToRip.count)
             } catch {
                 try? FileManager.default.removeItem(atPath: sourcePath)
                 throw error
@@ -94,7 +96,7 @@ extension MediaRipper {
             pendingEncodes.append(PendingEncode(
                 ffmpegPath: ffmpegPath,
                 arguments: dvdEncodeArguments(for: title, input: sourcePath, output: stagingPath,
-                                              configuration: configuration),
+                                              configuration: configuration, ffmpegPath: ffmpegPath),
                 sourcePath: sourcePath, outputPath: outputPath, stagingPath: stagingPath,
                 titleNumber: title.number, mediaItem: .dvdTitle(title),
                 itemIndex: index, totalItems: titlesToRip.count))
@@ -135,6 +137,40 @@ extension MediaRipper {
         }
     }
 
+    /// Absolute disc sector where `title`'s video data begins: the physical
+    /// location of its first title VOB (VTS_xx_1.VOB), asked of the mounted
+    /// filesystem. The VIDEO_TS.IFO title table's sector is the *title set's*
+    /// start (its IFO, not its video) and is relative to the video manager, so
+    /// on discs where VIDEO_TS isn't near sector 0 it points into filesystem
+    /// metadata. A VTS's VOB files are stored contiguously, so reading
+    /// `sectorCount(of:)` sectors from here covers all of them.
+    func discStartSector(of title: DVDTitle) throws -> UInt32 {
+        guard let firstVOB = title.vobFiles.first,
+              let sector = Self.physicalStartSector(ofFile: firstVOB) else {
+            Logger.shared.log("No disc location for title \(title.number) (VOBs: \(title.vobFiles))",
+                              level: .error, category: .general)
+            throw DVDError.titleLocationUnknown
+        }
+        return sector
+    }
+
+    /// Device sector of byte 0 of `path` on its volume (F_LOG2PHYS_EXT), or nil.
+    static func physicalStartSector(ofFile path: String) -> UInt32? {
+        let fd = open(path, O_RDONLY)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var mapping = log2phys()
+        mapping.l2p_contigbytes = Int64(DVDCSS_BLOCK_SIZE)  // in: bytes to map
+        mapping.l2p_devoffset = 0                           // in: file offset
+        guard fcntl(fd, F_LOG2PHYS_EXT, &mapping) != -1, mapping.l2p_devoffset >= 0 else { return nil }
+        return UInt32(mapping.l2p_devoffset / Int64(DVDCSS_BLOCK_SIZE))
+    }
+
+    /// True when `data` starts with an MPEG-2 program stream pack header.
+    static func isMPEGPackHeader(_ data: Data) -> Bool {
+        data.count >= 4 && data.prefix(4).elementsEqual([0x00, 0x00, 0x01, 0xBA])
+    }
+
     /// Most unreadable sectors tolerated per title before giving up (8 MB, a few
     /// seconds of video). Past that the disc is too damaged for a usable rip.
     static let maxSkippedSectorsPerTitle = 4096
@@ -143,7 +179,7 @@ extension MediaRipper {
     /// Unreadable sectors (scratches) are re-read one at a time and, if they
     /// still fail, written as zeros — ffmpeg resyncs at the next pack header — so
     /// a small scratch costs a glitch instead of the whole disc.
-    private func readDVDTitle(_ title: DVDTitle, to path: String,
+    private func readDVDTitle(_ title: DVDTitle, from discStart: UInt32, to path: String,
                               titleIndex: Int, totalTitles: Int) throws {
         let totalSectors = sectorCount(of: title)
         delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
@@ -160,10 +196,17 @@ extension MediaRipper {
             if shouldCancel { throw MediaRipperError.cancelled }
 
             let sectorsToRead = Int(min(UInt32(1024), totalSectors - sectorOffset))
-            let startSector = title.startSector + sectorOffset
+            let startSector = discStart + sectorOffset
 
             var data = (try? dvdDecryptor!.readAndDecryptSectors(
                 startSector: startSector, sectorCount: sectorsToRead)) ?? Data()
+
+            // A title VOB always opens with an MPEG-PS pack header. Anything else
+            // means we're reading the wrong part of the disc: fail now rather than
+            // stage gigabytes of filesystem data and zeros as "the movie".
+            if sectorOffset == 0, !Self.isMPEGPackHeader(data) {
+                throw DVDError.notVideoData(sector: startSector)
+            }
             let readSectors = data.count / DVDCSS_BLOCK_SIZE
             if readSectors < sectorsToRead {
                 // Failed or short read: recover the rest of the chunk sector by sector.
@@ -208,14 +251,14 @@ extension MediaRipper {
 
     /// ffmpeg arguments to encode a decrypted DVD title file.
     private func dvdEncodeArguments(for title: DVDTitle, input: String, output: String,
-                                    configuration: RippingConfiguration) -> [String] {
+                                    configuration: RippingConfiguration, ffmpegPath: String) -> [String] {
         // Large probe window: audio/subtitle substreams in MPEG-PS appear
         // sporadically, and ffmpeg's default quick scan misses them entirely.
         var args = ["-probesize", "200M", "-analyzeduration", "120M",
                     "-i", input,
                     "-map", "0:v:0", "-map", "0:a?"]
         if configuration.includeSubtitles { args.append(contentsOf: ["-map", "0:s?"]) }
-        args.append(contentsOf: videoEncoderArguments(for: configuration))
+        args.append(contentsOf: videoEncoderArguments(for: configuration, ffmpegPath: ffmpegPath))
         if configuration.autoDeinterlace {
             // deint=interlaced only touches frames flagged interlaced (NTSC DVDs);
             // progressive content passes through untouched

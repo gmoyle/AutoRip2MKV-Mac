@@ -90,11 +90,18 @@ class MediaRipper {
         delegate?.mediaRipperDidUpdateStatus("Encoding title \(encode.titleNumber) (\(encode.itemIndex + 1) of \(encode.totalItems))...")
 
         // Drains stderr (progress lines) until ffmpeg exits and closes it.
-        monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
-                              itemIndex: encode.itemIndex, totalItems: encode.totalItems)
+        let stderrTail = monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
+                                               itemIndex: encode.itemIndex, totalItems: encode.totalItems)
         process.waitUntilExit()
         activeFFmpegProcess = nil
         encode.process = nil
+        if process.terminationStatus != 0 && !shouldCancel {
+            Logger.shared.log(
+                "ffmpeg exited \(process.terminationStatus) for title \(encode.titleNumber) (\(encode.ffmpegPath))\n"
+                    + "  args: \(encode.arguments.joined(separator: " "))\n"
+                    + stderrTail.map { "  | \($0)" }.joined(separator: "\n"),
+                level: .error, category: .general)
+        }
         return process.terminationStatus == 0
     }
 
