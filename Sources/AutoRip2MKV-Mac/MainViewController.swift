@@ -719,6 +719,10 @@ extension MainViewController: DriveDetectorDelegate {
         // than the exact identity so a volume-label drift on remount (e.g. macOS
         // mounting the same disc as "/Volumes/FIREFLY 1") still recognizes the disc.
         if let entry = RipHistoryStore.shared.entry(matchingFingerprintOf: identity) {
+            if entry.outputIsMissing() {
+                appendToLog("Previous rip of \(drive.displayName) is gone (\(entry.outputLocation)) — re-ripping.")
+                return nil
+            }
             if entry.settingsFingerprint == fingerprint {
                 return entry.outputLocation
             }

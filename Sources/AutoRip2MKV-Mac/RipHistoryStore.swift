@@ -17,6 +17,20 @@ struct RipHistoryEntry: Codable, Equatable {
     var outputLocation: String
     /// When the rip completed.
     let completedAt: Date
+
+    /// True when the rip's output folder has been deleted, so the disc should be
+    /// ripped again. An output on a volume that isn't mounted right now (an
+    /// external drive or NAS share) can't be checked and counts as still there.
+    func outputIsMissing(fileManager: FileManager = .default) -> Bool {
+        guard !outputLocation.isEmpty else { return false }
+        if fileManager.fileExists(atPath: outputLocation) { return false }
+        let components = (outputLocation as NSString).pathComponents  // ["/", "Volumes", "<name>", ...]
+        if components.count >= 3, components[1] == "Volumes" {
+            let volumeRoot = NSString.path(withComponents: Array(components.prefix(3)))
+            if !fileManager.fileExists(atPath: volumeRoot) { return false }
+        }
+        return true
+    }
 }
 
 /// Central, persistent registry of ripped discs. One JSON file in Application
