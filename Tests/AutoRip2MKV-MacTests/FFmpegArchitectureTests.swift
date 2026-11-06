@@ -68,7 +68,7 @@ final class FFmpegArchitectureTests: XCTestCase {
         XCTAssertEqual(Array(ripper.videoEncoderArguments(for: config, ffmpegPath: intel).prefix(2)),
                        ["-c:v", "libx264"])
         XCTAssertEqual(ripper.videoEncoderArguments(for: config, ffmpegPath: native),
-                       ["-c:v", "h264_videotoolbox", "-q:v", "65"])
+                       ["-c:v", "h264_videotoolbox", "-q:v", "65", "-a53cc", "0"])
         #else
         throw XCTSkip("Rosetta only applies on Apple Silicon")
         #endif

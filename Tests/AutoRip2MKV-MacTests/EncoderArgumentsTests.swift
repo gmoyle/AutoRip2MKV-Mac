@@ -24,7 +24,7 @@ final class EncoderArgumentsTests: XCTestCase {
     func testVideoToolboxWhenHardwareAccelerationOn() throws {
         #if arch(arm64)
         let args = ripper.videoEncoderArguments(for: config(codec: .h265, hardware: true))
-        XCTAssertEqual(args, ["-c:v", "hevc_videotoolbox", "-q:v", "55"])
+        XCTAssertEqual(args, ["-c:v", "hevc_videotoolbox", "-q:v", "55", "-a53cc", "0"])
         #else
         throw XCTSkip("VideoToolbox constant-quality mode is Apple Silicon only")
         #endif

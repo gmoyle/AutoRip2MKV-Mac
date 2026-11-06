@@ -224,7 +224,9 @@ extension MediaRipper {
         case .high: q = 65
         case .lossless: return nil
         }
-        return ["-c:v", encoder, "-q:v", "\(q)"]
+        // -a53cc 0: VT's closed-caption SEI writer emits malformed NAL units, so
+        // a DVD with line-21 captions comes out as a corrupt, smeared stream.
+        return ["-c:v", encoder, "-q:v", "\(q)", "-a53cc", "0"]
         #else
         return nil
         #endif
