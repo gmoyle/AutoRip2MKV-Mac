@@ -25,7 +25,7 @@ If applicable, add screenshots to help explain your problem.
 
 **Environment:**
  - macOS Version: [e.g. macOS 13.0]
- - AutoRip2MKV Version: [e.g. 1.0.0]
+ - Spindle Version: [e.g. 1.0.0]
  - FFmpeg Version: [e.g. 5.1.2]
  - DVD Type: [e.g. Commercial DVD, Region 1]
 

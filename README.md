@@ -1,16 +1,19 @@
 <div align="center">
-  <img src="assets/icon.svg" alt="AutoRip2MKV for Mac" width="128" height="128">
-  <h1>AutoRip2MKV for Mac</h1>
-  <p><em>DVD & Blu-ray Ripping with Open-Source Decryption</em></p>
+  <img src="assets/icon.svg" alt="Spindle" width="128" height="128">
+  <h1>Spindle</h1>
+  <p><em>Insert a disc. It lands in your media library.</em></p>
   <p><sub>v2.1.0 - Faster, correct DVD rips (including multi-version discs) and in-app MakeMKV updates</sub></p>
   
-  [![Latest Release](https://img.shields.io/github/v/release/gmoyle/AutoRip2MKV-Mac?sort=semver)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
-  [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-blue)](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest)
+  [![Latest Release](https://img.shields.io/github/v/release/gmoyle/Spindle?sort=semver)](https://github.com/gmoyle/Spindle/releases/latest)
+  [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-blue)](https://github.com/gmoyle/Spindle/releases/latest)
 </div>
 
 > 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
-A native macOS application for automatically ripping DVDs and Blu-rays to MKV format. **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
+Spindle (formerly **AutoRip2MKV**) is a native macOS app that imports discs into
+your media library automatically. Today it rips DVDs and Blu-rays to MKV and files
+them into Movies and TV Shows folders; music CDs, TV episode naming, and photo discs
+are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
 
 ## Features
 
@@ -43,8 +46,8 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 
 **✨ Just download and run - no building required!**
 
-1. **Download the latest release** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
-2. **Open the DMG file** and drag AutoRip2MKV to Applications
+1. **Download the latest release** from [GitHub Releases](https://github.com/gmoyle/Spindle/releases)
+2. **Open the DMG file** and drag Spindle to Applications
 3. **Launch it.** The app is signed and notarized by Apple, so it opens normally.
 4. **FFmpeg**: on first launch the app downloads FFmpeg if it isn't already installed.
    For hardware-accelerated encoding on Apple Silicon, install a native build with
@@ -64,8 +67,8 @@ A native macOS application for automatically ripping DVDs and Blu-rays to MKV fo
 
 **Steps:**
 ```bash
-git clone https://github.com/gmoyle/AutoRip2MKV-Mac.git
-cd AutoRip2MKV-Mac
+git clone https://github.com/gmoyle/Spindle.git
+cd Spindle
 swift build && swift run
 ```
 
@@ -75,7 +78,7 @@ swift build && swift run
 
 ### First-Run Setup
 
-When you launch AutoRip2MKV for the first time, the application will:
+When you launch Spindle for the first time, the application will:
 
 1. **Find FFmpeg** - Use an installed FFmpeg (Homebrew's is preferred), or download one
 2. **Hardware Detection** - Test if your Mac supports VideoToolbox hardware acceleration
@@ -86,7 +89,7 @@ When you launch AutoRip2MKV for the first time, the application will:
 
 With the default settings, ripping is hands-free — insert a disc and walk away:
 
-1. **Launch AutoRip2MKV** from Applications (leave it running).
+1. **Launch Spindle** from Applications (leave it running).
 2. **Insert a DVD/Blu-ray.** The app detects it, identifies the movie, and starts ripping automatically.
 3. **The disc ejects** when the read finishes; encoding continues in the background.
 4. **Insert the next disc.** Repeat for as many as you like.
@@ -130,16 +133,16 @@ holds a half-written file.
 ### Blu-ray support (requires MakeMKV)
 
 **DVDs rip with no setup.** Blu-ray discs use AACS/BD+ copy protection that
-AutoRip2MKV cannot legitimately decrypt on its own, so Blu-ray ripping is handled
+Spindle cannot legitimately decrypt on its own, so Blu-ray ripping is handled
 by [MakeMKV](https://www.makemkv.com/) (free during its beta), which manages
-decryption with its own keys. AutoRip2MKV ships no decryption keys.
+decryption with its own keys. Spindle ships no decryption keys.
 
 - On **first launch**, the app offers to help you install MakeMKV. You can also
   install it any time from [makemkv.com/download](https://www.makemkv.com/download/).
 - MakeMKV's free beta builds expire. When that happens the app tells you, and
   **Download & Install** fetches the current version from makemkv.com and replaces
   the old one (or you can enter a registration key).
-- Once MakeMKV is installed, AutoRip2MKV **detects and uses it automatically** —
+- Once MakeMKV is installed, Spindle **detects and uses it automatically** —
   insert a Blu-ray and it rips just like a DVD, with the same Plex-style naming
   and output location.
 - The **"Use MakeMKV for Blu-ray"** setting (Detailed Settings, on by default)
@@ -174,7 +177,7 @@ This project is built using Swift Package Manager and native macOS frameworks:
 
 ### Project Structure
 
-Key files in `Sources/AutoRip2MKV-Mac/` (see [CLAUDE.md](CLAUDE.md) for the full architecture):
+Key files in `Sources/Spindle/` (see [CLAUDE.md](CLAUDE.md) for the full architecture):
 
 | File | Role |
 |------|------|
@@ -187,7 +190,7 @@ Key files in `Sources/AutoRip2MKV-Mac/` (see [CLAUDE.md](CLAUDE.md) for the full
 | `ContentRouter.swift`, `ContentTypeClassifier.swift` | Movies / TV Shows routing |
 | `RipHistoryStore.swift`, `DiscIdentity.swift` | Which discs have been ripped |
 
-Tests are in `Tests/AutoRip2MKV-MacTests/`.
+Tests are in `Tests/SpindleTests/`.
 
 ### Building
 

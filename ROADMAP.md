@@ -1,395 +1,91 @@
-# 🗺️ AutoRip2MKV-Mac Roadmap
-
-## 🎯 **Project Vision**
-
-AutoRip2MKV-Mac aims to be the most comprehensive, user-friendly, and technically advanced DVD/Blu-ray ripping solution for macOS. This roadmap outlines planned features, enhancements, and long-term goals for the project.
-
-## 📊 **Current Status: v2.1.0**
-
-- ✅ **Hands-free ripping**: auto-rip on insert, auto-eject when the read finishes, skip discs already ripped
-- ✅ **Fast DVD pipeline**: full-speed disc reads to local staging, background encoding while the next disc reads
-- ✅ **DVD seamless branching**: multi-version discs rip as one clean title
-- ✅ **Blu-ray / UHD via MakeMKV**, with in-app install and update of expired builds
-- ✅ **Plex library routing**: movies and TV seasons sorted into separate library folders, with a review queue
-- ✅ **VideoToolbox hardware encoding** for H.264 / HEVC
-- ✅ **Open-Source Decryption**: libdvdcss (DVD) and libaacs (Blu-ray fallback)
-- ✅ **AI-Generated Codebase**: ~24,000 lines of 100% AI-written Swift (app and tests)
-
----
-
-## ✅ **Completed in v2.0 – v2.1 (July – November 2026)**
-
-- ✅ Automatic Movies / TV Shows routing and the Review Rips queue (v2.0.0)
-- ✅ Central rip history keyed by disc fingerprint (v2.0.1)
-- ✅ Correct DVD read offsets, seamless branching, damaged-sector recovery (v2.1.0)
-- ✅ MakeMKV licensing detection and in-app update (v2.1.0)
-- ✅ Settings window trimmed to options that affect a rip (v2.1.0)
-
----
-
-## ✅ **Completed in v1.3.0 (February 2026)**
-
-### **Production Decryption Implementation**
-- ✅ **libdvdcss Integration**: Working DVD CSS decryption
-- ✅ **libaacs Integration**: Working Blu-ray AACS decryption
-- ✅ **Swift ↔ C Bindings**: @_silgen_name function declarations
-- ✅ **Library Detection**: Automatic Homebrew path resolution
-- ✅ **Bundling Script**: Standalone app distribution support
-- ✅ **Documentation**: Complete integration and usage guides
-
----
-
-## 🚀 **Planned Features**
-
-### **Phase 1: Enhanced Media Support** (v1.4.x)
-
-#### **Ultra HD 4K Detection & Processing**
-- **Enhanced UHD Blu-ray Detection**
-  - Improved 4K content identification algorithms
-  - Advanced resolution markers parsing
-  - UHD-specific metadata extraction
-  - Optimized encoding settings for 4K content
-
-- **Ultra HD DVD Support** (Rare Format)
-  - Detection algorithms for HD DVD format
-  - Enhanced resolution marker recognition
-  - Specialized processing for high-definition DVD content
-
-- **Advanced Disc Analysis**
-  - Automatic quality assessment
-  - Content complexity analysis
-  - Optimal encoding recommendations
-
-#### **Next-Generation Codec Support**
-- **AV1 Encoding Optimization**
-  - Hardware-accelerated AV1 encoding
-  - Advanced AV1 quality presets
-  - Streaming-optimized AV1 configurations
-
-- **VP9 Enhancements**
-  - Improved VP9 compression settings
-  - Better compatibility profiles
-  - Enhanced streaming configurations
-
-### **Phase 2: Workflow Automation** (v1.4.x)
-
-#### **Intelligent Batch Processing**
-- **Smart Queue Management**
-  - Priority-based processing
-  - Automatic resource allocation
-  - Concurrent multi-disc processing
-  - Progress prediction algorithms
-
-- **Advanced Automation Features**
-  - Auto-detection of inserted discs
-  - Intelligent title selection
-  - Automatic quality optimization
-  - Unattended batch processing
-
-#### **Enhanced Post-Processing**
-- **Extended Script Support**
-  - Python script integration
-  - Ruby script support
-  - JavaScript automation
-  - Custom workflow builders
-
-- **Network Integration**
-  - Automatic upload to cloud storage
-  - Network-attached storage (NAS) support
-  - Remote processing capabilities
-  - Distributed encoding clusters
-
-### **Phase 3: Professional Features** (v1.5.x)
-
-#### **Advanced Encoding Controls**
-- **Professional Quality Settings**
-  - Custom CRF curves
-  - Advanced bitrate targeting
-  - Multi-pass encoding optimization
-  - HDR content processing
-
-- **Hardware Acceleration Expansion**
-  - Apple Silicon optimization
-  - Metal Performance Shaders integration
-  - GPU-accelerated filtering
-  - Neural network upscaling
-
-#### **Metadata Management**
-- **Comprehensive Metadata Support**
-  - Automatic TMDB/IMDB lookup
-  - Custom metadata editing
-  - Artwork embedding
-  - Chapter naming automation
-
-- **Media Library Integration**
-  - Plex Media Server optimization
-  - Jellyfin compatibility
-  - Emby integration
-  - Kodi/XBMC support
-
-### **Phase 4: Enterprise & Advanced Users** (v1.6.x)
-
-#### **Native FFmpeg Integration**
-- **Direct Library Integration**
-  - Swift bindings for FFmpeg C libraries
-  - Memory-mapped processing for large files
-  - Eliminating external process overhead
-  - Custom codec selection and optimization
-
-- **FFmpeg Framework Development**
-  - Modular FFmpeg Swift framework
-  - Selective codec inclusion to reduce bundle size
-  - Hardware acceleration through Metal
-  - Real-time encoding progress and controls
-
-#### **Professional Workflow Tools**
-- **Command-Line Interface (CLI)**
-  - Headless operation support
-  - Scriptable automation
-  - Server deployment capabilities
-  - CI/CD integration
-
-- **API Development**
-  - RESTful API for remote control
-  - WebSocket real-time updates
-  - Third-party integration support
-  - Microservices architecture
-
-#### **Advanced Organization**
-- **Smart Content Classification**
-  - AI-powered genre detection
-  - Automatic content tagging
-  - Duplicate content identification
-  - Collection management
-
-- **Database Integration**
-  - SQLite local database
-  - PostgreSQL enterprise support
-  - Content indexing
-  - Advanced search capabilities
-
----
-
-## 🛠️ **Technical Improvements**
-
-### **Performance Optimizations**
-- **Memory Management**
-  - Reduced memory footprint
-  - Better garbage collection
-  - Streaming processing for large files
-  - Memory-mapped file operations
-
-- **Multi-threading Enhancements**
-  - Improved concurrent processing
-  - Background task optimization
-  - Thread pool management
-  - Async/await implementation
-
-### **Error Handling & Reliability**
-- **Robust Error Recovery**
-  - Automatic retry mechanisms
-  - Graceful degradation
-  - Detailed error reporting
-  - Recovery suggestions
-
-- **Data Integrity**
-  - Checksum verification
-  - Corruption detection
-  - Automatic repair attempts
-  - Backup and restore features
-
-### **Testing & Quality Assurance**
-- **Enhanced Test Coverage**
-  - Fix disabled test cases
-  - Integration test expansion
-  - Performance benchmarking
-  - Stress testing automation
-
-- **Continuous Integration**
-  - Automated testing pipelines
-  - Quality gate enforcement
-  - Performance regression detection
-  - Security vulnerability scanning
-
----
-
-## 🎨 **User Experience Enhancements**
-
-### **Interface Improvements**
-- **Modern UI Updates**
-  - SwiftUI migration consideration
-  - Dark mode optimizations
-  - Accessibility improvements
-  - Responsive design enhancements
-
-- **Customization Options**
-  - Theme support
-  - Layout preferences
-  - Keyboard shortcuts
-  - Gesture controls
-
-### **User Assistance**
-- **Enhanced Documentation**
-  - Interactive tutorials
-  - Video guides
-  - Troubleshooting wizard
-  - Context-sensitive help
-
-- **Smart Recommendations**
-  - Optimal settings suggestions
-  - Quality recommendations
-  - Performance tips
-  - Best practice guidance
-
----
-
-## 🌐 **Platform Expansion**
-
-### **Cross-Platform Considerations**
-- **Linux Support Evaluation**
-  - GTK+ interface development
-  - Package manager integration
-  - Distribution compatibility
-
-- **Windows Support Research**
-  - .NET Core migration assessment
-  - WPF interface development
-  - Windows-specific optimizations
-
-### **Cloud Integration**
-- **Cloud Processing**
-  - Remote encoding services
-  - Distributed processing
-  - Cloud storage integration
-  - Collaborative workflows
-
----
-
-## 🔬 **AI Development Experiment Evolution**
-
-### **Next-Generation AI Development**
-- **Advanced Code Generation**
-  - Complex algorithm implementation
-  - Performance optimization
-  - Architecture improvements
-  - Feature enhancement automation
-
-- **AI-Assisted Maintenance**
-  - Automated bug detection
-  - Code quality improvements
-  - Documentation generation
-  - Test case creation
-
-### **Research Opportunities**
-- **Academic Collaboration**
-  - AI development methodology research
-  - Code generation effectiveness studies
-  - Human-AI collaboration patterns
-  - Software engineering education
-
----
-
-## 📅 **Release Timeline**
-
-### **Short Term (3-6 months)**
-- **v1.3.0**: Enhanced 4K support and codec improvements
-- **v1.3.1**: Bug fixes and performance optimizations
-- **v1.3.2**: Additional encoding options and presets
-
-### **Medium Term (6-12 months)**
-- **v1.4.0**: Advanced workflow automation
-- **v1.4.1**: Network integration features
-- **v1.4.2**: Enhanced batch processing
-
-### **Long Term (12+ months)**
-- **v1.5.0**: Professional features and metadata management
-- **v1.6.0**: Enterprise tools and API development
-- **v2.0.0**: Major architecture update with cross-platform consideration
-
----
-
-## 🎯 **Success Metrics**
-
-### **Technical Goals**
-- **Performance**: 50% faster encoding with hardware acceleration
-- **Quality**: 99.9% success rate for disc processing
-- **Compatibility**: Support for 100% of standard DVD/Blu-ray formats
-- **Efficiency**: 90% reduction in manual configuration needs
-
-### **User Experience Goals**
-- **Ease of Use**: One-click processing for 95% of use cases
-- **Reliability**: Zero crashes during normal operation
-- **Documentation**: Complete coverage of all features
-- **Support**: Community-driven help and troubleshooting
-
-### **Project Goals**
-- **Code Quality**: Maintain 100% AI-generated codebase
-- **Test Coverage**: 95%+ automated test coverage
-- **Performance**: Sub-second response for all UI interactions
-- **Scalability**: Support for enterprise-level deployments
-
----
-
-## 🤝 **Community Involvement**
-
-### **Contribution Opportunities**
-- **Feature Requests**: Community-driven feature prioritization
-- **Beta Testing**: Early access program for new features
-- **Documentation**: User guide improvements and translations
-- **Bug Reports**: Detailed issue reporting and reproduction
-
-### **Development Process**
-- **Open Source**: All code remains open and inspectable
-- **AI Transparency**: Document AI development process
-- **Community Feedback**: Regular roadmap updates based on user input
-- **Collaborative Design**: Feature design with community input
-
----
-
-## 📈 **Long-term Vision**
-
-### **Industry Leadership**
-- **Technical Innovation**: Pioneer AI-generated application development
-- **User Experience**: Set new standards for media processing applications
-- **Open Source**: Demonstrate enterprise-quality open-source development
-- **Education**: Provide learning resources for AI-assisted development
-
-### **Ecosystem Integration**
-- **Media Servers**: Seamless integration with all major media servers
-- **Cloud Platforms**: Native support for major cloud providers
-- **Professional Workflows**: Integration with professional video editing suites
-- **Enterprise Tools**: Support for large-scale media digitization projects
-
----
-
-## 🔄 **Roadmap Updates**
-
-This roadmap is a living document that will be updated regularly based on:
-- **Community feedback and feature requests**
-- **Technical feasibility assessments**
-- **Market requirements and trends**
-- **AI development capabilities evolution**
-
-### **Version History**
-- **v1.0** (July 2025): Initial roadmap creation
-- **Next Update**: September 2025 (quarterly updates planned)
-
----
-
-## 📞 **Feedback & Suggestions**
-
-We welcome community input on this roadmap:
-
-- **GitHub Issues**: [Feature requests and suggestions](https://github.com/gmoyle/AutoRip2MKV-Mac/issues)
-- **Discussions**: [Community roadmap discussions](https://github.com/gmoyle/AutoRip2MKV-Mac/discussions)
-- **Email**: Direct feedback to the development team
-- **Social Media**: Follow project updates and announcements
-
----
-
-**🚀 Powered by AI Development via Warp 2.0**  
-*This roadmap, like the entire project, represents the future of AI-assisted software development*
-
-**Last Updated**: July 2025  
-**Next Review**: September 2025  
-**Version**: 1.0
+# Spindle Roadmap
+
+Spindle (formerly AutoRip2MKV) is turning from a DVD/Blu-ray ripper into a media
+library companion: insert any disc, and its contents land in the right library,
+named and organized, with nothing to click.
+
+Spindle works with Plex, Jellyfin and Emby folder layouts, but isn't tied to any of
+them.
+
+## Where it stands (v2.1)
+
+- Hands-free DVD and Blu-ray ripping: auto-rip on insert, eject when the read
+  finishes, background encoding, already-ripped discs skipped
+- DVD seamless branching, damaged-sector recovery, MakeMKV for Blu-ray/UHD with
+  in-app updates
+- Movies / TV Shows routing by title structure, with a review queue
+
+## Decisions
+
+| Question | Decision |
+|----------|----------|
+| Name | **Spindle** (no media-server names in the product name) |
+| Music format | **FLAC** |
+| CD reading | Fast (macOS's own CD reading); verification such as AccurateRip later |
+| Photo destination | **Ask the first time** a photo disc is inserted: a library folder, Apple Photos, or both |
+| Phase order | 0 → 1 → 2 → 3 → 4 → 5 |
+
+## Phase 0: Rename to Spindle
+
+- Package, module, app name, bundle ID (`com.gmoyle.spindle`), window title,
+  notifications, DMG and release workflow
+- Settings, rip history and logs migrated on first launch from the old bundle ID
+  and `~/Library/Application Support/AutoRip2MKV-Mac`
+- Repository renamed to `gmoyle/Spindle`
+
+## Phase 1: Groundwork
+
+- **Disc kinds**: replace the video-only media type with a disc kind decided from
+  the disc's contents: video DVD, Blu-ray, HD DVD, audio CD, photo disc,
+  home-video disc, data disc
+- **Importers**: one importer per disc kind behind a shared interface. The queue,
+  retries, local staging, eject, sleep prevention and rip history stay shared
+- **Libraries**: a library root per kind (Movies, TV Shows, Music, Photos, Home
+  Videos, Imported Discs), each set in Settings
+- **Metadata providers**: one interface for OMDb, TMDB and MusicBrainz
+
+## Phase 2: Music CDs
+
+- Read the AIFF tracks macOS exposes for a mounted audio CD; use `.TOC.plist`
+  for the track layout
+- Compute the MusicBrainz disc ID from the TOC; look up album, artist, year,
+  track titles, disc number in a set
+- Cover art from the Cover Art Archive
+- Encode to FLAC with full tags and embedded art
+- File as `Music/Artist/Album (Year)/01 - Title.flac`
+  (`Disc 2/` folders for multi-disc sets)
+- Unknown CDs: rip as `Unknown Artist/Unknown Album (date)` and add to the review
+  queue
+
+## Phase 3: TV series
+
+- Switch movie and TV lookups to TMDB (keep OMDb as a fallback)
+- Find the series and season; map the disc's titles to episodes by order and
+  duration
+- Remember series across discs, so disc 2 continues where disc 1 stopped
+- Skip "play all" titles that join every episode
+- File as `TV Shows/Show/Season 01/Show - S01E05.mkv`; unsure mappings go to
+  the review queue with proposed episode numbers
+
+## Phase 4: Photo, home-video and data discs
+
+- **Photo discs** (JPEG/HEIC/RAW files, `DCIM`, Kodak Picture CD): copy with
+  checksum verification, organize by photo date as `Photos/2004/2004-07-14/`,
+  skip duplicates of photos already imported. Destination chosen the first time
+  (folder, Apple Photos, or both)
+- **Home-video discs** (camcorder or burned DVDs with no commercial title):
+  rip to a Home Videos library, named by date
+- **Other data discs**: copy as-is into `Imported Discs/<disc name>/`
+
+## Phase 5: Companion features
+
+- Ask the local media server to rescan the affected library after each import
+  (Plex API with the server token; Jellyfin/Emby later)
+- Activity view: an import history of what came in, where it went, and what
+  needs review
+
+## Later
+
+- AccurateRip verification for audio CDs
+- Secure (paranoia-style) CD reading for scratched discs
+- Subtitles and artwork for TV episodes

@@ -107,7 +107,7 @@
   
   <!-- Main title -->
   <text x="185" y="50" font-family="SF Pro Display, -apple-system, sans-serif" 
-        font-size="32" font-weight="700" fill="url(#textGradient)">AutoRip2MKV</text>
+        font-size="32" font-weight="700" fill="url(#textGradient)">Spindle</text>
   
   <!-- Subtitle -->
   <text x="185" y="72" font-family="SF Pro Display, -apple-system, sans-serif" 

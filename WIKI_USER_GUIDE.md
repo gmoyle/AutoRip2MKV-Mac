@@ -1,6 +1,6 @@
-# AutoRip2MKV-Mac User Guide
+# Spindle User Guide
 
-This guide covers AutoRip2MKV v2.1: how a rip works, the main window, the Plex
+This guide covers Spindle v2.1: how a rip works, the main window, the Plex
 library workflow, MakeMKV for Blu-ray, and troubleshooting. Every setting is
 described in the [Settings Guide](DETAILED_SETTINGS_GUIDE.md); installation is in
 the [Installation Guide](INSTALLATION.md).
@@ -57,7 +57,7 @@ drives in the middle of a read.
 
 The app keeps a record of each disc it has ripped, by a fingerprint of the disc's
 contents (not just its name), in
-`~/Library/Application Support/AutoRip2MKV-Mac/rip_history.json`. With **Skip discs
+`~/Library/Application Support/Spindle/rip_history.json`. With **Skip discs
 already ripped** on, a known disc is ejected without ripping, unless:
 
 - you hold **⌥ Option** while inserting it, or click **Start Ripping**;
@@ -107,7 +107,7 @@ slower, because MakeMKV scans the entire disc before it starts.
 ## Blu-ray and MakeMKV
 
 Blu-ray copy protection is handled by [MakeMKV](https://www.makemkv.com/), which
-must be installed at `/Applications/MakeMKV.app`. AutoRip2MKV runs it in the
+must be installed at `/Applications/MakeMKV.app`. Spindle runs it in the
 background and names and files the results the same way as DVDs.
 
 **When MakeMKV stops working:** its free beta builds expire. The app then shows a
@@ -131,7 +131,7 @@ faster, at the cost of somewhat larger files. It needs a native Apple Silicon
 FFmpeg: install one with `brew install ffmpeg`. If the app only has the
 Intel FFmpeg it downloads itself, it encodes in software.
 
-All encoding happens in `~/Library/Caches/AutoRip2MKV/encoding/`. Only finished files
+All encoding happens in `~/Library/Caches/Spindle/encoding/`. Only finished files
 are moved to your output folder.
 
 ## Scripts
@@ -143,7 +143,7 @@ scripts receive.
 ## Troubleshooting
 
 **A disc isn't detected.** In System Settings → Privacy & Security → Files and
-Folders, make sure AutoRip2MKV can access **Removable Volumes**. Quit DVD Player if
+Folders, make sure Spindle can access **Removable Volumes**. Quit DVD Player if
 it opened on its own; it holds the drive.
 
 **A disc was skipped.** It's already in the rip history. Hold **⌥ Option** while
@@ -165,5 +165,5 @@ whether it's a movie or a TV season. Pick one there.
 prevents idle sleep while a job runs. Closing the lid still sleeps the Mac.
 
 Still stuck? Open an issue at
-https://github.com/gmoyle/AutoRip2MKV-Mac/issues with your macOS version, the disc,
+https://github.com/gmoyle/Spindle/issues with your macOS version, the disc,
 and the log.
