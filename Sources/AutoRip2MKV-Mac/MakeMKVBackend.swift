@@ -116,6 +116,8 @@ final class MakeMKVBackend {
 
     /// Forum thread where MakeMKV's developer publishes the free beta key
     /// (rotated every ~2 months while the program is in beta).
+    static let downloadURL = URL(string: "https://www.makemkv.com/download/")!
+
     static let betaKeyForumURL = URL(string: "https://forum.makemkv.com/forum/viewtopic.php?f=5&t=1053")!
 
     /// MakeMKV stores its registration key in ~/.MakeMKV/settings.conf as
@@ -144,15 +146,31 @@ final class MakeMKVBackend {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: exe)
         task.arguments = ["reg", key]
-        task.standardOutput = FileHandle.nullDevice
-        task.standardError = FileHandle.nullDevice
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
         do {
             try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
+            if task.terminationStatus != 0 {
+                // The key itself is never logged, only MakeMKV's reply.
+                let reply = (String(data: data, encoding: .utf8) ?? "")
+                    .replacingOccurrences(of: key, with: "<key>")
+                Logger.shared.log("makemkvcon reg failed (exit \(task.terminationStatus)): \(reply)",
+                                  level: .warning, category: .general)
+            }
             return task.terminationStatus == 0
         } catch {
             return false
         }
+    }
+
+    /// True when MakeMKV refuses because the build itself has expired (betas
+    /// stop working after a few months). Usually only installing the current
+    /// version fixes that, not a key.
+    static func isOutdatedVersionMessage(_ message: String) -> Bool {
+        message.lowercased().contains("version is too old")
     }
 
     /// True for the "opened in OS access mode" message — the weak fallback that
@@ -292,6 +310,7 @@ final class MakeMKVBackend {
     func rip(discPath: String,
              outputDirectory: String,
              minLengthSeconds: Int,
+             titleSpec: String = "all",
              onStatus: @escaping (String) -> Void,
              onProgress: @escaping (Double) -> Void) throws -> [String] {
 
@@ -313,7 +332,7 @@ final class MakeMKVBackend {
         do {
             return try ripOnce(exe: exe, discSpec: discSpec,
                                outputDirectory: outputDirectory,
-                               minLengthSeconds: minLengthSeconds,
+                               minLengthSeconds: minLengthSeconds, titleSpec: titleSpec,
                                onStatus: onStatus, onProgress: onProgress)
         } catch let error as MakeMKVError {
             // Retry exactly once if the failure looks like transient drive
@@ -324,7 +343,7 @@ final class MakeMKVBackend {
             Thread.sleep(forTimeInterval: Self.driveRetrySettleSeconds)
             return try ripOnce(exe: exe, discSpec: discSpec,
                                outputDirectory: outputDirectory,
-                               minLengthSeconds: minLengthSeconds,
+                               minLengthSeconds: minLengthSeconds, titleSpec: titleSpec,
                                onStatus: onStatus, onProgress: onProgress)
         }
     }
@@ -356,6 +375,7 @@ final class MakeMKVBackend {
                          discSpec: String,
                          outputDirectory: String,
                          minLengthSeconds: Int,
+                         titleSpec: String,
                          onStatus: @escaping (String) -> Void,
                          onProgress: @escaping (Double) -> Void) throws -> [String] {
 
@@ -374,7 +394,7 @@ final class MakeMKVBackend {
             "-r",                                   // robot (machine-readable) mode
             "--progress=-same",                     // progress on the same stream
             "--minlength=\(minLengthSeconds)",
-            "mkv", discSpec, "all", outputDirectory
+            "mkv", discSpec, titleSpec, outputDirectory
         ]
         let outPipe = Pipe()
         task.standardOutput = outPipe
@@ -542,6 +562,113 @@ final class MakeMKVBackend {
         task.waitUntilExit()
         let output = String(data: data, encoding: .utf8) ?? ""
         return Self.parseTitleDurations(fromInfoOutput: output)
+    }
+
+    /// One title as MakeMKV enumerates it (`info` TINFO lines).
+    struct Title: Equatable {
+        /// MakeMKV's own title index (what `mkv disc:N <index>` takes).
+        let index: Int
+        let durationSeconds: Int?
+        let sizeBytes: Int64?
+        /// The source title number on a DVD (TINFO attribute 24), when reported.
+        let sourceTitle: Int?
+    }
+
+    /// Enumerate the disc's titles with `makemkvcon info`. Opens the drive, so
+    /// never call it while a rip is active.
+    /// Throws `.registrationRequired` when MakeMKV refuses to run (expired
+    /// beta/trial), so the caller can prompt for a key instead of silently
+    /// falling back.
+    func scanTitles(for discPath: String,
+                    onStatus: @escaping (String) -> Void = { _ in },
+                    onProgress: @escaping (Double) -> Void = { _ in }) throws -> [Title] {
+        guard let exe = Self.executablePath() else { throw MakeMKVError.notInstalled }
+        let discSpec = (try? resolveDiscSpec(for: discPath, makemkvcon: exe)) ?? "disc:0"
+
+        // Streamed, with progress: on discs with seamless branching MakeMKV
+        // scans every VOBU ("complex multiplex"), which takes many minutes on a
+        // riplocked drive.
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: exe)
+        task.arguments = ["-r", "--cache=1", "--minlength=0", "--progress=-same", "info", discSpec]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        task.standardInput = FileHandle.nullDevice
+        self.process = task
+        defer { self.process = nil }
+        try task.run()
+
+        let cancelPoll = DispatchWorkItem { [weak self, weak task] in
+            while task?.isRunning == true {
+                if self?.cancelledFlag() == true { task?.terminate(); break }
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+        DispatchQueue.global(qos: .utility).async(execute: cancelPoll)
+        defer { cancelPoll.cancel() }
+
+        var lines: [String] = []
+        var lastMessage = ""
+        var buffer = Data()
+        let handle = pipe.fileHandleForReading
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            buffer.append(chunk)
+            while let nl = buffer.firstIndex(of: 0x0A) {
+                let lineData = buffer[buffer.startIndex..<nl]
+                buffer.removeSubrange(buffer.startIndex...nl)
+                guard let line = String(data: lineData, encoding: .utf8) else { continue }
+                if !line.hasPrefix("PRG") { lines.append(line) }
+                parseRobotLine(line, onStatus: onStatus, onProgress: onProgress, lastMessage: &lastMessage)
+            }
+        }
+        task.waitUntilExit()
+        if cancelledFlag() { throw MakeMKVError.cancelled }
+        let output = lines.joined(separator: "\n")
+        let titles = Self.parseTitles(fromInfoOutput: output)
+        // With titles, log their attributes; without, log MakeMKV's messages
+        // (drive/licensing errors), which are the only clue to why.
+        let keep: (Substring) -> Bool = titles.isEmpty
+            ? { $0.hasPrefix("MSG:") || $0.hasPrefix("DRV:") }
+            : { $0.hasPrefix("TINFO:") }
+        Logger.shared.log("makemkvcon info for \(discSpec) (exit \(task.terminationStatus), "
+                          + "\(titles.count) titles):\n"
+                          + output.split(separator: "\n").filter(keep).joined(separator: "\n"),
+                          level: titles.isEmpty ? .warning : .info, category: .general)
+        if titles.isEmpty, let problem = Self.registrationProblem(inRobotOutput: output) {
+            throw MakeMKVError.registrationRequired(problem)
+        }
+        return titles
+    }
+
+    /// The first MSG line in robot-mode output that is a licensing refusal, if
+    /// any. Pure, for tests.
+    static func registrationProblem(inRobotOutput output: String) -> String? {
+        for rawLine in output.split(separator: "\n") where rawLine.hasPrefix("MSG:") {
+            let fields = parseRobotCSVStatic(String(rawLine.dropFirst("MSG:".count)))
+            if fields.count >= 4, isRegistrationFailureMessage(fields[3]) { return fields[3] }
+        }
+        return nil
+    }
+
+    /// Parse titles from robot-mode `info` output (TINFO:title,id,code,"value";
+    /// id 9 duration, 11 size in bytes, 24 source title id). Pure, for tests.
+    static func parseTitles(fromInfoOutput output: String) -> [Title] {
+        var attrs: [Int: [Int: String]] = [:]
+        for rawLine in output.split(separator: "\n") where rawLine.hasPrefix("TINFO:") {
+            let fields = parseRobotCSVStatic(String(rawLine.dropFirst("TINFO:".count)))
+            guard fields.count >= 4, let title = Int(fields[0]), let id = Int(fields[1]) else { continue }
+            attrs[title, default: [:]][id] = fields[3]
+        }
+        return attrs.keys.sorted().map { index in
+            let a = attrs[index] ?? [:]
+            return Title(index: index,
+                         durationSeconds: a[9].flatMap(parseHMS),
+                         sizeBytes: a[11].flatMap { Int64($0) },
+                         sourceTitle: a[24].flatMap { Int($0) })
+        }
     }
 
     /// Parse title durations (seconds) from robot-mode `info` output. Pure, so

@@ -31,7 +31,11 @@ extension MediaRipper {
             throw error
         }
 
-        let minLength = Int(SettingsManager.shared.minMainFeatureDuration)
+        // MakeMKV keeps every title at least this long: feature length only by
+        // default, down to the bonus-feature minimum when bonus features are on.
+        let minLength = Int(configuration.ripBonusFeatures
+            ? SettingsManager.shared.minBonusFeatureDuration
+            : SettingsManager.shared.minMainFeatureDuration)
         let backend = MakeMKVBackend(isCancelled: { [weak self] in self?.shouldCancel ?? false })
         self.makemkvBackend = backend
 

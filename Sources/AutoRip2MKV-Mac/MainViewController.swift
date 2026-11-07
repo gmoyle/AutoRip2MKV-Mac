@@ -502,7 +502,8 @@ class MainViewController: NSViewController {
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
             plexName: resolvedDiscTitle,
-            hardwareAcceleration: settingsManager.hardwareAcceleration
+            hardwareAcceleration: settingsManager.hardwareAcceleration,
+            ripBonusFeatures: settingsManager.ripBonusFeatures
         )
 
         saveCurrentSettings()
@@ -921,23 +922,92 @@ extension MainViewController: DriveDetectorDelegate {
         }
     }
 
+    /// The installed MakeMKV build has expired: a key won't help, so point the
+    /// user at the download page (key entry stays available in case they have
+    /// a purchased key, which does unlock older versions).
+    private func presentMakeMKVUpdateNeeded(detail: String) {
+        let alert = NSAlert()
+        alert.messageText = "MakeMKV Needs Updating"
+        alert.informativeText = """
+            MakeMKV reported: \(detail)
+
+            This copy of MakeMKV is an expired beta, and a free beta key won't \
+            unlock it. AutoRip2MKV can download the current version from \
+            makemkv.com and install it into Applications for you (about 45 MB). \
+            MakeMKV's own license applies to the installed copy.
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Download & Install")
+        alert.addButton(withTitle: "Open Download Page")
+        alert.addButton(withTitle: "Enter Key…")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            installMakeMKVUpdate()
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(MakeMKVBackend.downloadURL)
+            appendToLog("Opened the MakeMKV download page. Install the update, then re-insert the disc.")
+        case .alertThirdButtonReturn:
+            promptForMakeMKVKey()
+        default:
+            appendToLog("MakeMKV needs updating — rip skipped for now.")
+        }
+    }
+
+    private func installMakeMKVUpdate() {
+        appendToLog("Updating MakeMKV (was \(MakeMKVInstaller.installedVersion() ?? "not installed"))...")
+        setDiscStatus("Updating MakeMKV…")
+        MakeMKVInstaller().install(
+            onStatus: { [weak self] status in
+                DispatchQueue.main.async { self?.appendToLog(status); self?.setDiscStatus(status) }
+            },
+            completion: { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    switch result {
+                    case .success(let version):
+                        self.appendToLog("MakeMKV \(version) installed.")
+                        self.setDiscStatus("MakeMKV \(version) installed")
+                        let done = NSAlert()
+                        done.messageText = "MakeMKV \(version) Installed"
+                        done.informativeText = "Rip the disc again now?"
+                        done.addButton(withTitle: "Rip Now")
+                        done.addButton(withTitle: "Later")
+                        if done.runModal() == .alertFirstButtonReturn { self.startRipping() }
+                    case .failure(let error):
+                        self.appendToLog("MakeMKV update failed: \(error.localizedDescription)")
+                        self.setDiscStatus("MakeMKV update failed")
+                        self.showAlert(title: "MakeMKV Update Failed",
+                                       message: error.localizedDescription
+                                        + "\n\nYou can install it from makemkv.com/download instead.")
+                    }
+                }
+            })
+    }
+
     /// Shown when makemkvcon refused to rip for licensing reasons (expired
     /// 30-day trial, expired beta build, or expired/invalid beta key). Offers
     /// the free beta key (fetched from the MakeMKV forum, where the developer
     /// publishes it for this purpose), manual key entry, or purchase.
     func presentMakeMKVRegistrationOptions(detail: String) {
+        if MakeMKVBackend.isOutdatedVersionMessage(detail) {
+            presentMakeMKVUpdateNeeded(detail: detail)
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "MakeMKV Needs a License Key"
         alert.informativeText = """
             MakeMKV reported: \(detail)
 
-            Blu-ray decryption requires a MakeMKV license key. A lifetime license \
+            MakeMKV needs a current license key to rip. A lifetime license \
             ($60) never expires and supports MakeMKV's developer, who single-handedly \
             keeps Blu-ray and UHD decryption working. While MakeMKV is in beta, a \
             free key is also published on the forum, but it rotates every couple of \
             months, so you'll need to refresh it periodically.
 
-            DVD ripping is unaffected — this only applies to Blu-ray.
+            After registering, re-insert the disc to rip it. (To rip DVDs \
+            without MakeMKV, turn off "Use MakeMKV for DVD and Blu-ray" in \
+            Settings; discs with seamless branching may then come out too long.)
             """
         alert.alertStyle = .warning
         // Buy first so it's the highlighted default — we nudge toward supporting
@@ -957,7 +1027,7 @@ extension MainViewController: DriveDetectorDelegate {
         case .alertThirdButtonReturn:
             promptForMakeMKVKey()
         default:
-            appendToLog("Blu-ray rip needs a MakeMKV key — skipped for now.")
+            appendToLog("MakeMKV needs a key — rip skipped for now.")
         }
     }
 
@@ -1064,7 +1134,7 @@ extension MainViewController: DriveDetectorDelegate {
             appendToLog("MakeMKV \(source) registered successfully.")
             let alert = NSAlert()
             alert.messageText = "MakeMKV Key Registered"
-            alert.informativeText = "Blu-ray ripping is unlocked. Start the rip again now?"
+            alert.informativeText = "MakeMKV is unlocked. Start the rip again now?"
             alert.addButton(withTitle: "Rip Now")
             alert.addButton(withTitle: "Later")
             if alert.runModal() == .alertFirstButtonReturn {
@@ -1134,7 +1204,8 @@ extension MainViewController: DriveDetectorDelegate {
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
             plexName: resolvedDiscTitle,
-            hardwareAcceleration: settingsManager.hardwareAcceleration
+            hardwareAcceleration: settingsManager.hardwareAcceleration,
+            ripBonusFeatures: settingsManager.ripBonusFeatures
         )
 
         // Skip discs already ripped with the same settings; a settings change

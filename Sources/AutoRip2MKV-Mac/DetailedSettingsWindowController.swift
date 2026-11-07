@@ -39,6 +39,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var qualityPopup: NSPopUpButton!
     private var includeSubtitlesCheckbox: NSButton!
     private var includeChaptersCheckbox: NSButton!
+    private var ripBonusFeaturesCheckbox: NSButton!
 
     // Advanced Options Section (pre/post-processing scripts — the only Advanced
     // controls with a real effect, run by ScriptRunner).
@@ -267,7 +268,7 @@ class DetailedSettingsWindowController: NSWindowController {
         sectionStackView.addArrangedSubview(autoDeinterlaceCheckbox)
 
         useMakeMKVCheckbox = NSButton(
-            checkboxWithTitle: "Use MakeMKV for Blu-ray (recommended; requires MakeMKV installed)",
+            checkboxWithTitle: "Use MakeMKV for DVD and Blu-ray (recommended; requires MakeMKV installed)",
             target: self,
             action: nil
         )
@@ -458,8 +459,13 @@ class DetailedSettingsWindowController: NSWindowController {
         includeSubtitlesCheckbox = NSButton(checkboxWithTitle: "Include subtitles", target: self, action: nil)
         includeChaptersCheckbox = NSButton(checkboxWithTitle: "Include chapter markers", target: self, action: nil)
 
+        ripBonusFeaturesCheckbox = NSButton(
+            checkboxWithTitle: "Rip bonus features (featurettes, extras) — off rips only the main movie",
+            target: self, action: nil)
+
         sectionStackView.addArrangedSubview(includeSubtitlesCheckbox)
         sectionStackView.addArrangedSubview(includeChaptersCheckbox)
+        sectionStackView.addArrangedSubview(ripBonusFeaturesCheckbox)
         // (Preferred Language popup removed — it was never persisted or consumed.)
 
         NSLayoutConstraint.activate([
@@ -620,6 +626,7 @@ class DetailedSettingsWindowController: NSWindowController {
 
         includeSubtitlesCheckbox.state = settingsManager.includeSubtitles ? .on : .off
         includeChaptersCheckbox.state = settingsManager.includeChapters ? .on : .off
+        ripBonusFeaturesCheckbox.state = settingsManager.ripBonusFeatures ? .on : .off
 
         // Load extended settings
         loadExtendedSettings()
@@ -741,6 +748,7 @@ class DetailedSettingsWindowController: NSWindowController {
 
         settingsManager.includeSubtitles = includeSubtitlesCheckbox.state == .on
         settingsManager.includeChapters = includeChaptersCheckbox.state == .on
+        settingsManager.ripBonusFeatures = ripBonusFeaturesCheckbox.state == .on
 
         // Save extended settings
         saveExtendedSettings()

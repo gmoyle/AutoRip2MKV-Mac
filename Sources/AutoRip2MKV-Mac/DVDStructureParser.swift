@@ -179,10 +179,12 @@ class DVDStructureParser {
     }
 
     private func parsePGCI(data: Data, offset: Int, for title: DVDTitle) throws {
-        // Parse Program Chain Information Table
-        // Use vtsTitleNumber (1-based) to select the correct PGC for this title
+        // Parse Program Chain Information Table. The title's PGC comes from the
+        // VTS_PTT_SRPT (first part-of-title's PGC number); fall back to treating
+        // the VTS title number as the PGC number if that table is unreadable.
         let pgcCount = data.readUInt16(at: offset)
-        let targetPGC = max(1, title.vtsTitleNumber)
+        let targetPGC = Self.pgcNumber(forVTSTitle: title.vtsTitleNumber, vtsi: data)
+            ?? max(1, title.vtsTitleNumber)
         let pgcIndex = min(targetPGC - 1, max(0, Int(pgcCount) - 1))
 
         let entryOffset = offset + 8 + pgcIndex * 8
@@ -208,30 +210,71 @@ class DVDStructureParser {
         try parseCells(data: data, offset: cellTableOffset, cellCount: Int(cellCount), for: title)
     }
 
+    /// PGC number (1-based) of a VTS title's first part-of-title, from the
+    /// VTS_PTT_SRPT table (sector pointer at VTSI 0xC8), or nil if unreadable.
+    static func pgcNumber(forVTSTitle vtsTitle: Int, vtsi data: Data) -> Int? {
+        guard data.count >= 0xCC, vtsTitle >= 1 else { return nil }
+        let ptt = Int(data.readUInt32(at: 0xC8)) * 2048
+        guard ptt > 0, ptt + 8 <= data.count else { return nil }
+        let titleCount = Int(data.readUInt16(at: ptt))
+        guard vtsTitle <= titleCount, ptt + 8 + vtsTitle * 4 <= data.count else { return nil }
+        let entry = ptt + Int(data.readUInt32(at: ptt + 8 + (vtsTitle - 1) * 4))
+        guard entry + 2 <= data.count else { return nil }
+        let pgcn = Int(data.readUInt16(at: entry))
+        return pgcn >= 1 ? pgcn : nil
+    }
+
+    /// Cell playback table: 24-byte entries. Byte 0 is the cell category
+    /// (bits 7–6 block mode, 5–4 block type; type 1 = angle block). +8 is the
+    /// first VOBU's start sector and +20 the last VOBU's end sector, both
+    /// relative to the start of the title set's title VOBs (VTS_xx_1.VOB).
     private func parseCells(data: Data, offset: Int, cellCount: Int, for title: DVDTitle) throws {
         var chapters: [DVDChapter] = []
+        var cells: [(category: UInt8, first: UInt32, last: UInt32)] = []
         var currentOffset = offset
 
         for chapterIndex in 0..<cellCount {
             if currentOffset + 24 <= data.count {
-                _ = data[currentOffset]
-                _ = data[currentOffset + 1]
-                let startSector = data.readUInt32(at: currentOffset + 4)
-                let endSector = data.readUInt32(at: currentOffset + 8)
+                let category = data[currentOffset]
+                let startSector = data.readUInt32(at: currentOffset + 8)
+                let endSector = data.readUInt32(at: currentOffset + 20)
 
-                let chapter = DVDChapter(
+                chapters.append(DVDChapter(
                     number: chapterIndex + 1,
                     startSector: startSector,
                     endSector: endSector,
                     duration: 0 // Calculate from sectors if needed
-                )
-
-                chapters.append(chapter)
+                ))
+                cells.append((category, startSector, endSector))
                 currentOffset += 24
             }
         }
 
         title.chapters = chapters
+        title.cellRanges = Self.sectorRanges(ofCells: cells)
+    }
+
+    /// The VOBS-relative sector ranges to read for a PGC's cells, in playback
+    /// order: later angles of a multi-angle block are skipped (only the first
+    /// angle is ripped), malformed cells dropped, and contiguous or overlapping
+    /// ranges merged.
+    static func sectorRanges(ofCells cells: [(category: UInt8, first: UInt32, last: UInt32)])
+        -> [ClosedRange<UInt32>] {
+        var ranges: [ClosedRange<UInt32>] = []
+        for cell in cells {
+            let blockMode = cell.category >> 6          // 0 none, 1 first, 2 middle, 3 last
+            let blockType = (cell.category >> 4) & 0x3  // 1 = angle block
+            if blockType == 1 && blockMode > 1 { continue }
+            guard cell.last >= cell.first else { continue }
+            if let previous = ranges.last,
+               cell.first >= previous.lowerBound,
+               cell.first <= previous.upperBound &+ 1 {
+                ranges[ranges.count - 1] = previous.lowerBound...max(previous.upperBound, cell.last)
+            } else {
+                ranges.append(cell.first...cell.last)
+            }
+        }
+        return ranges
     }
 
     private func parseVOBInfo(data: Data, for title: DVDTitle) throws {
@@ -305,6 +348,10 @@ class DVDTitle {
     let angles: Int
     var duration: TimeInterval
     var chapters: [DVDChapter] = []
+    /// Sector ranges of this title's cells, relative to the start of its title
+    /// set's title VOBs (VTS_xx_1.VOB), in playback order. Empty if the IFO
+    /// couldn't be parsed; the ripper then falls back to the whole VOB set.
+    var cellRanges: [ClosedRange<UInt32>] = []
     var vobFiles: [String] = []
     // ISO 639-1 codes from the VTS IFO, in stream order ("" when unspecified)
     var audioLanguages: [String] = []

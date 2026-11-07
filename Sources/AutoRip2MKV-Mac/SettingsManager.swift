@@ -25,6 +25,7 @@ class SettingsManager {
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
         static let autoDeinterlace = "autoDeinterlace"
         static let skipRippedDiscs = "skipRippedDiscs"
+        static let ripBonusFeatures = "ripBonusFeatures"
         static let useMakeMKVForBluRay = "useMakeMKVForBluRay"
         static let makemkvFirstRunChecked = "makemkvFirstRunChecked"
         
@@ -199,8 +200,10 @@ class SettingsManager {
         }
     }
 
-    /// Use MakeMKV (when installed) to rip Blu-ray discs, instead of the
-    /// built-in libaacs path. MakeMKV handles AACS/BD+ with its own keys.
+    /// Use MakeMKV (when installed) to read discs: Blu-ray instead of the
+    /// built-in libaacs path (MakeMKV handles AACS/BD+ with its own keys), and
+    /// DVD titles before encoding (it follows seamless branching and angles
+    /// that a raw libdvdcss sector read can't). The key name predates DVD use.
     var useMakeMKVForBluRay: Bool {
         get {
             return userDefaults.bool(forKey: Keys.useMakeMKVForBluRay)
@@ -217,6 +220,18 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.skipRippedDiscs)
+        }
+    }
+
+    /// Rip bonus features (featurettes, extras) as well as the main feature.
+    /// Off by default: only the main movie is ripped. Replaces the never-exposed
+    /// `autoSelectMainFeature` as the switch for main-feature-only selection.
+    var ripBonusFeatures: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.ripBonusFeatures)  // false when unset
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.ripBonusFeatures)
         }
     }
 
@@ -372,7 +387,7 @@ class SettingsManager {
             rules.skipMenus = skipMenus
             rules.skipTrailers = skipTrailers
             rules.skipDuplicates = skipDuplicates
-            rules.autoSelectMainFeature = autoSelectMainFeature
+            rules.autoSelectMainFeature = !ripBonusFeatures
             rules.preferLongestTitle = preferLongestTitle
             rules.minMainFeatureDuration = minMainFeatureDuration
             rules.minBonusFeatureDuration = minBonusFeatureDuration

@@ -189,6 +189,9 @@ extension MainViewController: ConversionQueueDelegate {
         appendToLog("Rip failed: \(error.localizedDescription)")
         showErrorNotification("Ripping failed: \(error.localizedDescription)")
         resetRipUI()
+        if case MakeMKVBackend.MakeMKVError.registrationRequired(let detail) = error {
+            presentMakeMKVRegistrationOptions(detail: detail)
+        }
     }
 
     func queueDidStartConversion(jobId: UUID) {

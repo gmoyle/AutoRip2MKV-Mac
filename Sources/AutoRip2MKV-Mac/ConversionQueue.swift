@@ -359,6 +359,9 @@ class ConversionQueue {
         // Only present when on, so turning it on doesn't make every earlier rip
         // (fingerprinted before this key existed) look stale and re-rip.
         if cfg.hardwareAcceleration { fingerprint["hardwareAcceleration"] = "true" }
+        // Same rule: turning bonus features on re-rips earlier discs to pick up
+        // their extras, but leaving it off (the default) re-rips nothing.
+        if cfg.ripBonusFeatures { fingerprint["ripBonusFeatures"] = "true" }
         return fingerprint
     }
 
@@ -797,6 +800,17 @@ class ConversionQueue {
         if encodeError != nil {
             // Drop staged titles that never got encoded (cancel / earlier failure).
             ripper.discardPendingEncodes()
+        }
+
+        // DVD: move the finished folder to the Movies/TV library root (or queue
+        // it for review) now that every encode is in place, and record where.
+        if encodeError == nil, !outputFiles.isEmpty, let route = ripper.routeAfterEncodes {
+            let status = ContentRouter.handleCompletedRip(
+                folderPath: route.folderPath, discName: route.discName,
+                discIdentity: route.discIdentity, titleDurationsSeconds: route.titleDurationsSeconds)
+            ripper.delegate?.mediaRipperDidUpdateStatus(status)
+            Logger.shared.logQueue(status, level: .info)
+            outputFiles = Self.resolveRoutedPaths(outputFiles)
         }
 
         // Backends without an encode phase (MakeMKV) write finished files directly.
