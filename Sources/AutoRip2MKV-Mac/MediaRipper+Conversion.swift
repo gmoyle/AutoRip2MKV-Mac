@@ -19,7 +19,7 @@ extension MediaRipper {
         var arguments = ["-i", inputFile]
 
         // Video encoder (hardware or software) with its rate-control parameters
-        arguments.append(contentsOf: videoEncoderArguments(for: configuration))
+        arguments.append(contentsOf: videoEncoderArguments(for: configuration, ffmpegPath: ffmpegPath))
 
         // Add audio codec
         arguments.append(contentsOf: audioEncoderArguments(for: configuration.audioCodec))
@@ -57,54 +57,107 @@ extension MediaRipper {
                (bytes == [0xCA, 0xFE, 0xBA, 0xBE])
     }
 
-    func getFFmpegPath() throws -> String {
-        // 1. Check if FFmpeg is bundled in the app bundle (Contents/Resources)
-        let bundlePath = Bundle.main.bundlePath
-        let bundledFFmpeg = bundlePath.appending("/Contents/Resources/ffmpeg")
-        if FileManager.default.fileExists(atPath: bundledFFmpeg) {
-            return bundledFFmpeg
+    /// True when the Mach-O at `path` can run natively on Apple Silicon (a thin
+    /// arm64 binary, or a universal binary with an arm64 slice). An x86_64-only
+    /// ffmpeg runs under Rosetta, where VideoToolbox rejects constant-quality
+    /// (`-q:v`) encodes and every hardware encode fails at once.
+    static func binarySupportsArm64(atPath path: String) -> Bool {
+        guard let fh = FileHandle(forReadingAtPath: path),
+              let header = try? fh.read(upToCount: 4096) else { return false }
+        fh.closeFile()
+        let bytes = [UInt8](header)
+        guard bytes.count >= 8 else { return false }
+        func le32(_ o: Int) -> UInt32 {
+            UInt32(bytes[o]) | UInt32(bytes[o + 1]) << 8 | UInt32(bytes[o + 2]) << 16 | UInt32(bytes[o + 3]) << 24
         }
-
-        // 2. Check if FFmpeg is bundled using Bundle.main.path (legacy)
-        if let bundledPath = Bundle.main.path(forResource: "ffmpeg", ofType: nil) {
-            return bundledPath
+        func be32(_ o: Int) -> UInt32 {
+            UInt32(bytes[o]) << 24 | UInt32(bytes[o + 1]) << 16 | UInt32(bytes[o + 2]) << 8 | UInt32(bytes[o + 3])
         }
-
-        // 3. Check Application Support directory (downloaded/installed)
-        let appSupportPath = getApplicationSupportPath()
-        let installedFFmpeg = (appSupportPath as NSString).appendingPathComponent("ffmpeg")
-        if FileManager.default.fileExists(atPath: installedFFmpeg) {
-            if isValidMachO(atPath: installedFFmpeg) {
-                return installedFFmpeg
+        let cpuTypeARM64: UInt32 = 0x0100_000C
+        if bytes[0..<4] == [0xCF, 0xFA, 0xED, 0xFE] {   // thin 64-bit, little-endian
+            return le32(4) == cpuTypeARM64
+        }
+        if bytes[0..<4] == [0xCA, 0xFE, 0xBA, 0xBE] {   // universal (fat) header, big-endian
+            let archCount = Int(be32(4))
+            for i in 0..<archCount {
+                let offset = 8 + i * 20                     // struct fat_arch is 20 bytes
+                guard offset + 4 <= bytes.count else { break }
+                if be32(offset) == cpuTypeARM64 { return true }
             }
-            // Corrupt file (e.g. un-extracted ZIP) — remove it so it can be re-downloaded
-            try? FileManager.default.removeItem(atPath: installedFFmpeg)
+        }
+        return false
+    }
+
+    /// Whether `path` runs natively on this Mac (always true on Intel Macs).
+    static func isNativeBinary(atPath path: String) -> Bool {
+        #if arch(arm64)
+        return binarySupportsArm64(atPath: path)
+        #else
+        return true
+        #endif
+    }
+
+    /// Resolves ffmpeg: bundled → Application Support (downloaded) → Homebrew →
+    /// `$PATH`. On Apple Silicon a native build wins over an earlier Intel-only one.
+    func getFFmpegPath() throws -> String {
+        var candidates: [String] = []
+        let fm = FileManager.default
+
+        // 1. Bundled in the app (Contents/Resources), then the legacy bundle lookup
+        let bundledFFmpeg = Bundle.main.bundlePath.appending("/Contents/Resources/ffmpeg")
+        if fm.fileExists(atPath: bundledFFmpeg) { candidates.append(bundledFFmpeg) }
+        if let bundledPath = Bundle.main.path(forResource: "ffmpeg", ofType: nil) {
+            candidates.append(bundledPath)
         }
 
-        // 4. Check system PATH as fallback
+        // 2. Application Support directory (downloaded/installed)
+        let installedFFmpeg = (getApplicationSupportPath() as NSString).appendingPathComponent("ffmpeg")
+        if fm.fileExists(atPath: installedFFmpeg) {
+            if isValidMachO(atPath: installedFFmpeg) {
+                candidates.append(installedFFmpeg)
+            } else {
+                // Corrupt file (e.g. un-extracted ZIP) — remove it so it can be re-downloaded
+                try? fm.removeItem(atPath: installedFFmpeg)
+            }
+        }
+
+        // 3. Homebrew. Apps launched from Finder get a minimal $PATH that
+        // doesn't include these, so `which` alone misses them.
+        for path in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"] where fm.isExecutableFile(atPath: path) {
+            candidates.append(path)
+        }
+
+        // 4. System PATH
+        if let path = whichFFmpeg() { candidates.append(path) }
+
+        guard let first = candidates.first else { throw MediaRipperError.ffmpegNotFound }
+        let chosen = candidates.first(where: { Self.isNativeBinary(atPath: $0) }) ?? first
+        if !Self.isNativeBinary(atPath: chosen) {
+            Logger.shared.log("Using non-native (Rosetta) ffmpeg at \(chosen); hardware encoding is disabled",
+                              level: .warning, category: .general)
+        }
+        return chosen
+    }
+
+    private func whichFFmpeg() -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         process.arguments = ["ffmpeg"]
-
         let pipe = Pipe()
         process.standardOutput = pipe
-
+        process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()  // drain before waiting: a full pipe blocks the child
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    return path
-                }
-            }
         } catch {
-            throw MediaRipperError.ffmpegNotFound
+            return nil
         }
-
-        throw MediaRipperError.ffmpegNotFound
+        // Drain before waiting: a full pipe blocks the child
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else { return nil }
+        return path
     }
 
     private func getApplicationSupportPath() -> String {
@@ -139,9 +192,12 @@ extension MediaRipper {
 
     /// `-c:v …` plus rate control. Uses Apple VideoToolbox when the rip asks for
     /// hardware acceleration and VT can encode it; otherwise the software encoder
-    /// with CRF/preset tuning.
-    func videoEncoderArguments(for configuration: RippingConfiguration) -> [String] {
-        if configuration.hardwareAcceleration,
+    /// with CRF/preset tuning. Pass the ffmpeg that will run the encode: an
+    /// Intel-only build under Rosetta can't do VT constant-quality, so it gets
+    /// the software encoder.
+    func videoEncoderArguments(for configuration: RippingConfiguration, ffmpegPath: String? = nil) -> [String] {
+        let ffmpegCanUseVT = ffmpegPath.map { Self.isNativeBinary(atPath: $0) } ?? true
+        if configuration.hardwareAcceleration, ffmpegCanUseVT,
            let hardware = videoToolboxArguments(for: configuration.videoCodec, quality: configuration.quality) {
             return hardware
         }
@@ -168,7 +224,9 @@ extension MediaRipper {
         case .high: q = 65
         case .lossless: return nil
         }
-        return ["-c:v", encoder, "-q:v", "\(q)"]
+        // -a53cc 0: VT's closed-caption SEI writer emits malformed NAL units, so
+        // a DVD with line-21 captions comes out as a corrupt, smeared stream.
+        return ["-c:v", encoder, "-q:v", "\(q)", "-a53cc", "0"]
         #else
         return nil
         #endif
@@ -404,11 +462,26 @@ extension MediaRipper {
         }
     }
 
-    func monitorFFmpegProgress(pipe: Pipe, mediaItem: MediaItem, itemIndex: Int, totalItems: Int) {
+    /// Drains ffmpeg's stderr, reporting progress, until ffmpeg closes it.
+    /// Returns the last non-progress lines so a failed encode can log why.
+    @discardableResult
+    func monitorFFmpegProgress(pipe: Pipe, mediaItem: MediaItem, itemIndex: Int, totalItems: Int) -> [String] {
         let fileHandle = pipe.fileHandleForReading
 
         var buffer = Data()
-        let delimiter = Data("\r".utf8)
+        var tail: [String] = []
+        let maxTailLines = 15
+
+        func handle(_ lineData: Data) {
+            guard let line = String(data: lineData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespaces), !line.isEmpty else { return }
+            if line.contains("time=") {
+                parseFFmpegProgress(line: line, mediaItem: mediaItem, itemIndex: itemIndex, totalItems: totalItems)
+            } else {
+                tail.append(line)
+                if tail.count > maxTailLines { tail.removeFirst() }
+            }
+        }
 
         while !shouldCancel {
             let chunk = fileHandle.availableData
@@ -418,19 +491,17 @@ extension MediaRipper {
 
             buffer.append(chunk)
 
-            // Process complete lines
-            while let delimiterRange = buffer.range(of: delimiter) {
-                let lineData = buffer.subdata(in: 0..<delimiterRange.lowerBound)
-                buffer.removeSubrange(0..<delimiterRange.upperBound)
-
-                if let line = String(data: lineData, encoding: .utf8) {
-                    parseFFmpegProgress(line: line, mediaItem: mediaItem, itemIndex: itemIndex, totalItems: totalItems)
-                }
+            // Process complete lines: progress ends in \r, messages in \n
+            while let end = buffer.firstIndex(where: { $0 == 0x0D || $0 == 0x0A }) {
+                handle(buffer.subdata(in: buffer.startIndex..<end))
+                buffer.removeSubrange(buffer.startIndex...end)
             }
 
             // Small delay to prevent excessive CPU usage
             usleep(10000) // 10ms
         }
+        if !buffer.isEmpty { handle(buffer) }
+        return tail
     }
 
     private func parseFFmpegProgress(line: String, mediaItem: MediaItem, itemIndex: Int, totalItems: Int) {

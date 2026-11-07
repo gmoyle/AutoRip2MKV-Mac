@@ -168,3 +168,35 @@ final class RipHistoryTests: XCTestCase {
         XCTAssertFalse(DiscIdentity.compute(forDiscAt: empty).contains("#"))
     }
 }
+
+/// A recorded rip whose output folder was deleted should rip again.
+final class RipOutputMissingTests: XCTestCase {
+
+    private func entry(at location: String) -> RipHistoryEntry {
+        RipHistoryEntry(discIdentity: "DISC#abc", volumeName: "DISC", title: "Disc",
+                        settingsFingerprint: [:], outputLocation: location, completedAt: Date())
+    }
+
+    func testExistingOutputIsNotMissing() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rip-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertFalse(entry(at: dir.path).outputIsMissing())
+    }
+
+    func testDeletedOutputIsMissing() {
+        let gone = FileManager.default.temporaryDirectory.appendingPathComponent("deleted-\(UUID().uuidString)").path
+        XCTAssertTrue(entry(at: gone).outputIsMissing())
+    }
+
+    func testOutputOnUnmountedVolumeIsNotMissing() {
+        // Can't tell whether the rip is still there, so don't re-rip just
+        // because the external drive or NAS share isn't connected.
+        let unmounted = "/Volumes/NotMounted-\(UUID().uuidString)/Movies/Disc"
+        XCTAssertFalse(entry(at: unmounted).outputIsMissing())
+    }
+
+    func testEmptyLocationIsNotMissing() {
+        XCTAssertFalse(entry(at: "").outputIsMissing())
+    }
+}

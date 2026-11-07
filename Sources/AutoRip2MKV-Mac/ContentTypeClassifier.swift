@@ -79,7 +79,10 @@ enum ContentTypeClassifier {
         if hasFeature {
             // A dominant feature that's clearly longer than everything else is a
             // confident movie; a feature with other longish titles is less sure.
-            let secondLongest = minutes.count >= 2 ? minutes[minutes.count - 2] : 0
+            // Copies of the feature within 1% of its length (DVDs often carry
+            // the same movie as two titles, e.g. for seamless branching) are the
+            // same feature, not competing titles.
+            let secondLongest = minutes.dropLast().last { $0 < longest * 0.99 } ?? 0
             let dominance = secondLongest > 0 ? (longest - secondLongest) / longest : 1.0
             let confidence = min(1.0, 0.6 + 0.35 * dominance)
             return Classification(type: .movie, confidence: confidence)

@@ -144,7 +144,8 @@ final class RoutingReviewWindowController: NSWindowController {
         for item in items {
             let type = choices[item.id] ?? .movie
             do {
-                _ = try ContentRouter.route(folderPath: item.folderPath, to: type)
+                _ = try ContentRouter.route(folderPath: item.folderPath, to: type,
+                                             discIdentity: item.discIdentity)
                 queue.remove(id: item.id)
                 choices[item.id] = nil
                 moved += 1

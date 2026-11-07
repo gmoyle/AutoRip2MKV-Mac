@@ -23,6 +23,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var hardwareAccelerationCheckbox: NSButton!
     private var autoDeinterlaceCheckbox: NSButton!
     private var useMakeMKVCheckbox: NSButton!
+    private var useMakeMKVForDVDCheckbox: NSButton!
 
     // Output Directory Section (Content Routing only — the output root itself comes
     // from the main window, not here).
@@ -39,6 +40,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var qualityPopup: NSPopUpButton!
     private var includeSubtitlesCheckbox: NSButton!
     private var includeChaptersCheckbox: NSButton!
+    private var ripBonusFeaturesCheckbox: NSButton!
 
     // Advanced Options Section (pre/post-processing scripts — the only Advanced
     // controls with a real effect, run by ScriptRunner).
@@ -274,6 +276,14 @@ class DetailedSettingsWindowController: NSWindowController {
         useMakeMKVCheckbox.state = .on
         sectionStackView.addArrangedSubview(useMakeMKVCheckbox)
 
+        useMakeMKVForDVDCheckbox = NSButton(
+            checkboxWithTitle: "Also use MakeMKV for DVDs (slower: scans the whole disc first)",
+            target: self,
+            action: nil
+        )
+        useMakeMKVForDVDCheckbox.state = .off
+        sectionStackView.addArrangedSubview(useMakeMKVForDVDCheckbox)
+
         NSLayoutConstraint.activate([
             sectionStackView.topAnchor.constraint(equalTo: advancedEncodingBox.topAnchor, constant: 25),
             sectionStackView.leadingAnchor.constraint(equalTo: advancedEncodingBox.leadingAnchor, constant: 10),
@@ -458,8 +468,13 @@ class DetailedSettingsWindowController: NSWindowController {
         includeSubtitlesCheckbox = NSButton(checkboxWithTitle: "Include subtitles", target: self, action: nil)
         includeChaptersCheckbox = NSButton(checkboxWithTitle: "Include chapter markers", target: self, action: nil)
 
+        ripBonusFeaturesCheckbox = NSButton(
+            checkboxWithTitle: "Rip bonus features (featurettes, extras) — off rips only the main movie",
+            target: self, action: nil)
+
         sectionStackView.addArrangedSubview(includeSubtitlesCheckbox)
         sectionStackView.addArrangedSubview(includeChaptersCheckbox)
+        sectionStackView.addArrangedSubview(ripBonusFeaturesCheckbox)
         // (Preferred Language popup removed — it was never persisted or consumed.)
 
         NSLayoutConstraint.activate([
@@ -620,6 +635,7 @@ class DetailedSettingsWindowController: NSWindowController {
 
         includeSubtitlesCheckbox.state = settingsManager.includeSubtitles ? .on : .off
         includeChaptersCheckbox.state = settingsManager.includeChapters ? .on : .off
+        ripBonusFeaturesCheckbox.state = settingsManager.ripBonusFeatures ? .on : .off
 
         // Load extended settings
         loadExtendedSettings()
@@ -634,6 +650,7 @@ class DetailedSettingsWindowController: NSWindowController {
         hardwareAccelerationCheckbox.state = settingsManager.hardwareAcceleration ? .on : .off
         autoDeinterlaceCheckbox.state = settingsManager.autoDeinterlace ? .on : .off
         useMakeMKVCheckbox.state = settingsManager.useMakeMKVForBluRay ? .on : .off
+        useMakeMKVForDVDCheckbox.state = settingsManager.useMakeMKVForDVD ? .on : .off
 
         // Content Routing.
         contentRoutingCheckbox.state = settingsManager.contentRoutingEnabled ? .on : .off
@@ -741,6 +758,7 @@ class DetailedSettingsWindowController: NSWindowController {
 
         settingsManager.includeSubtitles = includeSubtitlesCheckbox.state == .on
         settingsManager.includeChapters = includeChaptersCheckbox.state == .on
+        settingsManager.ripBonusFeatures = ripBonusFeaturesCheckbox.state == .on
 
         // Save extended settings
         saveExtendedSettings()
@@ -755,6 +773,7 @@ class DetailedSettingsWindowController: NSWindowController {
         settingsManager.hardwareAcceleration = hardwareAccelerationCheckbox.state == .on
         settingsManager.autoDeinterlace = autoDeinterlaceCheckbox.state == .on
         settingsManager.useMakeMKVForBluRay = useMakeMKVCheckbox.state == .on
+        settingsManager.useMakeMKVForDVD = useMakeMKVForDVDCheckbox.state == .on
 
         // Content Routing.
         settingsManager.contentRoutingEnabled = contentRoutingCheckbox.state == .on

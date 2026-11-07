@@ -243,7 +243,7 @@ extension MediaRipper {
         let ffmpegPath = try getFFmpegPathForHDDVD()
 
         var arguments = ["-i", inputFile]
-        arguments.append(contentsOf: videoEncoderArguments(for: configuration))
+        arguments.append(contentsOf: videoEncoderArguments(for: configuration, ffmpegPath: ffmpegPath))
         arguments.append(contentsOf: audioEncoderArguments(for: configuration.audioCodec))
 
         // Add subtitle handling if requested

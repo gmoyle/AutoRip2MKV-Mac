@@ -50,6 +50,17 @@ class MediaRipper {
     /// (MakeMKV). The queue records these the same way it records finished encodes.
     var directOutputFiles: [String] = []
 
+    /// Set by rippers whose files land only after the encode phase (DVD), so
+    /// the queue can route the finished folder to the Movies/TV root once the
+    /// encodes are in place. Blu-ray routes itself and leaves this nil.
+    struct PendingRoute {
+        let folderPath: String
+        let discName: String
+        let discIdentity: String?
+        let titleDurationsSeconds: [Int]
+    }
+    var routeAfterEncodes: PendingRoute?
+
     /// Stop any running encode and discard all staging files (decrypted titles
     /// and partial encodes). Used before a retry re-reads the disc and when a job
     /// is abandoned, so nothing is left running or filling the staging folder.
@@ -90,11 +101,18 @@ class MediaRipper {
         delegate?.mediaRipperDidUpdateStatus("Encoding title \(encode.titleNumber) (\(encode.itemIndex + 1) of \(encode.totalItems))...")
 
         // Drains stderr (progress lines) until ffmpeg exits and closes it.
-        monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
-                              itemIndex: encode.itemIndex, totalItems: encode.totalItems)
+        let stderrTail = monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
+                                               itemIndex: encode.itemIndex, totalItems: encode.totalItems)
         process.waitUntilExit()
         activeFFmpegProcess = nil
         encode.process = nil
+        if process.terminationStatus != 0 && !shouldCancel {
+            Logger.shared.log(
+                "ffmpeg exited \(process.terminationStatus) for title \(encode.titleNumber) (\(encode.ffmpegPath))\n"
+                    + "  args: \(encode.arguments.joined(separator: " "))\n"
+                    + stderrTail.map { "  | \($0)" }.joined(separator: "\n"),
+                level: .error, category: .general)
+        }
         return process.terminationStatus == 0
     }
 
@@ -128,6 +146,8 @@ class MediaRipper {
     // Encode H.264/HEVC with Apple VideoToolbox instead of the software encoder
     // (much faster; falls back to software where VT can't honor the settings)
     var hardwareAcceleration: Bool = false
+    // Rip bonus features too, not just the main feature (SettingsManager.ripBonusFeatures)
+    var ripBonusFeatures: Bool = false
 
         enum VideoCodec {
             case h264, h265, av1, vp9
@@ -295,6 +315,8 @@ extension MediaRipper {
                 Logger.shared.logError(error, context: "\(label) structure/decryption failed (attempt \(attemptNumber))",
                                        category: category)
                 if shouldCancel || isCancellation(error) { throw MediaRipperError.cancelled }
+                // A licensing refusal won't change on retry.
+                if case MakeMKVBackend.MakeMKVError.registrationRequired = error { throw error }
                 if attemptNumber == maxRetries { throw error }
                 let pause = delaySeconds > 0 ? " Retrying in \(Int(delaySeconds))s..." : " Retrying..."
                 delegate?.mediaRipperDidUpdateStatus("\(label) parse/decryption failed (attempt \(attemptNumber)).\(pause)")

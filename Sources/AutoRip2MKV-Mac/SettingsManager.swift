@@ -25,7 +25,9 @@ class SettingsManager {
         static let hardwareAccelerationChecked = "hardwareAccelerationChecked"
         static let autoDeinterlace = "autoDeinterlace"
         static let skipRippedDiscs = "skipRippedDiscs"
+        static let ripBonusFeatures = "ripBonusFeatures"
         static let useMakeMKVForBluRay = "useMakeMKVForBluRay"
+        static let useMakeMKVForDVD = "useMakeMKVForDVD"
         static let makemkvFirstRunChecked = "makemkvFirstRunChecked"
         
         // Intelligent Title Selection (Phase 2 Task 3)
@@ -199,8 +201,8 @@ class SettingsManager {
         }
     }
 
-    /// Use MakeMKV (when installed) to rip Blu-ray discs, instead of the
-    /// built-in libaacs path. MakeMKV handles AACS/BD+ with its own keys.
+    /// Use MakeMKV (when installed) for Blu-ray instead of the built-in
+    /// libaacs path (MakeMKV handles AACS/BD+ with its own keys).
     var useMakeMKVForBluRay: Bool {
         get {
             return userDefaults.bool(forKey: Keys.useMakeMKVForBluRay)
@@ -210,6 +212,14 @@ class SettingsManager {
         }
     }
 
+    /// Stage DVD titles with MakeMKV instead of the built-in libdvdcss reader.
+    /// Off by default: the built-in reader follows seamless branching itself
+    /// and avoids MakeMKV's full-disc scan (15+ minutes on a riplocked drive).
+    var useMakeMKVForDVD: Bool {
+        get { userDefaults.bool(forKey: Keys.useMakeMKVForDVD) }
+        set { userDefaults.set(newValue, forKey: Keys.useMakeMKVForDVD) }
+    }
+
     /// Skip auto-ripping discs whose completed output already exists
     var skipRippedDiscs: Bool {
         get {
@@ -217,6 +227,18 @@ class SettingsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.skipRippedDiscs)
+        }
+    }
+
+    /// Rip bonus features (featurettes, extras) as well as the main feature.
+    /// Off by default: only the main movie is ripped. Replaces the never-exposed
+    /// `autoSelectMainFeature` as the switch for main-feature-only selection.
+    var ripBonusFeatures: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.ripBonusFeatures)  // false when unset
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.ripBonusFeatures)
         }
     }
 
@@ -372,7 +394,7 @@ class SettingsManager {
             rules.skipMenus = skipMenus
             rules.skipTrailers = skipTrailers
             rules.skipDuplicates = skipDuplicates
-            rules.autoSelectMainFeature = autoSelectMainFeature
+            rules.autoSelectMainFeature = !ripBonusFeatures
             rules.preferLongestTitle = preferLongestTitle
             rules.minMainFeatureDuration = minMainFeatureDuration
             rules.minBonusFeatureDuration = minBonusFeatureDuration

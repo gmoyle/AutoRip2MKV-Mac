@@ -59,6 +59,10 @@ class ConversionQueue {
         let configuration: MediaRipper.RippingConfiguration
         let mediaType: MediaRipper.MediaType
         let discTitle: String
+        /// Disc identity, computed when the job is added while the disc is still
+        /// mounted. The rip-history record is written after encoding, by which
+        /// point the disc has been ejected and can't be fingerprinted any more.
+        let discIdentity: String
         var priority: JobPriority
         var status: JobStatus
         var progress: Double
@@ -76,6 +80,7 @@ class ConversionQueue {
             self.configuration = configuration
             self.mediaType = mediaType
             self.discTitle = discTitle
+            self.discIdentity = DiscIdentity.compute(forDiscAt: sourcePath)
             self.priority = priority
             self.status = .pending
             self.progress = 0.0
@@ -354,6 +359,9 @@ class ConversionQueue {
         // Only present when on, so turning it on doesn't make every earlier rip
         // (fingerprinted before this key existed) look stale and re-rip.
         if cfg.hardwareAcceleration { fingerprint["hardwareAcceleration"] = "true" }
+        // Same rule: turning bonus features on re-rips earlier discs to pick up
+        // their extras, but leaving it off (the default) re-rips nothing.
+        if cfg.ripBonusFeatures { fingerprint["ripBonusFeatures"] = "true" }
         return fingerprint
     }
 
@@ -373,10 +381,11 @@ class ConversionQueue {
         let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) ?? stagingDir
 
         // Central registry (source of truth), keyed by disc identity so detection
-        // is independent of where the files live.
-        let identity = DiscIdentity.compute(forDiscAt: job.sourcePath)
+        // is independent of where the files live. Uses the identity captured at
+        // insert time: the disc is ejected by now, so recomputing it here would
+        // fall back to the bare volume label and never match on re-insert.
         RipHistoryStore.shared.record(RipHistoryEntry(
-            discIdentity: identity,
+            discIdentity: job.discIdentity,
             volumeName: (job.sourcePath as NSString).lastPathComponent,
             title: job.discTitle,
             settingsFingerprint: fingerprint,
@@ -666,6 +675,15 @@ class ConversionQueue {
 
         ScriptRunner.shared.runHook(.preProcessing, job: job)
 
+        // Keep the Mac from idle-sleeping for the whole job (disc read + encode).
+        // Sleep cuts power to USB optical drives, so a read in progress fails on
+        // wake and the rip restarts from scratch. Ended on failure below, or after
+        // performEncodes.
+        let sleepActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "Ripping \(job.discTitle)"
+        )
+
         let ripper = MediaRipper()
         jobsQueue.async(flags: .barrier) { self.activeRippers[jobId] = ripper }
         let semaphore = DispatchSemaphore(value: 0)
@@ -702,6 +720,7 @@ class ConversionQueue {
                     self.notifyDelegates { $0.queueDidFailExtraction(jobId: jobId, error: error) }
                 }
             }
+            ProcessInfo.processInfo.endActivity(sleepActivity)
             processNextJob()
             return
         }
@@ -728,6 +747,7 @@ class ConversionQueue {
             withExtendedLifetime(bridge) {
                 self.performEncodes(for: job, ripper: ripper)
             }
+            ProcessInfo.processInfo.endActivity(sleepActivity)
         }
     }
 
@@ -780,6 +800,17 @@ class ConversionQueue {
         if encodeError != nil {
             // Drop staged titles that never got encoded (cancel / earlier failure).
             ripper.discardPendingEncodes()
+        }
+
+        // DVD: move the finished folder to the Movies/TV library root (or queue
+        // it for review) now that every encode is in place, and record where.
+        if encodeError == nil, !outputFiles.isEmpty, let route = ripper.routeAfterEncodes {
+            let status = ContentRouter.handleCompletedRip(
+                folderPath: route.folderPath, discName: route.discName,
+                discIdentity: route.discIdentity, titleDurationsSeconds: route.titleDurationsSeconds)
+            ripper.delegate?.mediaRipperDidUpdateStatus(status)
+            Logger.shared.logQueue(status, level: .info)
+            outputFiles = Self.resolveRoutedPaths(outputFiles)
         }
 
         // Backends without an encode phase (MakeMKV) write finished files directly.
