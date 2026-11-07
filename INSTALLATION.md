@@ -4,131 +4,106 @@
   <p><em>Step-by-step installation instructions for macOS</em></p>
 </div>
 
-This guide helps you install and run AutoRip2MKV on macOS despite Apple's security restrictions.
+## 🚀 Install
 
-## 🚀 Quick Installation
+1. **Download the latest DMG** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases/latest).
+2. **Open the DMG** and drag AutoRip2MKV to Applications.
+3. **Launch AutoRip2MKV.** Releases are signed with a Developer ID and notarized by
+   Apple, so the app opens normally; no right-click or security override is needed.
+4. **Allow disc access.** The first time a disc is inserted, macOS asks whether
+   AutoRip2MKV may access files on a removable volume. Click **Allow**; the app can't
+   read discs without it.
 
-### Step 1: Download and Install
-1. **Download the latest DMG** from [GitHub Releases](https://github.com/gmoyle/AutoRip2MKV-Mac/releases)
-2. **Open the DMG file** and drag AutoRip2MKV to Applications
-3. **FFmpeg** is already bundled - no downloads needed!
+That's all you need for DVDs.
 
-### Step 2: First Launch (Security Override)
+## 🎬 FFmpeg
 
-Since AutoRip2MKV isn't code-signed with an Apple Developer certificate, macOS will block it initially. Choose one of these methods:
+AutoRip2MKV uses FFmpeg to encode. On launch it looks for one in this order:
 
-## ✅ Method 1: Right-Click Open (Recommended)
+1. An `ffmpeg` inside the app bundle
+2. `~/Library/Application Support/AutoRip2MKV-Mac/ffmpeg` (one the app downloaded earlier)
+3. Homebrew (`/opt/homebrew/bin/ffmpeg`, `/usr/local/bin/ffmpeg`)
+4. Anything else on your `PATH`
 
-1. **Navigate to Applications** in Finder
-2. **Right-click** (or Control+click) on AutoRip2MKV
-3. **Select "Open"** from the context menu
-4. **Click "Open"** in the security dialog
-
-This permanently allows the app to run.
-
-## ✅ Method 2: System Preferences
-
-1. **Try to open** AutoRip2MKV normally (it will be blocked)
-2. **Open System Preferences** → Security & Privacy → General
-3. **Look for the message** about AutoRip2MKV being blocked
-4. **Click "Open Anyway"** next to the message
-5. **Try opening** the app again
-
-## ✅ Method 3: Terminal (Advanced Users)
-
-Remove the quarantine attribute that macOS adds to downloaded files:
+If none is found, the app downloads a static build from evermeet.cx into Application
+Support. That build is Intel-only: it runs under Rosetta and can't use hardware
+encoding. **For hardware-accelerated encoding on Apple Silicon, install Homebrew's
+native build**, which the app prefers when both exist:
 
 ```bash
-# Remove quarantine from the app
-sudo xattr -r -d com.apple.quarantine /Applications/AutoRip2MKV.app
-
-# Verify it was removed
-xattr -l /Applications/AutoRip2MKV.app
+brew install ffmpeg
 ```
 
-## 🛡️ Security Information
+## 💿 Blu-ray: MakeMKV
 
-### Why does macOS block the app?
+Blu-ray discs are ripped with [MakeMKV](https://www.makemkv.com/), installed at
+`/Applications/MakeMKV.app`. On first launch the app offers to help you install it,
+or you can download it from [makemkv.com/download](https://www.makemkv.com/download/).
 
-- AutoRip2MKV is **not notarized** by Apple (requires paid Developer Program)
-- The app is **ad-hoc signed** during build process
-- macOS **Gatekeeper** blocks unsigned/unnotarized applications by default
+MakeMKV's free beta builds stop working after a while ("This application version is
+too old"). When that happens, AutoRip2MKV shows a dialog where **Download & Install**
+fetches the current MakeMKV from makemkv.com and replaces the old copy. You can also
+enter a registration key there.
 
-### Is it safe?
+MakeMKV's Homebrew cask is deprecated (it fails Gatekeeper), so don't install it that way.
 
-✅ **Yes, the app is completely safe:**
-- **100% open source** - all code is visible in this repository
-- **No malicious code** - you can inspect every line
-- **No network activity** - the app only processes local files
-- **AI-generated code** - thoroughly tested with 100+ unit tests
+## 🛡️ Security and privacy
 
-### Alternative: Build from Source
+- **Open source**: all code is in this repository.
+- **Network use**: the app connects to the internet only to look up movie titles
+  (OMDb), to download FFmpeg if you don't have it, and to download MakeMKV when you
+  click **Download & Install**. Ripping and encoding happen locally.
+- **Sleep**: while a rip is running the app keeps the Mac from idle-sleeping, because
+  sleep cuts power to USB drives mid-read. Normal sleep resumes when the job finishes.
 
-If you prefer, you can build from source instead:
+## 🔨 Build from source
 
 ```bash
+brew install libdvdcss libaacs
 git clone https://github.com/gmoyle/AutoRip2MKV-Mac.git
 cd AutoRip2MKV-Mac
 swift build && swift run
 ```
 
+`./deploy.sh` builds a release copy into `~/Applications/AutoRip2MKV-Mac.app`, signs
+it, and launches it.
+
 ## 🔧 Troubleshooting
 
-### App Won't Open After Following Steps
+### Discs aren't detected
 
-1. **Verify app permissions**: Right-click → Get Info → ensure you have read/write access
-2. **Try the terminal method** to remove quarantine completely
-3. **Check Console.app** for any error messages during launch
+Check System Settings → Privacy & Security → Files and Folders → AutoRip2MKV and make
+sure **Removable Volumes** is on. Also quit DVD Player if it opened on its own: it
+holds the drive.
 
-### "Operation not permitted" Error
+### Encoding fails immediately
 
-This usually means you need to grant additional permissions:
+Check which FFmpeg the app found (it's written to the log panel on launch). If it's
+the downloaded Intel build and Rosetta isn't installed, install Homebrew's build
+(`brew install ffmpeg`) or run `softwareupdate --install-rosetta`.
 
-1. **System Preferences** → Security & Privacy → Privacy
-2. **Add AutoRip2MKV** to:
-   - Full Disk Access (for reading DVD files)
-   - Accessibility (if needed for automation)
+### Blu-ray rips fail with a licensing message
 
-### FFmpeg Issues
+Use **Download & Install** in the MakeMKV dialog, or open MakeMKV and enter a key.
 
-FFmpeg is bundled with the app (no downloads required). If you encounter issues:
+### A Blu-ray can't be opened ("Failed to open disc")
 
-```bash
-# Check if the bundled FFmpeg is present
-ls /Applications/AutoRip2MKV.app/Contents/Resources/ffmpeg
-
-# Verify FFmpeg version
-/Applications/AutoRip2MKV.app/Contents/Resources/ffmpeg -version
-
-# For development builds, check Application Support directory
-ls ~/Library/Application\ Support/AutoRip2MKV-Mac/
-```
+Make sure nothing else is using the drive (MakeMKV's own window, DVD Player, another
+ripper), then reinsert the disc.
 
 ## 📋 System Requirements
 
-- **macOS 13.0** or later (macOS Ventura+)
-- **FFmpeg** bundled with the application (v7.1.1-tessus)
-- **Optical drive** or mounted DVD/Blu-ray images
-- **Internet connection** not required for core functionality
+- **macOS 13.0** or later, Apple Silicon
+- **Optical drive** (USB drives work)
+- **MakeMKV** for Blu-ray
+- **Internet** only for title lookup and the one-time FFmpeg / MakeMKV downloads
 
 ## 🆘 Need Help?
 
-If you encounter issues:
-
-1. **Check the [Issues](https://github.com/gmoyle/AutoRip2MKV-Mac/issues)** for similar problems
-2. **Create a new issue** with:
-   - Your macOS version
-   - Error messages (if any)
-   - Steps you tried
-   - Whether you can build from source
-
-## 🎯 Pro Tips
-
-- **First launch is immediate** - FFmpeg is already bundled, no downloads
-- **Keep the app in Applications** - don't run it from Downloads
-- **Use right-click method** - it's the most reliable for unsigned apps
-- **Works offline** - no internet connection required for ripping
+Check the [Issues](https://github.com/gmoyle/AutoRip2MKV-Mac/issues) for similar
+problems, or open a new one with your macOS version, the disc, and the log panel's
+output.
 
 ---
 
-*This app represents a groundbreaking AI development experiment - see [WARP_AI_EXPERIMENT.md](WARP_AI_EXPERIMENT.md) for the full story!*
+*This app is an AI development experiment; see [WARP_AI_EXPERIMENT.md](WARP_AI_EXPERIMENT.md) for the story.*
