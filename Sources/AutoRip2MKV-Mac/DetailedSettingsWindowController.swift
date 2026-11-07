@@ -23,6 +23,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var hardwareAccelerationCheckbox: NSButton!
     private var autoDeinterlaceCheckbox: NSButton!
     private var useMakeMKVCheckbox: NSButton!
+    private var useMakeMKVForDVDCheckbox: NSButton!
 
     // Output Directory Section (Content Routing only — the output root itself comes
     // from the main window, not here).
@@ -268,12 +269,20 @@ class DetailedSettingsWindowController: NSWindowController {
         sectionStackView.addArrangedSubview(autoDeinterlaceCheckbox)
 
         useMakeMKVCheckbox = NSButton(
-            checkboxWithTitle: "Use MakeMKV for DVD and Blu-ray (recommended; requires MakeMKV installed)",
+            checkboxWithTitle: "Use MakeMKV for Blu-ray (recommended; requires MakeMKV installed)",
             target: self,
             action: nil
         )
         useMakeMKVCheckbox.state = .on
         sectionStackView.addArrangedSubview(useMakeMKVCheckbox)
+
+        useMakeMKVForDVDCheckbox = NSButton(
+            checkboxWithTitle: "Also use MakeMKV for DVDs (slower: scans the whole disc first)",
+            target: self,
+            action: nil
+        )
+        useMakeMKVForDVDCheckbox.state = .off
+        sectionStackView.addArrangedSubview(useMakeMKVForDVDCheckbox)
 
         NSLayoutConstraint.activate([
             sectionStackView.topAnchor.constraint(equalTo: advancedEncodingBox.topAnchor, constant: 25),
@@ -641,6 +650,7 @@ class DetailedSettingsWindowController: NSWindowController {
         hardwareAccelerationCheckbox.state = settingsManager.hardwareAcceleration ? .on : .off
         autoDeinterlaceCheckbox.state = settingsManager.autoDeinterlace ? .on : .off
         useMakeMKVCheckbox.state = settingsManager.useMakeMKVForBluRay ? .on : .off
+        useMakeMKVForDVDCheckbox.state = settingsManager.useMakeMKVForDVD ? .on : .off
 
         // Content Routing.
         contentRoutingCheckbox.state = settingsManager.contentRoutingEnabled ? .on : .off
@@ -763,6 +773,7 @@ class DetailedSettingsWindowController: NSWindowController {
         settingsManager.hardwareAcceleration = hardwareAccelerationCheckbox.state == .on
         settingsManager.autoDeinterlace = autoDeinterlaceCheckbox.state == .on
         settingsManager.useMakeMKVForBluRay = useMakeMKVCheckbox.state == .on
+        settingsManager.useMakeMKVForDVD = useMakeMKVForDVDCheckbox.state == .on
 
         // Content Routing.
         settingsManager.contentRoutingEnabled = contentRoutingCheckbox.state == .on

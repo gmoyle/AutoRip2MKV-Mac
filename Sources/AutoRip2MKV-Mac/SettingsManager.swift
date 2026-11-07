@@ -27,6 +27,7 @@ class SettingsManager {
         static let skipRippedDiscs = "skipRippedDiscs"
         static let ripBonusFeatures = "ripBonusFeatures"
         static let useMakeMKVForBluRay = "useMakeMKVForBluRay"
+        static let useMakeMKVForDVD = "useMakeMKVForDVD"
         static let makemkvFirstRunChecked = "makemkvFirstRunChecked"
         
         // Intelligent Title Selection (Phase 2 Task 3)
@@ -200,10 +201,8 @@ class SettingsManager {
         }
     }
 
-    /// Use MakeMKV (when installed) to read discs: Blu-ray instead of the
-    /// built-in libaacs path (MakeMKV handles AACS/BD+ with its own keys), and
-    /// DVD titles before encoding (it follows seamless branching and angles
-    /// that a raw libdvdcss sector read can't). The key name predates DVD use.
+    /// Use MakeMKV (when installed) for Blu-ray instead of the built-in
+    /// libaacs path (MakeMKV handles AACS/BD+ with its own keys).
     var useMakeMKVForBluRay: Bool {
         get {
             return userDefaults.bool(forKey: Keys.useMakeMKVForBluRay)
@@ -211,6 +210,14 @@ class SettingsManager {
         set {
             userDefaults.set(newValue, forKey: Keys.useMakeMKVForBluRay)
         }
+    }
+
+    /// Stage DVD titles with MakeMKV instead of the built-in libdvdcss reader.
+    /// Off by default: the built-in reader follows seamless branching itself
+    /// and avoids MakeMKV's full-disc scan (15+ minutes on a riplocked drive).
+    var useMakeMKVForDVD: Bool {
+        get { userDefaults.bool(forKey: Keys.useMakeMKVForDVD) }
+        set { userDefaults.set(newValue, forKey: Keys.useMakeMKVForDVD) }
     }
 
     /// Skip auto-ripping discs whose completed output already exists

@@ -251,8 +251,15 @@ class DVDStructureParser {
         }
 
         title.chapters = chapters
-        title.cellRanges = Self.sectorRanges(ofCells: cells)
+        let layout = Self.cellLayout(ofCells: cells)
+        title.cellRanges = layout.ranges
+        title.interleavedRanges = layout.interleaved
     }
+
+    /// Category bit 2: the cell's VOBUs are interleaved with another
+    /// program's (seamless branching or multi-angle), so its sector range also
+    /// holds the other version's units.
+    static let interleavedCellFlag: UInt8 = 0x04
 
     /// The VOBS-relative sector ranges to read for a PGC's cells, in playback
     /// order: later angles of a multi-angle block are skipped (only the first
@@ -260,21 +267,33 @@ class DVDStructureParser {
     /// ranges merged.
     static func sectorRanges(ofCells cells: [(category: UInt8, first: UInt32, last: UInt32)])
         -> [ClosedRange<UInt32>] {
+        cellLayout(ofCells: cells).ranges
+    }
+
+    /// As `sectorRanges(ofCells:)`, plus which of those ranges are interleaved
+    /// cells. Interleaved cells are never merged: each has to be walked VOBU
+    /// by VOBU (see MediaRipper.readDVDTitle), from its own first sector.
+    static func cellLayout(ofCells cells: [(category: UInt8, first: UInt32, last: UInt32)])
+        -> (ranges: [ClosedRange<UInt32>], interleaved: Set<ClosedRange<UInt32>>) {
         var ranges: [ClosedRange<UInt32>] = []
+        var interleaved = Set<ClosedRange<UInt32>>()
         for cell in cells {
             let blockMode = cell.category >> 6          // 0 none, 1 first, 2 middle, 3 last
             let blockType = (cell.category >> 4) & 0x3  // 1 = angle block
             if blockType == 1 && blockMode > 1 { continue }
             guard cell.last >= cell.first else { continue }
-            if let previous = ranges.last,
+            let isInterleaved = cell.category & interleavedCellFlag != 0
+            if !isInterleaved,
+               let previous = ranges.last, !interleaved.contains(previous),
                cell.first >= previous.lowerBound,
                cell.first <= previous.upperBound &+ 1 {
                 ranges[ranges.count - 1] = previous.lowerBound...max(previous.upperBound, cell.last)
             } else {
                 ranges.append(cell.first...cell.last)
+                if isInterleaved { interleaved.insert(cell.first...cell.last) }
             }
         }
-        return ranges
+        return (ranges, interleaved)
     }
 
     private func parseVOBInfo(data: Data, for title: DVDTitle) throws {
@@ -352,6 +371,9 @@ class DVDTitle {
     /// set's title VOBs (VTS_xx_1.VOB), in playback order. Empty if the IFO
     /// couldn't be parsed; the ripper then falls back to the whole VOB set.
     var cellRanges: [ClosedRange<UInt32>] = []
+    /// Members of `cellRanges` that are interleaved cells, whose ranges also
+    /// contain another version's (or angle's) VOBUs.
+    var interleavedRanges: Set<ClosedRange<UInt32>> = []
     var vobFiles: [String] = []
     // ISO 639-1 codes from the VTS IFO, in stream order ("" when unspecified)
     var audioLanguages: [String] = []

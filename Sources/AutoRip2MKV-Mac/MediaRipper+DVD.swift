@@ -62,7 +62,7 @@ extension MediaRipper {
         // remuxes the title without re-encoding. Titles it can't stage fall
         // back to the libdvdcss reader below.
         var staged: [Int: String] = [:]   // plan index -> staged MKV from MakeMKV
-        if SettingsManager.shared.useMakeMKVForBluRay && MakeMKVBackend.isInstalled {
+        if SettingsManager.shared.useMakeMKVForDVD && MakeMKVBackend.isInstalled {
             do {
                 staged = try stageDVDTitlesWithMakeMKV(dvdPath: dvdPath, plans: plans)
             } catch let error as MakeMKVBackend.MakeMKVError {
@@ -201,12 +201,21 @@ extension MediaRipper {
     /// seconds of video). Past that the disc is too damaged for a usable rip.
     static let maxSkippedSectorsPerTitle = 4096
 
-    /// Read and decrypt every sector of `title` into the file at `path`.
+    /// Read and decrypt `title` into the file at `path`.
+    ///
+    /// Ordinary cells are read straight through in large chunks. Interleaved
+    /// cells (seamless branching, multi-angle) hold several versions' VOBUs
+    /// woven together, so they're walked VOBU by VOBU, following each
+    /// navigation pack's next-VOBU pointer, which skips the other versions'
+    /// units — what a DVD player does. Reading them straight through would
+    /// put every version back to back in one file.
+    ///
     /// Unreadable sectors (scratches) are re-read one at a time and, if they
     /// still fail, written as zeros — ffmpeg resyncs at the next pack header — so
     /// a small scratch costs a glitch instead of the whole disc.
     func readDVDTitle(_ title: DVDTitle, from discStart: UInt32, to path: String,
-                              titleIndex: Int, totalTitles: Int) throws {
+                      titleIndex: Int, totalTitles: Int) throws {
+        let ranges = readRanges(of: title)
         let totalSectors = sectorCount(of: title)
         delegate?.mediaRipperDidUpdateStatus("Reading \(totalSectors) sectors for title \(title.number) via libdvdcss...")
 
@@ -216,69 +225,142 @@ extension MediaRipper {
         }
         defer { try? output.close() }
 
-        var sectorsDone: UInt32 = 0
         var skippedSectors = 0
-        for range in readRanges(of: title) {
-            var sectorOffset = range.lowerBound
-            while sectorOffset <= range.upperBound {
-                if shouldCancel { throw MediaRipperError.cancelled }
-
-                let sectorsToRead = Int(min(UInt32(1024), range.upperBound - sectorOffset + 1))
-                let startSector = discStart + sectorOffset
-
-                var data = (try? dvdDecryptor!.readAndDecryptSectors(
-                    startSector: startSector, sectorCount: sectorsToRead)) ?? Data()
-
-                // Every cell starts on a VOBU, which opens with an MPEG-PS pack
-                // header. Anything else means we're reading the wrong part of the
-                // disc: fail now rather than stage gigabytes of filesystem data and
-                // zeros as "the movie".
-                if sectorOffset == range.lowerBound, !Self.isMPEGPackHeader(data) {
-                    throw DVDError.notVideoData(sector: startSector)
-                }
-                let readSectors = data.count / DVDCSS_BLOCK_SIZE
-                if readSectors < sectorsToRead {
-                    // Failed or short read: recover the rest of the chunk sector by sector.
-                    data = data.prefix(readSectors * DVDCSS_BLOCK_SIZE)
-                    for sector in readSectors..<sectorsToRead {
-                        if shouldCancel { throw MediaRipperError.cancelled }
-                        let single = try? dvdDecryptor!.readAndDecryptSectors(
-                            startSector: startSector + UInt32(sector), sectorCount: 1)
-                        if let single = single, single.count == DVDCSS_BLOCK_SIZE {
-                            data.append(single)
-                        } else {
-                            skippedSectors += 1
-                            guard skippedSectors <= Self.maxSkippedSectorsPerTitle else {
-                                throw DVDError.invalidSector
-                            }
-                            data.append(Data(count: DVDCSS_BLOCK_SIZE))
-                        }
-                    }
-                }
-
-                try output.write(contentsOf: data)
-                sectorOffset += UInt32(sectorsToRead)
-                let previousDone = sectorsDone
-                sectorsDone += UInt32(sectorsToRead)
-
-                // Report disc-read progress every ~32MB (16384 sectors)
-                if sectorsDone / 16384 != previousDone / 16384 || sectorsDone >= totalSectors {
-                    let titleFraction = Double(sectorsDone) / Double(totalSectors)
-                    let overall = (Double(titleIndex) + titleFraction) / Double(max(totalTitles, 1))
-                    DispatchQueue.main.async {
-                        self.delegate?.mediaRipperDidUpdateProgress(
-                            overall, currentItem: .dvdTitle(title), totalItems: totalTitles)
-                    }
-                }
+        var rangesDone: UInt32 = 0      // sectors spanned by finished ranges
+        var lastReported: UInt32 = 0
+        func reportProgress(_ position: UInt32) {
+            let done = rangesDone + position
+            guard done / 16384 != lastReported / 16384 || done >= totalSectors else { return }
+            lastReported = done
+            let titleFraction = min(Double(done) / Double(max(totalSectors, 1)), 1)
+            let overall = (Double(titleIndex) + titleFraction) / Double(max(totalTitles, 1))
+            DispatchQueue.main.async {
+                self.delegate?.mediaRipperDidUpdateProgress(overall, currentItem: .dvdTitle(title),
+                                                            totalItems: totalTitles)
             }
         }
 
+        /// Copy `sectors` from `first` (VOBS-relative) to the output in chunks.
+        func copySectors(from first: UInt32, through last: UInt32, progressBase: UInt32) throws {
+            var offset = first
+            while offset <= last {
+                if shouldCancel { throw MediaRipperError.cancelled }
+                let count = Int(min(UInt32(1024), last - offset + 1))
+                let data = try readSectorsRecovering(at: discStart + offset, count: count,
+                                                     skipped: &skippedSectors)
+                try output.write(contentsOf: data)
+                offset += UInt32(count)
+                reportProgress(offset - progressBase)
+            }
+        }
+
+        var interleavedVOBUs = 0
+        for range in ranges {
+            // Every cell starts on a VOBU, which opens with an MPEG-PS pack
+            // header. Anything else means we're reading the wrong part of the
+            // disc: fail now rather than stage gigabytes of filesystem data and
+            // zeros as "the movie".
+            let head = try readSectorsRecovering(at: discStart + range.lowerBound, count: 1,
+                                                 skipped: &skippedSectors)
+            guard Self.isMPEGPackHeader(head) else {
+                throw DVDError.notVideoData(sector: discStart + range.lowerBound)
+            }
+
+            if title.interleavedRanges.contains(range) {
+                var vobu = range.lowerBound
+                var nav = head
+                while vobu <= range.upperBound {
+                    if shouldCancel { throw MediaRipperError.cancelled }
+                    guard let info = Self.vobuNavigation(navPack: nav) else {
+                        // Damaged or missing nav pack: no pointer to follow, so
+                        // read the rest of the cell as-is.
+                        Logger.shared.log("Title \(title.number): no VOBU navigation at sector \(vobu); "
+                                          + "reading the rest of the cell straight through",
+                                          level: .warning, category: .dvdRipping)
+                        try copySectors(from: vobu, through: range.upperBound, progressBase: range.lowerBound)
+                        break
+                    }
+                    let vobuLast = min(vobu &+ info.lastSectorOffset, range.upperBound)
+                    try output.write(contentsOf: nav)
+                    if vobuLast > vobu {
+                        try copySectors(from: vobu + 1, through: vobuLast, progressBase: range.lowerBound)
+                    }
+                    interleavedVOBUs += 1
+                    guard let step = info.nextVOBUOffset, step > 0 else { break }  // end of cell
+                    vobu += step
+                    if vobu <= range.upperBound {
+                        nav = try readSectorsRecovering(at: discStart + vobu, count: 1, skipped: &skippedSectors)
+                    }
+                }
+            } else {
+                try output.write(contentsOf: head)
+                if range.upperBound > range.lowerBound {
+                    try copySectors(from: range.lowerBound + 1, through: range.upperBound,
+                                    progressBase: range.lowerBound)
+                }
+            }
+            rangesDone += UInt32(range.count)
+            reportProgress(0)
+        }
+
+        if interleavedVOBUs > 0 {
+            Logger.shared.log("Title \(title.number): followed \(interleavedVOBUs) VOBUs through "
+                              + "\(title.interleavedRanges.count) interleaved cell(s)",
+                              level: .info, category: .dvdRipping)
+        }
         if skippedSectors > 0 {
             let message = "Title \(title.number): \(skippedSectors) unreadable sector(s) replaced with blanks "
                 + "(expect a brief glitch)."
             Logger.shared.log(message, level: .warning, category: .dvdRipping)
             delegate?.mediaRipperDidUpdateStatus(message)
         }
+    }
+
+    /// Read `count` sectors at absolute `start`; a failed or short read is
+    /// retried sector by sector, and sectors that still fail become zeros (up
+    /// to `maxSkippedSectorsPerTitle` in total).
+    private func readSectorsRecovering(at start: UInt32, count: Int, skipped: inout Int) throws -> Data {
+        var data = (try? dvdDecryptor!.readAndDecryptSectors(startSector: start, sectorCount: count)) ?? Data()
+        let readSectors = data.count / DVDCSS_BLOCK_SIZE
+        guard readSectors < count else { return data }
+        data = data.prefix(readSectors * DVDCSS_BLOCK_SIZE)
+        for sector in readSectors..<count {
+            if shouldCancel { throw MediaRipperError.cancelled }
+            let single = try? dvdDecryptor!.readAndDecryptSectors(startSector: start + UInt32(sector), sectorCount: 1)
+            if let single = single, single.count == DVDCSS_BLOCK_SIZE {
+                data.append(single)
+            } else {
+                skipped += 1
+                guard skipped <= Self.maxSkippedSectorsPerTitle else { throw DVDError.invalidSector }
+                data.append(Data(count: DVDCSS_BLOCK_SIZE))
+            }
+        }
+        return data
+    }
+
+    /// Navigation from a VOBU's nav pack (its first sector): the offset of the
+    /// VOBU's last sector, and the offset to the next VOBU of this program
+    /// (nil at the end of the cell). Offsets are relative to the nav pack.
+    /// Nil if the sector isn't a nav pack. Pure, for tests.
+    ///
+    /// Layout: PCI packet at 0x26, DSI packet at 0x400 with its data at 0x407.
+    /// DSI general info: VOBU_EA at +8. VOBU search info's NEXT_VOBU at +314
+    /// (after DSI_GI 32, SML_PBI 148, SML_AGLI 54, NEXT_VIDEO 4, FWDA 76 bytes);
+    /// its low 30 bits are the offset, 0x3FFFFFFF meaning end of cell.
+    static func vobuNavigation(navPack: Data) -> (lastSectorOffset: UInt32, nextVOBUOffset: UInt32?)? {
+        let base = navPack.startIndex
+        guard navPack.count >= DVDCSS_BLOCK_SIZE, isMPEGPackHeader(navPack) else { return nil }
+        let pci: [UInt8] = [0x00, 0x00, 0x01, 0xBF]
+        guard navPack[(base + 0x26)..<(base + 0x2A)].elementsEqual(pci), navPack[base + 0x2C] == 0x00,
+              navPack[(base + 0x400)..<(base + 0x404)].elementsEqual(pci), navPack[base + 0x406] == 0x01 else {
+            return nil
+        }
+        func u32(_ offset: Int) -> UInt32 {
+            (0..<4).reduce(UInt32(0)) { $0 << 8 | UInt32(navPack[base + offset + $1]) }
+        }
+        let dsi = 0x407
+        let next = u32(dsi + 314) & 0x3FFF_FFFF
+        return (u32(dsi + 8), next == 0x3FFF_FFFF ? nil : next)
     }
 
     /// ffmpeg arguments to encode a decrypted DVD title file. A MakeMKV-staged
@@ -289,9 +371,17 @@ extension MediaRipper {
                             labelLanguagesFromIFO: Bool = true) -> [String] {
         // Large probe window: audio/subtitle substreams in MPEG-PS appear
         // sporadically, and ffmpeg's default quick scan misses them entirely.
-        var args = ["-probesize", "200M", "-analyzeduration", "120M",
-                    "-i", input,
-                    "-map", "0:v:0", "-map", "0:a?"]
+        var args = ["-probesize", "200M", "-analyzeduration", "120M"]
+        // Seamless branching: where the program switches between interleaved
+        // versions, timestamps jump ~4 s (The Goonies: 13 jumps, 103 s). The
+        // content is continuous, so let ffmpeg's discontinuity correction
+        // (MPEG-PS, audio/video) close any jump over 1 s instead of its default
+        // 10 s. MakeMKV output is already continuous.
+        if labelLanguagesFromIFO && !title.interleavedRanges.isEmpty {
+            args.append(contentsOf: ["-dts_delta_threshold", "1"])
+        }
+        args.append(contentsOf: ["-i", input,
+                                 "-map", "0:v:0", "-map", "0:a?"])
         if configuration.includeSubtitles { args.append(contentsOf: ["-map", "0:s?"]) }
         args.append(contentsOf: videoEncoderArguments(for: configuration, ffmpegPath: ffmpegPath))
         if configuration.autoDeinterlace {

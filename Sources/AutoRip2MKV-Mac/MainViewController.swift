@@ -1005,9 +1005,8 @@ extension MainViewController: DriveDetectorDelegate {
             free key is also published on the forum, but it rotates every couple of \
             months, so you'll need to refresh it periodically.
 
-            After registering, re-insert the disc to rip it. (To rip DVDs \
-            without MakeMKV, turn off "Use MakeMKV for DVD and Blu-ray" in \
-            Settings; discs with seamless branching may then come out too long.)
+            After registering, re-insert the disc to rip it. (DVDs only use \
+            MakeMKV if "Also use MakeMKV for DVDs" is on in Settings.)
             """
         alert.alertStyle = .warning
         // Buy first so it's the highlighted default — we nudge toward supporting

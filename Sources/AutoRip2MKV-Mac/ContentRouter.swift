@@ -57,7 +57,8 @@ enum ContentRouter {
            classification.type != .unknown,
            classification.confidence >= autoRouteConfidenceThreshold {
             do {
-                let dest = try route(folderPath: folderPath, to: classification.type, settings: settings)
+                let dest = try route(folderPath: folderPath, to: classification.type,
+                                     discIdentity: discIdentity, settings: settings)
                 return "Auto-routed \(discName) to \(classification.type.displayName)s: \(dest)"
             } catch {
                 // Fall through to queueing so a misconfigured root doesn't lose the rip.
@@ -76,14 +77,23 @@ enum ContentRouter {
             + "confidence \(Int(classification.confidence * 100))%)."
     }
 
-    /// Atomically move `folderPath` into the configured root for `type`. Returns
-    /// the destination path. Follows the iCloud-staging rule: a single move so
-    /// syncing clients never see a half-copied folder.
+    /// Move `folderPath` into the configured root for `type`. Returns the
+    /// destination path. Library clients (Plex, the NAS indexer, Windows) never
+    /// see a half-copied file: a cross-volume move copies under a hidden name
+    /// and renames into place.
+    ///
+    /// A re-rip of the same disc (the library folder's recorded rip has the
+    /// same `discIdentity`) replaces that rip's files in place rather than
+    /// creating a "(2)" duplicate; anything else in the folder (artwork, NAS
+    /// thumbnails) is left alone. A different disc with the same folder name
+    /// still gets a " (2)" suffix.
     @discardableResult
     static func route(folderPath: String,
                       to type: ContentType,
+                      discIdentity: String? = nil,
                       settings: SettingsManager = .shared,
-                      fileManager: FileManager = .default) throws -> String {
+                      fileManager: FileManager = .default,
+                      history: RipHistoryStore = .shared) throws -> String {
         let root: String
         switch type {
         case .movie: root = settings.moviesRootDirectory
@@ -97,17 +107,22 @@ enum ContentRouter {
         let folderName = (folderPath as NSString).lastPathComponent
         var destination = (root as NSString).appendingPathComponent(folderName)
 
-        // If a folder of the same name already exists at the destination, suffix
-        // to avoid clobbering a prior rip.
-        if fileManager.fileExists(atPath: destination) {
-            destination = uniqueDestination(base: destination, fileManager: fileManager)
-        }
-
-        // Same-volume rename is atomic; cross-volume moveItem copies then removes
-        // (Foundation handles the fallback). Either way the source folder is
-        // fully formed before the move, so no partial state is exposed.
         do {
-            try fileManager.moveItem(atPath: folderPath, toPath: destination)
+            if fileManager.fileExists(atPath: destination) {
+                if let identity = discIdentity,
+                   let previous = history.entry(forIdentity: identity),
+                   standardized(previous.outputLocation) == standardized(destination) {
+                    try replaceFiles(from: folderPath, into: destination, fileManager: fileManager)
+                    recordMove(from: folderPath, to: destination)
+                    history.updateOutputLocation(from: folderPath, to: destination)
+                    return destination
+                }
+                // Someone else's folder of the same name: don't clobber it.
+                destination = uniqueDestination(base: destination, fileManager: fileManager)
+            }
+            try moveFolder(folderPath, to: destination, fileManager: fileManager)
+        } catch let error as RouteError {
+            throw error
         } catch {
             throw RouteError.moveFailed(error.localizedDescription)
         }
@@ -137,6 +152,71 @@ enum ContentRouter {
     static func finalLocation(forStagingPath path: String) -> String? {
         recentMovesLock.lock(); defer { recentMovesLock.unlock() }
         return recentMoves.removeValue(forKey: path)
+    }
+
+    private static func standardized(_ path: String) -> String {
+        ((path as NSString).standardizingPath as NSString).resolvingSymlinksInPath
+    }
+
+    private static func isSameVolume(_ a: String, _ b: String, fileManager: FileManager) -> Bool {
+        let device = { (path: String) in (try? fileManager.attributesOfItem(atPath: path))?[.systemNumber] as? Int }
+        guard let x = device(a), let y = device(b) else { return false }
+        return x == y
+    }
+
+    /// Rename when possible; across volumes, copy to a hidden sibling of the
+    /// destination, rename that into place, then remove the source.
+    private static func moveFolder(_ source: String, to destination: String, fileManager: FileManager) throws {
+        let parent = (destination as NSString).deletingLastPathComponent
+        if isSameVolume(source, parent, fileManager: fileManager) {
+            try fileManager.moveItem(atPath: source, toPath: destination)
+            return
+        }
+        let partial = (parent as NSString).appendingPathComponent(
+            ".\((destination as NSString).lastPathComponent).partial-\(UUID().uuidString.prefix(8))")
+        do {
+            try fileManager.copyItem(atPath: source, toPath: partial)
+            try fileManager.moveItem(atPath: partial, toPath: destination)
+        } catch {
+            try? fileManager.removeItem(atPath: partial)
+            throw error
+        }
+        try? fileManager.removeItem(atPath: source)
+    }
+
+    /// Re-rip of the same disc: put each of the new rip's files into the
+    /// existing library folder, replacing same-named ones. Each file lands via
+    /// a hidden temporary name and a rename; the old file is only removed once
+    /// the new one is fully copied.
+    private static func replaceFiles(from source: String, into destination: String,
+                                     fileManager: FileManager) throws {
+        let names = try fileManager.contentsOfDirectory(atPath: source).filter { $0 != ".DS_Store" }
+        for name in names {
+            let from = (source as NSString).appendingPathComponent(name)
+            let to = (destination as NSString).appendingPathComponent(name)
+            let partial = (destination as NSString).appendingPathComponent(
+                ".\(name).partial-\(UUID().uuidString.prefix(8))")
+            do {
+                try fileManager.copyItem(atPath: from, toPath: partial)
+                if fileManager.fileExists(atPath: to) {
+                    // replaceItemAt isn't supported on every network filesystem;
+                    // the new copy is complete, so swapping by hand is safe.
+                    do {
+                        _ = try fileManager.replaceItemAt(URL(fileURLWithPath: to),
+                                                          withItemAt: URL(fileURLWithPath: partial))
+                    } catch {
+                        try fileManager.removeItem(atPath: to)
+                        try fileManager.moveItem(atPath: partial, toPath: to)
+                    }
+                } else {
+                    try fileManager.moveItem(atPath: partial, toPath: to)
+                }
+            } catch {
+                try? fileManager.removeItem(atPath: partial)
+                throw error
+            }
+        }
+        try? fileManager.removeItem(atPath: source)
     }
 
     /// Append " (2)", " (3)", … until the path is free.
