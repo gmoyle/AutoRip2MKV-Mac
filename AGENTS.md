@@ -77,7 +77,7 @@ The `MediaRipper.detectMediaType(path:)` method checks for:
 
 ## Testing
 
-Tests are in `Tests/AutoRip2MKV-MacTests/`. Key test files:
+Tests are in `Tests/SpindleTests/`. Key test files:
 - `DVDDecryptorTests.swift` - Decryption unit tests
 - `UHDDetectionTests.swift` - 4K/UHD detection (35 tests)
 - `ResolutionAnalysisTests.swift` - Resolution parsing (30+ tests)

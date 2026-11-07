@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>AutoRip2MKV</string>
+    <string>Spindle</string>
     <key>CFBundleDisplayName</key>
-    <string>AutoRip2MKV</string>
+    <string>Spindle</string>
     <key>CFBundleIdentifier</key>
-    <string>com.autorip2mkv.mac</string>
+    <string>com.gmoyle.spindle</string>
     <key>CFBundleVersion</key>
     <string>2.1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -17,7 +17,7 @@
     <key>CFBundleSignature</key>
     <string>A2MV</string>
     <key>CFBundleExecutable</key>
-    <string>AutoRip2MKV-Mac</string>
+    <string>Spindle</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
@@ -54,24 +54,24 @@
         </dict>
     </array>
     <key>NSHumanReadableCopyright</key>
-    <string>© 2024 AutoRip2MKV. All rights reserved.</string>
+    <string>© 2026 Greg Moyle. All rights reserved.</string>
     <key>CFBundleGetInfoString</key>
-    <string>AutoRip2MKV 2.1.0, native DVD &amp; Blu-ray ripping for macOS</string>
+    <string>Spindle 2.1.0, disc-to-library importer for macOS</string>
     <key>CFBundleHelpBookFolder</key>
-    <string>AutoRip2MKV Help</string>
+    <string>Spindle Help</string>
     <key>CFBundleHelpBookName</key>
-    <string>AutoRip2MKV Help</string>
+    <string>Spindle Help</string>
     <key>LSRequiresIPhoneOS</key>
     <false/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
     <key>NSRemovableVolumesUsageDescription</key>
-    <string>AutoRip2MKV needs access to your optical disc to read and decrypt DVD and Blu-ray content.</string>
+    <string>Spindle needs access to your optical disc to read and decrypt DVD and Blu-ray content.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>AutoRip2MKV may save ripped files to your Desktop.</string>
+    <string>Spindle may save ripped files to your Desktop.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>AutoRip2MKV may save ripped files to your Documents folder.</string>
+    <string>Spindle may save ripped files to your Documents folder.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>AutoRip2MKV may save ripped files to your Downloads folder.</string>
+    <string>Spindle may save ripped files to your Downloads folder.</string>
 </dict>
 </plist>

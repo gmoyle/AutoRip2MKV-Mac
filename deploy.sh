@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build, sign, and deploy AutoRip2MKV-Mac to ~/Applications
+# Build, sign, and deploy Spindle to ~/Applications
 #
 # Usage: ./deploy.sh [--force]
 #   --force  deploy even if a rip (makemkvcon) is running. Deploying kills the
@@ -8,7 +8,9 @@
 
 set -e
 REPO="$(cd "$(dirname "$0")" && pwd)"
-APP="$HOME/Applications/AutoRip2MKV-Mac.app"
+APP="$HOME/Applications/Spindle.app"
+# The app was called AutoRip2MKV-Mac before v2.2; stop that too if it is running.
+PROCESSES="Spindle AutoRip2MKV-Mac"
 
 FORCE=0
 [ "$1" = "--force" ] && FORCE=1
@@ -34,14 +36,18 @@ fi
 echo "Stopping running instance and its child ffmpeg processes..."
 # Only the app's own encoders (-P <app pid>): a bare "pkill ffmpeg" would also
 # kill unrelated ffmpeg jobs running on this machine.
-for pid in $(pgrep -x AutoRip2MKV-Mac); do
-    pkill -x -P "$pid" ffmpeg 2>/dev/null || true
+for name in $PROCESSES; do
+    for pid in $(pgrep -x "$name"); do
+        pkill -x -P "$pid" ffmpeg 2>/dev/null || true
+    done
+    pkill -x "$name" 2>/dev/null || true
 done
-pkill -x AutoRip2MKV-Mac 2>/dev/null || true
 sleep 1
 
 echo "Deploying binary and Info.plist..."
-cp "$REPO/.build/release/AutoRip2MKV-Mac" "$APP/Contents/MacOS/AutoRip2MKV-Mac"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$REPO/.build/release/Spindle" "$APP/Contents/MacOS/Spindle"
+[ -f "$REPO/assets/AppIcon.icns" ] && cp "$REPO/assets/AppIcon.icns" "$APP/Contents/Resources/"
 cp "$REPO/Info.plist" "$APP/Contents/Info.plist"
 
 echo "Signing with entitlements..."
@@ -49,7 +55,7 @@ echo "Signing with entitlements..."
 # (removable-volume access) persist across rebuilds; ad-hoc signing (-)
 # resets the permission prompt on every deploy.
 codesign --force --deep --sign "Developer ID Application: Gregory Moyle (85XT8FWW2B)" \
-  --entitlements "$REPO/AutoRip2MKV.entitlements" \
+  --entitlements "$REPO/Spindle.entitlements" \
   "$APP"
 
 echo "Launching..."

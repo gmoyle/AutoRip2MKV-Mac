@@ -133,7 +133,7 @@
   <!-- Main title with subtle animation -->
   <text x="185" y="50" font-family="SF Pro Display, -apple-system, sans-serif" 
         font-size="32" font-weight="700" fill="url(#textGradient)">
-    AutoRip2MKV
+    Spindle
     <animate
       attributeName="opacity"
       values="1;0.8;1"

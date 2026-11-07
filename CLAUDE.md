@@ -2,7 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Native macOS (13+) DVD / Blu-ray / HD DVD auto-ripper written in Swift with programmatic AppKit
+Spindle: a native macOS (13+) disc-to-library importer (today DVD / Blu-ray / HD DVD; music CDs,
+TV episodes and photo discs are planned in `ROADMAP.md`), written in Swift with programmatic AppKit
 (no SwiftUI, no storyboards). Built with SwiftPM. `AGENTS.md` is an older version of this file;
 where they differ, this file is current.
 
@@ -15,7 +16,7 @@ swift test                       # all tests (some show UI dialogs; see Testing)
 swift test --filter UHDDetectionTests                  # one suite
 swift test --filter UHDDetectionTests/testSomeCase     # one test
 swiftlint lint
-./deploy.sh                      # release build → ~/Applications/AutoRip2MKV-Mac.app, codesign, launch
+./deploy.sh                      # release build → ~/Applications/Spindle.app, codesign, launch
 ```
 
 - **Use `deploy.sh` to run the app.** The `.xcodeproj` is stale/broken; don't use `xcodebuild`.
@@ -28,7 +29,7 @@ swiftlint lint
   and `/usr/local/opt` and links them via `unsafeFlags`.
 - Blu-ray ripping needs MakeMKV installed (`/Applications/MakeMKV.app`); `MakeMKVInstaller`
   can download and replace an expired build. FFmpeg is resolved bundled →
-  `~/Library/Application Support/AutoRip2MKV-Mac/ffmpeg` → Homebrew → `$PATH`, preferring a
+  `~/Library/Application Support/Spindle/ffmpeg` → Homebrew → `$PATH`, preferring a
   native arm64 build. Releases don't bundle FFmpeg; the app downloads an Intel build from
   evermeet.cx if none is found.
 - `.build` inside this iCloud-synced folder sometimes fails with "file was modified during the
@@ -95,7 +96,7 @@ swiftlint lint
 
 - **Encode to local staging, then move atomically.** The user's `~/Documents` (including default
   output folders, and this repo) is iCloud-synced and viewed from Windows. ffmpeg writes to
-  `~/Library/Caches/AutoRip2MKV/encoding/` (`encodingStagingPath`), and only finished files are
+  `~/Library/Caches/Spindle/encoding/` (`encodingStagingPath`), and only finished files are
   moved into place. Never write partial output into a synced directory.
 - **One process on the drive at a time.** UHD failures ("Failed to open disc", no output) come
   from drive contention (makemkvcon falls back to "OS access mode"), not from licensing. Never
@@ -111,6 +112,10 @@ swiftlint lint
 
 - Large types are split across `Type+Area.swift` extensions (`MainViewController+Delegates`,
   `+QueueTable`, `+FFmpeg`, `+Utilities`, `+OMDb`, `+Constraints`).
+- App name, bundle ID and data folders come from `AppIdentity` (Application Support and
+  Caches under `Spindle/`). The app was AutoRip2MKV until v2.2:
+  `AppIdentity.migrateFromLegacyNameIfNeeded()` runs first in `main.swift` and copies the old
+  `com.autorip2mkv.mac` defaults and moves `Application Support/AutoRip2MKV-Mac` once.
 - Singletons: `SettingsManager.shared` (UserDefaults), `Logger.shared`, `RipHistoryStore.shared`,
   `PendingRoutingQueue.shared`, `DriveDetector.shared`, `ScriptRunner.shared` (pre/post hooks).
 - Error enums conform to `LocalizedError` and implement `errorDescription`. Don't declare
@@ -130,7 +135,7 @@ swiftlint lint
 
 ## Testing
 
-Tests are in `Tests/AutoRip2MKV-MacTests/`. App code detects XCTest via the
+Tests are in `Tests/SpindleTests/`. App code detects XCTest via the
 `XCTestConfigurationFilePath` env var (`TestingUtilities`) to suppress modal dialogs and file
 panels, so new modal UI should go through those helpers or tests will hang.
 `SettingsTabPreferenceFramework.swift` is a harness for checking Settings-tab bindings.

@@ -45,19 +45,19 @@ let libaacsPath = getLibaacsPath()
 print("Using libaacs path: \(libaacsPath)")
 
 let package = Package(
-    name: "AutoRip2MKV-Mac",
+    name: "Spindle",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "AutoRip2MKV-Mac", targets: ["AutoRip2MKV-Mac"])
+        .executable(name: "Spindle", targets: ["Spindle"])
     ],
     dependencies: [
         // Using system-installed libraries via Homebrew
     ],
     targets: [
         .executableTarget(
-            name: "AutoRip2MKV-Mac",
+            name: "Spindle",
             dependencies: [],
             cSettings: [
                 .headerSearchPath("include"),
@@ -78,8 +78,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "AutoRip2MKV-MacTests",
-            dependencies: ["AutoRip2MKV-Mac"]
+            name: "SpindleTests",
+            dependencies: ["Spindle"]
         )
     ]
 )

@@ -5,6 +5,18 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ✨ Renamed to Spindle
+- **AutoRip2MKV is now Spindle**, as it grows from a DVD/Blu-ray ripper into a disc-to-library importer (music CDs, TV episodes and photo discs are planned; see `ROADMAP.md`).
+- The app, its bundle ID (`com.gmoyle.spindle`), data folder (`~/Library/Application Support/Spindle`), cache folder and DMG use the new name.
+- On first launch, settings, rip history, logs and a downloaded ffmpeg are moved over from AutoRip2MKV, so already-ripped discs are still recognized. macOS asks for disc access again, because the bundle ID changed.
+- Pre/post-processing scripts get `SPINDLE_*` environment variables instead of `AUTORIP_*`.
+
+### 🐛 Fixed
+- The log panel showed nothing: its text view had no width, and log lines had no colour, so they were invisible in Dark Mode.
+- The queue lists the newest job first.
+
 ## [2.1.0] - 2026-11-07
 
 ### 💿 DVD ripping rebuilt

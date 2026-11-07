@@ -73,11 +73,11 @@ jobs:
 
     - name: Assemble app bundle
       run: |
-        APP=AutoRip2MKV.app
+        APP=Spindle.app
         mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
         # Binary (arm64 only — runner is Apple Silicon, dylibs are arm64)
-        cp .build/release/AutoRip2MKV-Mac "$APP/Contents/MacOS/"
+        cp .build/release/Spindle "$APP/Contents/MacOS/"
 
         # Info.plist — substitute version from tag
         VERSION_NUMBER=${{ steps.version.outputs.VERSION_NUMBER }}
@@ -99,14 +99,14 @@ jobs:
           install_name_tool -id "@executable_path/../Frameworks/$NAME" "$DYLIB"
           install_name_tool -change "$OLD_ID" \
             "@executable_path/../Frameworks/$NAME" \
-            "$APP/Contents/MacOS/AutoRip2MKV-Mac" 2>/dev/null || true
+            "$APP/Contents/MacOS/Spindle" 2>/dev/null || true
         done
 
     - name: Sign app bundle
       env:
         SIGN_IDENTITY: "Developer ID Application: Gregory Moyle (85XT8FWW2B)"
       run: |
-        APP=AutoRip2MKV.app
+        APP=Spindle.app
         # Sign frameworks first, then the app
         for DYLIB in "$APP/Contents/Frameworks/"*.dylib; do
           codesign --force --sign "$SIGN_IDENTITY" \
@@ -115,7 +115,7 @@ jobs:
             "$DYLIB"
         done
         codesign --force --deep --sign "$SIGN_IDENTITY" \
-          --entitlements AutoRip2MKV.entitlements \
+          --entitlements Spindle.entitlements \
           --options runtime \
           --timestamp \
           "$APP"
@@ -125,12 +125,12 @@ jobs:
       run: |
         VERSION=${{ steps.version.outputs.VERSION }}
         mkdir dmg_stage
-        cp -R AutoRip2MKV.app dmg_stage/
+        cp -R Spindle.app dmg_stage/
         ln -s /Applications dmg_stage/Applications
-        hdiutil create -volname "AutoRip2MKV $VERSION" \
+        hdiutil create -volname "Spindle $VERSION" \
           -srcfolder dmg_stage \
           -ov -format UDZO \
-          "AutoRip2MKV-${VERSION}.dmg"
+          "Spindle-${VERSION}.dmg"
 
     - name: Notarize DMG
       env:
@@ -141,18 +141,18 @@ jobs:
         VERSION=${{ steps.version.outputs.VERSION }}
         # --timeout bounds the wait for Apple's notary verdict so a stalled
         # submission fails this step instead of hanging until the 6h job cap.
-        xcrun notarytool submit "AutoRip2MKV-${VERSION}.dmg" \
+        xcrun notarytool submit "Spindle-${VERSION}.dmg" \
           --apple-id "$APPLE_ID" \
           --team-id "$TEAM_ID" \
           --password "$APP_PASSWORD" \
           --wait \
           --timeout 30m
-        xcrun stapler staple "AutoRip2MKV-${VERSION}.dmg"
+        xcrun stapler staple "Spindle-${VERSION}.dmg"
 
     - name: Generate checksum
       run: |
         VERSION=${{ steps.version.outputs.VERSION }}
-        shasum -a 256 "AutoRip2MKV-${VERSION}.dmg" > checksums.txt
+        shasum -a 256 "Spindle-${VERSION}.dmg" > checksums.txt
         cat checksums.txt
 
     - name: Upload to release
@@ -160,7 +160,7 @@ jobs:
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
         files: |
-          AutoRip2MKV-${{ steps.version.outputs.VERSION }}.dmg
+          Spindle-${{ steps.version.outputs.VERSION }}.dmg
           checksums.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
-# AutoRip2MKV-Mac Assets
+# Spindle Assets
 
-This directory contains all the visual assets for the AutoRip2MKV-Mac project, including icons, logos, and branding materials.
+This directory contains all the visual assets for the Spindle project, including icons, logos, and branding materials.
 
 ## Files Overview
 
@@ -156,4 +156,4 @@ When building the application, icons are automatically integrated:
 
 ## License
 
-These assets are part of the AutoRip2MKV-Mac project and are licensed under the MIT License. See the main project LICENSE file for details.
+These assets are part of the Spindle project and are licensed under the MIT License. See the main project LICENSE file for details.

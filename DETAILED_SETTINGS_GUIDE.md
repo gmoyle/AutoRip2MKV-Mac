@@ -1,6 +1,6 @@
-# Settings Guide for AutoRip2MKV-Mac
+# Settings Guide for Spindle
 
-This guide covers every setting in AutoRip2MKV v2.1. Settings are saved as soon as
+This guide covers every setting in Spindle v2.1. Settings are saved as soon as
 you click **OK** and are stored in macOS user defaults.
 
 Open the Settings window with **Settings…** in the main window. It has three tabs:
@@ -92,13 +92,13 @@ Every audio track is kept, labeled with its language from the disc.
 | **Post-processing Script** | Run after each rip finishes |
 
 Scripts must be executable. The post-processing script gets the finished files as
-arguments. Both get `AUTORIP_HOOK`, `AUTORIP_JOB_ID`, `AUTORIP_MEDIA_TYPE`,
-`AUTORIP_SOURCE_PATH`, and `AUTORIP_OUTPUT_DIR` in their environment.
+arguments. Both get `SPINDLE_HOOK`, `SPINDLE_JOB_ID`, `SPINDLE_MEDIA_TYPE`,
+`SPINDLE_SOURCE_PATH`, and `SPINDLE_OUTPUT_DIR` in their environment.
 
 ## Tips
 
 - **Keep the output on local storage or a NAS, not an iCloud-synced folder.** Encoding
-  always happens in `~/Library/Caches/AutoRip2MKV/encoding/` and finished files are
+  always happens in `~/Library/Caches/Spindle/encoding/` and finished files are
   moved into place, but routing works best when the output isn't synced.
 - **Turn on hardware acceleration** for big libraries; leave it off for the smallest files.
 - **Install Homebrew's FFmpeg** (`brew install ffmpeg`) on Apple Silicon so hardware
