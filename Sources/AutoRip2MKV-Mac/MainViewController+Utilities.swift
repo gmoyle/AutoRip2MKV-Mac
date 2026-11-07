@@ -17,9 +17,17 @@ extension MainViewController {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let logMessage = "[\(timestamp)] \(message)\n"
 
-        logTextView.textStorage?.append(NSAttributedString(string: logMessage))
+        // An attributed string with no attributes draws black in a default font,
+        // which is invisible in Dark Mode. labelColor follows the appearance.
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Self.logFont,
+            .foregroundColor: NSColor.labelColor
+        ]
+        logTextView.textStorage?.append(NSAttributedString(string: logMessage, attributes: attributes))
         logTextView.scrollToEndOfDocument(self)
     }
+
+    static let logFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
     func showAlert(title: String, message: String) {
         testingUtils.showAlert(title: title, message: message) { [weak self] alertTitle, alertMessage in

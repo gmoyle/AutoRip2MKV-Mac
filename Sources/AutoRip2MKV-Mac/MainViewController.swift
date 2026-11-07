@@ -370,14 +370,20 @@ class MainViewController: NSViewController {
         view.addSubview(disclosureLabel)
         logDisclosureLabel = disclosureLabel
 
-        logTextView = NSTextView()
+        // A bare NSTextView() has a zero frame and doesn't resize with its scroll
+        // view, so its text container stays 0 wide and nothing is ever drawn.
+        // scrollableTextView() returns the pair already set up to track the width.
+        scrollView = NSTextView.scrollableTextView()
+        logTextView = scrollView.documentView as? NSTextView
         logTextView.isEditable = false
-        logTextView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        logTextView.isSelectable = true
+        logTextView.font = Self.logFont
+        logTextView.textColor = .labelColor
+        logTextView.drawsBackground = true
+        logTextView.backgroundColor = .textBackgroundColor
 
-        scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.documentView = logTextView
+        scrollView.borderType = .bezelBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.isHidden = false
         view.addSubview(scrollView)

@@ -151,8 +151,20 @@ extension MainViewController: MediaRipperDelegate {
 extension MainViewController: ConversionQueueDelegate {
 
     func queueDidUpdateJobs(_ jobs: [ConversionQueue.ConversionJob]) {
-        queueJobs = jobs
+        queueJobs = Self.newestFirst(jobs)
         queueTableView.reloadData()
+    }
+
+    /// The queue table lists the most recently added job first. Ties (jobs added
+    /// in the same instant) keep the queue's order, reversed.
+    static func newestFirst(_ jobs: [ConversionQueue.ConversionJob]) -> [ConversionQueue.ConversionJob] {
+        jobs.enumerated()
+            .sorted { lhs, rhs in
+                lhs.element.addedTime != rhs.element.addedTime
+                    ? lhs.element.addedTime > rhs.element.addedTime
+                    : lhs.offset > rhs.offset
+            }
+            .map(\.element)
     }
 
     func queueDidStartExtraction(jobId: UUID) {
