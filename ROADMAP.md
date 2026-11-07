@@ -4,16 +4,26 @@
 
 AutoRip2MKV-Mac aims to be the most comprehensive, user-friendly, and technically advanced DVD/Blu-ray ripping solution for macOS. This roadmap outlines planned features, enhancements, and long-term goals for the project.
 
-## 📊 **Current Status: v1.3.0**
+## 📊 **Current Status: v2.1.0**
 
-- ✅ **Core DVD/Blu-ray Ripping**: Production-ready decryption with libdvdcss & libaacs
-- ✅ **Advanced Settings System**: Comprehensive configuration options
-- ✅ **Queue-based Processing**: Efficient batch operations
-- ✅ **Professional UI**: Native macOS interface with extensive customization
-- ✅ **Bundled FFmpeg**: Self-contained binary eliminates downloads
-- ✅ **Open-Source Decryption**: Integrated libdvdcss (DVD) and libaacs (Blu-ray)
-- ✅ **AI-Generated Codebase**: 11,617 lines of 100% AI-written Swift code
-- ✅ **Production Ready**: No placeholder/scaffolding code remaining
+- ✅ **Hands-free ripping**: auto-rip on insert, auto-eject when the read finishes, skip discs already ripped
+- ✅ **Fast DVD pipeline**: full-speed disc reads to local staging, background encoding while the next disc reads
+- ✅ **DVD seamless branching**: multi-version discs rip as one clean title
+- ✅ **Blu-ray / UHD via MakeMKV**, with in-app install and update of expired builds
+- ✅ **Plex library routing**: movies and TV seasons sorted into separate library folders, with a review queue
+- ✅ **VideoToolbox hardware encoding** for H.264 / HEVC
+- ✅ **Open-Source Decryption**: libdvdcss (DVD) and libaacs (Blu-ray fallback)
+- ✅ **AI-Generated Codebase**: ~24,000 lines of 100% AI-written Swift (app and tests)
+
+---
+
+## ✅ **Completed in v2.0 – v2.1 (July – November 2026)**
+
+- ✅ Automatic Movies / TV Shows routing and the Review Rips queue (v2.0.0)
+- ✅ Central rip history keyed by disc fingerprint (v2.0.1)
+- ✅ Correct DVD read offsets, seamless branching, damaged-sector recovery (v2.1.0)
+- ✅ MakeMKV licensing detection and in-app update (v2.1.0)
+- ✅ Settings window trimmed to options that affect a rip (v2.1.0)
 
 ---
 

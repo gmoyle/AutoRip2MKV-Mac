@@ -26,8 +26,11 @@ swiftlint lint
   `--force` if the user says so.
 - Build needs Homebrew `libdvdcss` and `libaacs`; `Package.swift` searches `/opt/homebrew/opt`
   and `/usr/local/opt` and links them via `unsafeFlags`.
-- Blu-ray ripping needs MakeMKV installed (`/Applications/MakeMKV.app`); FFmpeg is resolved
-  bundled → `~/Library/Application Support/AutoRip2MKV-Mac/ffmpeg` → `$PATH`.
+- Blu-ray ripping needs MakeMKV installed (`/Applications/MakeMKV.app`); `MakeMKVInstaller`
+  can download and replace an expired build. FFmpeg is resolved bundled →
+  `~/Library/Application Support/AutoRip2MKV-Mac/ffmpeg` → Homebrew → `$PATH`, preferring a
+  native arm64 build. Releases don't bundle FFmpeg; the app downloads an Intel build from
+  evermeet.cx if none is found.
 - `.build` inside this iCloud-synced folder sometimes fails with "file was modified during the
   build". If that happens, pass `--scratch-path` pointing somewhere outside `~/Documents`.
 - `run_phase1_tests.sh` runs a subset of tests with a 60s watchdog.
@@ -67,6 +70,14 @@ swiftlint lint
      sectors are retried one at a time, then zero-filled, up to `maxSkippedSectorsPerTitle`.
      Each title then becomes a `PendingEncode`, and `mediaRipperDidComplete` fires once all
      titles are on local disk.
+     Reads start at the physical sector of the title's first VOB, not the IFO table's
+     offset, and cover only the title's cells (`DVDStructureParser.cellLayout`).
+     Interleaved cells (seamless branching, flag 0x04) are never merged: `readDVDTitle`
+     walks them VOBU by VOBU through each nav pack's DSI `NEXT_VOBU` pointer
+     (`vobuNavigation(navPack:)`), and `dvdEncodeArguments` adds `-dts_delta_threshold 1`
+     to close the timestamp jumps at branch points. With `useMakeMKVForDVD` (off by
+     default), `MediaRipper+DVDMakeMKV.swift` stages titles with makemkvcon instead.
+     Finished DVD encodes are routed through `MediaRipper.routeAfterEncodes`.
    - **Blu-ray / UHD**: `MakeMKVBackend` drives `makemkvcon -r` (robot mode; parses
      `PRGV`/`MSG`/`DRV`/`TINFO` lines) and writes MKVs directly, with no ffmpeg phase. The
      libaacs path (`BluRayDecryptor`, `performBluRayRipping`) is a fallback only.

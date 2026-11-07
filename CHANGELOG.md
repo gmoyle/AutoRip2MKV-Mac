@@ -5,6 +5,40 @@ All notable changes to AutoRip2MKV-Mac will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-07
+
+### 💿 DVD ripping rebuilt
+- **Discs read at full speed, encodes run in the background**: each DVD title is decrypted to a local staging file at full drive speed, the disc ejects, and encoding runs on its own queue while the next disc reads.
+- **Correct read position**: the reader now starts at the physical location of the title's first VOB. Previously, on discs whose video isn't near the start (The Goonies), it staged gigabytes of disc metadata and zeros. It reads only the title's own cells instead of the whole VOB set, and fails fast if the first sector isn't video.
+- **Seamless branching**: discs that store more than one version of the movie in interleaved cells (theatrical/extended cuts, The Goonies) used to rip both versions back to back. The reader now follows each nav pack's next-VOBU pointer, as DVD players do, and ffmpeg closes the timestamp jumps at branch points. On The Goonies this gives a gap-free 1:53:54 rip, byte-for-byte the same title as MakeMKV's, in about half the time.
+- **Damaged discs**: unreadable sectors are retried one at a time, then zero-filled, up to a per-title cap, instead of failing the rip.
+- **Optional MakeMKV for DVDs**: new setting **Also use MakeMKV for DVDs** (off by default). The built-in libdvdcss reader is the default because MakeMKV scans the whole disc first, which can take 15 minutes on a complex disc.
+
+### ✨ Added
+- **Rip bonus features** setting (off by default): off rips only the main movie; on also rips featurettes and extras.
+- **MakeMKV install and update from the app**: when MakeMKV's beta build has expired ("version is too old"), a dialog downloads and installs the current release from makemkv.com. Licensing problems are reported instead of the rip silently falling back, and queued rips show the registration dialog too.
+- **Hardware encoding**: VideoToolbox H.264/HEVC when hardware acceleration is on and the encode supports it.
+- **The Mac stays awake during a rip**: idle sleep cuts power to USB drives and broke reads in progress. Each job now holds a sleep assertion from disc read until its encodes finish.
+
+### 🐛 Fixed
+- **DVD rips weren't routed** into the Movies / TV Shows libraries; they now are, after their encodes finish, as Blu-ray rips already were.
+- **Re-ripping a disc no longer creates "Title (2)"**: a re-rip of the same disc replaces its files in the existing library folder and leaves other files there alone. Moves to another volume (a NAS) copy under a hidden name and then rename, so Plex never sees a partial file.
+- **Movies with two copies of the feature** (two cuts of the same length) are no longer classified as ambiguous TV content.
+- **Re-inserted discs ripped again**: the rip history recorded the disc under a different identity than the one computed on insert. Jobs now capture the disc identity when they're queued.
+- **Deleted rips are re-ripped**: if a recorded output folder no longer exists, the disc is ripped again. Folders on an unmounted drive or NAS still count as ripped.
+- **Discs awaiting a routing decision** in Review Rips are no longer ripped again, and **Accept All Guesses** now routes them.
+- **Corrupt video with closed captions** from the hardware encoder (grey smears, decoder errors): caption data is no longer passed to VideoToolbox.
+- **Encodes failed instantly with an Intel-only ffmpeg** under Rosetta. The app now prefers a native arm64 ffmpeg (including Homebrew's, which Finder-launched apps couldn't find) and uses the software encoder if only an Intel build is available.
+- **Ejecting**: never ejects a guessed or non-removable device; failures are reported once, after retries, so the next job can't start on a drive that's still in use.
+- **UHD detection**: UHD Blu-rays are detected by their index header, and ordinary DVDs are no longer labeled "Ultra HD DVD".
+- **Blu-ray rips from MakeMKV are recorded** in the rip history, so they're skipped on re-insert and post-processing scripts run.
+- **Directory Structure** (Flat / By Media Type / By Year / By Genre / Custom) now applies to rips.
+- The status line shows the live phase (Reading disc / Encoding / Cancelling).
+- **Manual release builds**: running the release workflow by hand now takes a tag.
+
+### 🧹 Changed
+- The Settings window has three tabs (Output & Routing, Encoding, Advanced). Controls that never affected a rip were removed; see `SETTINGS_AUDIT.md`.
+
 ## [2.0.1] - 2026-07-24
 
 ### 🐛 Fixed
